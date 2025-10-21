@@ -303,7 +303,7 @@ DeepSeek OCR CLI 是一个功能强大的命令行工具，用于处理各种文
 - 模型自动下载和管理（支持Hugging Face和ModelScope）
 - 智能模型文件过滤（默认只下载运行必需的文件）
 - 命令行界面，易于集成到自动化流程中
-- 完整的端到端测试覆盖
+- 完整的单元测试和端到端测试覆盖
 
 ## 项目结构
 
@@ -322,10 +322,14 @@ deepseek-ocr-cli/
 │   └── core/            # 核心OCR实现
 ├── tests/               # 测试文件
 │   ├── __init__.py
-│   ├── test_cli.py      # CLI模块单元测试
-│   ├── test_model_download.py  # 模型下载测试
-│   ├── test_model_filter.py  # 模型下载过滤测试
-│   └── test_e2e.py      # 端到端测试
+│   ├── conftest.py      # pytest配置文件
+│   ├── unit/            # 单元测试
+│   │   ├── test_cli_imports.py        # CLI模块导入测试
+│   │   ├── test_model_manager.py      # 模型管理器测试
+│   │   └── test_model_download_filter.py  # 模型下载过滤测试
+│   └── e2e/             # 端到端测试
+│       ├── test_model_availability.py     # 模型可用性测试
+│       └── test_document_processing.py    # 文档处理测试
 ├── dev/                 # 开发工具
 │   ├── detect_gpu.py    # GPU自动检测脚本
 │   ├── run.sh           # 运行脚本（自动检测GPU并安装依赖）
@@ -463,14 +467,15 @@ models/
 ./dev/test.sh
 
 # 或手动运行特定测试
-python3 -m pytest tests/test_cli.py -v        # CLI模块测试
-python3 -m pytest tests/test_model_download.py -v  # 模型下载测试
-python3 -m pytest tests/test_model_filter.py -v    # 模型过滤测试
-python3 -m pytest tests/test_e2e.py -v        # 端到端测试
+python3 -m pytest tests/unit/ -v          # 运行单元测试
+python3 -m pytest tests/e2e/ -v           # 运行端到端测试
+python3 -m pytest tests/ -v               # 运行所有测试
+
+# 运行特定测试文件
+python3 -m pytest tests/unit/test_cli_imports.py -v
+python3 -m pytest tests/e2e/test_document_processing.py -v
 ```
 
-端到端测试会验证以下功能：
-- PDF文件处理
-- 图像文件处理
-- 文档转换处理（Word、PPT等）
-- 默认模型 `deepseek-ai/DeepSeek-OCR` 的可用性
+测试套件包括：
+- **单元测试**：验证各个模块的基本功能
+- **端到端测试**：验证完整的文档处理流程
