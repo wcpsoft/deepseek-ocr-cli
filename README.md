@@ -74,14 +74,6 @@ DeepSeek-OCR-cli 是一个基于视觉编码器与大语言模型的光学字符
 
 ```
 DeepSeek-OCR/
-├── src/                   # 源代码目录
-│   ├── __init__.py
-│   └── core/              # 核心算法实现
-│       ├── __init__.py
-│       ├── config.py          # 配置文件
-│       ├── deepseek_ocr.py    # vLLM模型实现
-│       ├── vllm_process/      # vLLM处理模块
-│       └── vllm_deepencoder/  # vLLM编码器模块
 ├── cli/                   # 命令行工具
 │   ├── __init__.py
 │   ├── main.py            # 主入口
@@ -91,8 +83,19 @@ DeepSeek-OCR/
 │   ├── download_models.py # 模型下载
 │   ├── example_usage.py   # 使用示例
 │   └── test_cli.py        # CLI测试
+├── src/                   # 源代码目录
+│   ├── __init__.py
+│   └── core/              # 核心算法实现
+│       ├── __init__.py
+│       ├── config.py          # 配置文件
+│       ├── deepseek_ocr.py    # vLLM模型实现
+│       ├── vllm_process/      # vLLM处理模块
+│       └── vllm_deepencoder/  # vLLM编码器模块
 ├── tests/                 # 测试目录
 │   └── test_cli.py        # CLI测试脚本
+├── dev/                   # 开发工具
+│   ├── test.sh            # 测试脚本
+│   └── run.sh             # 运行脚本
 ├── README.md              # 项目说明与使用指南
 └── pyproject.toml         # 项目配置
 ```
@@ -182,6 +185,18 @@ deepseek-ocr document.docx -o output_dir --mode transformers
 deepseek-ocr image.jpg -o output_dir --prompt "<image>\nOCR this image."
 ```
 
+### 开发脚本
+
+项目提供了便捷的开发脚本：
+
+```bash
+# 运行测试
+./dev/test.sh
+
+# 快速处理文件
+./dev/run.sh input.pdf output_dir
+```
+
 ### 下载模型
 
 ```bash
@@ -253,6 +268,9 @@ python -m pytest tests/test_cli.py
 
 # 运行端到端测试（使用samples目录中的示例文件）
 python -m pytest tests/test_e2e.py
+
+# 使用开发脚本运行测试
+./dev/test.sh
 ```
 
 ## 许可证
