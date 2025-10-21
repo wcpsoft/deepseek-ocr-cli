@@ -101,9 +101,9 @@ DeepSeek-OCR/
 
 - Python 3.10 或更高版本
 - 支持多种硬件加速平台：
-  - NVIDIA GPU (CUDA 11.8 + PyTorch 2.6.0)
-  - AMD GPU (ROCm + PyTorch 2.6.0)
-  - Apple Silicon (MPS + PyTorch 2.6.0)
+  - NVIDIA GPU (CUDA 11.8 + PyTorch 2.4.1)
+  - AMD GPU (ROCm + PyTorch 2.4.1)
+  - Apple Silicon (MPS + PyTorch 2.4.1)
   - DCU (Direct Compute Unit)
 - 支持的操作系统：Linux、Windows、macOS
 
@@ -126,15 +126,15 @@ source .venv/bin/activate  # Linux/macOS
 # 或 .venv\Scripts\activate  # Windows
 
 # 安装基础依赖
-uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0
+uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1
 
 # 根据硬件平台安装相应的PyTorch版本：
 # NVIDIA GPU:
-# uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118
 # AMD GPU:
-# uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/rocm6.1
+# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1
 # Apple Silicon:
-# uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### 3. 安装项目依赖
@@ -250,6 +250,9 @@ python -m pytest tests/
 
 # 运行特定测试
 python -m pytest tests/test_cli.py
+
+# 运行端到端测试（使用samples目录中的示例文件）
+python -m pytest tests/test_e2e.py
 ```
 
 ## 许可证

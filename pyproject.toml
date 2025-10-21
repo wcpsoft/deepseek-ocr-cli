@@ -34,7 +34,7 @@ dependencies = [
     "addict",
     "Pillow",
     "numpy",
-    "torch>=2.6.0",
+    "torch>=2.4.1",
     "huggingface-hub>=0.20.0",
     "libreoffice>=7.0.0",
 ]
