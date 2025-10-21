@@ -42,18 +42,9 @@ GPU_TYPE=$(python3 dev/detect_gpu.py | grep "GPU_TYPE=" | cut -d'=' -f2)
 EXTRA_SUFFIX=$(python3 dev/detect_gpu.py | grep "EXTRA_SUFFIX=" | cut -d'=' -f2)
 
 echo "安装开发依赖..."
-if [ "$GPU_TYPE" = "nvidia" ]; then
-    echo "检测到NVIDIA GPU，安装CUDA版本的PyTorch..."
-    uv pip install -e .[dev,nvidia]
-elif [ "$GPU_TYPE" = "amd" ]; then
-    echo "检测到AMD GPU，安装ROCm版本的PyTorch..."
-    uv pip install -e .[dev,amd]
-elif [ "$GPU_TYPE" = "mps" ]; then
-    echo "检测到Apple Silicon，安装MPS版本的PyTorch..."
-    uv pip install -e .[dev,mps]
-elif [ "$GPU_TYPE" = "dcu" ]; then
-    echo "检测到DCU，安装DCU版本的PyTorch..."
-    uv pip install -e .[dev,dcu]
+if [ -n "$EXTRA_SUFFIX" ]; then
+    echo "检测到 $GPU_TYPE GPU，安装相应版本的PyTorch..."
+    uv pip install -e .[dev"$EXTRA_SUFFIX"]
 else
     echo "未检测到专用GPU，安装CPU版本的PyTorch..."
     uv pip install -e .[dev]
