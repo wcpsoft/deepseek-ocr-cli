@@ -18,7 +18,10 @@ class ModelManager:
         
         # 默认模型信息
         self.default_models = {
-            "deepseek-ocr": "deepseek-ai/DeepSeek-OCR"
+            "deepseek-ocr": {
+                "repo_id": "deepseek-ai/DeepSeek-OCR",
+                "source": "huggingface"
+            }
         }
         
         # 模型配置文件路径
@@ -56,28 +59,36 @@ class ModelManager:
     
     def download_models(self, model_names: Optional[List[str]] = None, force_redownload: bool = False):
         """下载指定的模型或所有默认模型"""
-        try:
-            from huggingface_hub import snapshot_download
-        except ImportError:
-            raise RuntimeError("huggingface_hub 包未安装，请先安装: pip install huggingface_hub")
-        
         if model_names is None:
             model_names = list(self.default_models.keys())
         
         for model_name in model_names:
             if model_name in self.default_models:
-                self._download_model(model_name, self.default_models[model_name], force_redownload)
+                model_info = self.default_models[model_name]
+                if isinstance(model_info, dict):
+                    repo_id = model_info["repo_id"]
+                    source = model_info.get("source", "huggingface")
+                else:
+                    repo_id = model_info
+                    source = "huggingface"
+                self._download_model(model_name, repo_id, source, force_redownload)
             else:
                 # 检查是否是自定义模型
                 if model_name in self.model_configs.get("custom_models", {}):
-                    repo_id = self.model_configs["custom_models"][model_name]
-                    self._download_model(model_name, repo_id, force_redownload)
+                    model_info = self.model_configs["custom_models"][model_name]
+                    if isinstance(model_info, dict):
+                        repo_id = model_info["repo_id"]
+                        source = model_info.get("source", "huggingface")
+                    else:
+                        repo_id = model_info
+                        source = "huggingface"
+                    self._download_model(model_name, repo_id, source, force_redownload)
                 else:
                     print(f"未知模型: {model_name}")
     
-    def _download_model(self, model_name: str, repo_id: str, force_redownload: bool = False):
+    def _download_model(self, model_name: str, repo_id: str, source: str = "huggingface", force_redownload: bool = False):
         """下载单个模型"""
-        print(f"正在下载模型 {model_name} ({repo_id})...")
+        print(f"正在从 {source} 下载模型 {model_name} ({repo_id})...")
         
         model_path = self.model_dir / model_name
         
@@ -92,13 +103,15 @@ class ModelManager:
                 print(f"删除已存在的模型目录: {model_path}")
                 shutil.rmtree(model_path)
             
-            # 使用huggingface_hub下载模型
-            from huggingface_hub import snapshot_download
-            snapshot_download(
-                repo_id=repo_id,
-                local_dir=str(model_path),
-                local_dir_use_symlinks=False
-            )
+            # 根据来源下载模型
+            if source == "huggingface":
+                self._download_from_huggingface(repo_id, model_path)
+            elif source == "modelscope":
+                self._download_from_modelscope(repo_id, model_path)
+            else:
+                print(f"不支持的模型来源: {source}")
+                return
+            
             print(f"模型 {model_name} 下载完成，保存至: {model_path}")
             
             # 更新模型配置
@@ -107,6 +120,7 @@ class ModelManager:
             
             self.model_configs["downloaded_models"][model_name] = {
                 "repo_id": repo_id,
+                "source": source,
                 "path": str(model_path),
                 "downloaded_at": __import__('datetime').datetime.now().isoformat()
             }
@@ -115,14 +129,40 @@ class ModelManager:
         except Exception as e:
             print(f"模型 {model_name} 下载失败: {str(e)}")
     
-    def add_custom_model(self, model_name: str, repo_id: str):
+    def _download_from_huggingface(self, repo_id: str, model_path: Path):
+        """从Hugging Face下载模型"""
+        try:
+            from huggingface_hub import snapshot_download
+            snapshot_download(
+                repo_id=repo_id,
+                local_dir=str(model_path),
+                local_dir_use_symlinks=False
+            )
+        except ImportError:
+            raise RuntimeError("huggingface_hub 包未安装，请先安装: pip install huggingface_hub")
+    
+    def _download_from_modelscope(self, model_id: str, model_path: Path):
+        """从ModelScope下载模型"""
+        try:
+            from modelscope import snapshot_download as ms_snapshot_download
+            ms_snapshot_download(
+                model_id=model_id,
+                local_dir=str(model_path)
+            )
+        except ImportError:
+            raise RuntimeError("modelscope 包未安装，请先安装: pip install modelscope")
+    
+    def add_custom_model(self, model_name: str, repo_id: str, source: str = "huggingface"):
         """添加自定义模型"""
         if "custom_models" not in self.model_configs:
             self.model_configs["custom_models"] = {}
         
-        self.model_configs["custom_models"][model_name] = repo_id
+        self.model_configs["custom_models"][model_name] = {
+            "repo_id": repo_id,
+            "source": source
+        }
         self._save_model_configs()
-        print(f"已添加自定义模型: {model_name} -> {repo_id}")
+        print(f"已添加自定义模型: {model_name} -> {repo_id} (来源: {source})")
     
     def remove_custom_model(self, model_name: str):
         """移除自定义模型"""
@@ -141,7 +181,7 @@ class ModelManager:
                 models.append(item.name)
         return models
     
-    def list_custom_models(self) -> Dict[str, str]:
+    def list_custom_models(self) -> Dict[str, Dict[str, str]]:
         """列出自定义模型"""
         return self.model_configs.get("custom_models", {})
     

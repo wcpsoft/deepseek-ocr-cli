@@ -20,8 +20,9 @@ def main():
     parser.add_argument("-d", "--dir", default="./models", help="模型存储目录 (默认: ./models)")
     parser.add_argument("-m", "--model", nargs="+", help="要下载的模型名称 (默认下载所有模型)")
     parser.add_argument("-f", "--force", action="store_true", help="强制重新下载已存在的模型")
-    parser.add_argument("--add-custom", nargs=2, metavar=("NAME", "REPO_ID"), help="添加自定义模型")
-    parser.add_argument("--list-custom", action="store_true", help="列出所有自定义模型")
+    parser.add_argument("--add-custom", nargs=3, metavar=("NAME", "REPO_ID", "SOURCE"), 
+                       help="添加自定义模型 (名称 仓库ID 来源[huggingface|modelscope])")
+    parser.add_argument("--list-custom", action="store_true", help="列出自定义模型")
     parser.add_argument("--list-downloaded", action="store_true", help="列出已下载的模型")
     
     args = parser.parse_args()
@@ -34,8 +35,11 @@ def main():
     
     # 处理自定义模型添加
     if args.add_custom:
-        model_name, repo_id = args.add_custom
-        model_manager.add_custom_model(model_name, repo_id)
+        model_name, repo_id, source = args.add_custom
+        if source not in ["huggingface", "modelscope"]:
+            print(f"错误: 不支持的模型来源 '{source}'，仅支持 'huggingface' 或 'modelscope'")
+            sys.exit(1)
+        model_manager.add_custom_model(model_name, repo_id, source)
         return
     
     # 列出自定义模型
@@ -43,8 +47,13 @@ def main():
         custom_models = model_manager.list_custom_models()
         if custom_models:
             print("\n自定义模型:")
-            for name, repo_id in custom_models.items():
-                print(f"  {name}: {repo_id}")
+            for name, info in custom_models.items():
+                if isinstance(info, dict):
+                    repo_id = info.get("repo_id", "N/A")
+                    source = info.get("source", "huggingface")
+                    print(f"  {name}: {repo_id} (来源: {source})")
+                else:
+                    print(f"  {name}: {info} (来源: huggingface)")
         else:
             print("\n暂无自定义模型")
         return
@@ -59,7 +68,12 @@ def main():
                 # 显示模型详细信息
                 info = model_manager.get_model_info(model)
                 if info:
-                    print(f"    路径: {info.get('path', 'N/A')}")
+                    repo_id = info.get('repo_id', 'N/A')
+                    source = info.get('source', 'N/A')
+                    path = info.get('path', 'N/A')
+                    print(f"    仓库ID: {repo_id}")
+                    print(f"    来源: {source}")
+                    print(f"    路径: {path}")
         else:
             print(f"\n在 {model_manager.get_model_dir()} 目录中暂无已下载的模型")
         return

@@ -52,6 +52,9 @@ dev = [
     "black>=22.0.0",
     "flake8>=4.0.0",
 ]
+modelscope = [
+    "modelscope>=1.10.0",
+]
 # GPU特定依赖
 nvidia = [
     "torch==2.4.1+cu118",

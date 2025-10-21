@@ -300,7 +300,7 @@ DeepSeek OCR CLI 是一个功能强大的命令行工具，用于处理各种文
 - 双推理引擎支持：Transformers和vLLM
 - 多平台硬件加速：NVIDIA、AMD、Apple Silicon、DCU
 - 自动GPU检测和依赖安装
-- 模型自动下载和管理
+- 模型自动下载和管理（支持Hugging Face和ModelScope）
 - 命令行界面，易于集成到自动化流程中
 
 ## 项目结构
@@ -378,6 +378,9 @@ uv pip install -e .[mps]
 uv pip install -e .[dcu]
 # CPU only:
 uv pip install -e .
+
+# 如果需要从ModelScope下载模型，安装额外依赖：
+uv pip install -e .[modelscope]
 ```
 
 ### GPU特定依赖说明
@@ -388,6 +391,7 @@ uv pip install -e .
 - `[amd]`: AMD GPU (ROCm 6.1)
 - `[mps]`: Apple Silicon (MPS)
 - `[dcu]`: DCU (Direct Compute Unit)
+- `[modelscope]`: ModelScope支持
 
 ## 模型管理
 
@@ -406,8 +410,9 @@ deepseek-ocr-download -m deepseek-ocr
 # 强制重新下载
 deepseek-ocr-download -f
 
-# 添加自定义模型
-deepseek-ocr-download --add-custom my-model my-hf-username/my-model-repo
+# 添加自定义模型（支持Hugging Face和ModelScope）
+deepseek-ocr-download --add-custom my-model my-hf-username/my-model-repo huggingface
+deepseek-ocr-download --add-custom my-ms-model my-ms-model-id modelscope
 
 # 列出自定义模型
 deepseek-ocr-download --list-custom
