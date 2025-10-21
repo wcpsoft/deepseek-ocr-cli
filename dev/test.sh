@@ -54,6 +54,10 @@ fi
 echo "运行单元测试..."
 python3 -m pytest tests/test_cli.py -v
 
+# 运行模型下载测试
+echo "运行模型下载测试..."
+python3 -m pytest tests/test_model_download.py -v
+
 # 运行端到端测试
 echo "运行端到端测试..."
 python3 -m pytest tests/test_e2e.py -v

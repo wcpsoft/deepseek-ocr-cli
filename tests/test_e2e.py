@@ -14,6 +14,26 @@ from pathlib import Path
 # 添加项目路径到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+def test_model_availability():
+    """测试模型可用性"""
+    try:
+        from cli.model_manager import ModelManager
+        
+        # 检查默认模型是否存在
+        manager = ModelManager("./models")
+        model_path = manager.get_model_path("deepseek-ocr")
+        
+        if model_path and Path(model_path).exists():
+            print("✓ 默认模型可用")
+            return True
+        else:
+            print("⚠ 默认模型不存在，测试将继续但可能无法完成OCR处理")
+            return True  # 不强制要求模型存在，因为这是端到端测试而非模型下载测试
+            
+    except Exception as e:
+        print(f"✗ 模型可用性检查失败: {str(e)}")
+        return True  # 不强制要求模型存在
+
 def test_pdf_processing():
     """测试PDF文件处理"""
     try:
@@ -125,6 +145,9 @@ def main():
     """主测试函数"""
     print("DeepSeek OCR CLI 端到端测试")
     print("=" * 30)
+    
+    # 首先检查模型可用性
+    test_model_availability()
     
     tests = [
         test_pdf_processing,

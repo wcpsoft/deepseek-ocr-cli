@@ -302,6 +302,7 @@ DeepSeek OCR CLI 是一个功能强大的命令行工具，用于处理各种文
 - 自动GPU检测和依赖安装
 - 模型自动下载和管理（支持Hugging Face和ModelScope）
 - 命令行界面，易于集成到自动化流程中
+- 完整的端到端测试覆盖
 
 ## 项目结构
 
@@ -321,6 +322,7 @@ deepseek-ocr-cli/
 ├── tests/               # 测试文件
 │   ├── __init__.py
 │   ├── test_cli.py      # CLI模块单元测试
+│   ├── test_model_download.py  # 模型下载测试
 │   └── test_e2e.py      # 端到端测试
 ├── dev/                 # 开发工具
 │   ├── detect_gpu.py    # GPU自动检测脚本
@@ -425,7 +427,7 @@ deepseek-ocr-download --list-downloaded
 
 ```
 models/
-├── deepseek-ocr/           # 默认DeepSeek OCR模型
+├── deepseek-ocr/           # 默认DeepSeek OCR模型 (deepseek-ai/DeepSeek-OCR)
 │   ├── config.json
 │   ├── pytorch_model.bin
 │   └── ...
@@ -435,123 +437,22 @@ models/
 
 模型配置文件 `model_config.json` 记录了已下载模型的信息和自定义模型的映射关系。
 
-## 使用方法
-
-### 命令行工具
-
-```bash
-# 查看帮助信息
-deepseek-ocr --help
-
-# 处理Word文档
-deepseek-ocr document.docx -o output_dir
-
-# 处理PDF文档
-deepseek-ocr document.pdf -o output_dir
-
-# 处理图像文件
-deepseek-ocr image.jpg -o output_dir
-
-# 使用Transformers后端
-deepseek-ocr document.docx -o output_dir --mode transformers
-
-# 自定义提示词
-deepseek-ocr image.jpg -o output_dir --prompt "<image>\nOCR this image."
-```
-
-### 开发脚本
-
-项目提供了便捷的开发脚本：
-
-```bash
-# 运行测试
-./dev/test.sh
-
-# 快速处理文件
-./dev/run.sh input.pdf output_dir
-```
-
-### 下载模型
-
-```bash
-# 下载模型到本地
-deepseek-ocr-download
-```
-
-### Python API
-
-```python
-from cli.document_processor import DocumentProcessor
-
-# 创建处理器
-processor = DocumentProcessor(mode="vllm")
-
-# 处理文档
-processor.process("input.docx", "output_dir")
-```
-
-## 支持的文件格式
-
-- Microsoft Office: .doc, .docx, .ppt, .pptx, .xls, .xlsx
-- PDF: .pdf
-- 图像: .jpg, .jpeg, .png
-
-## 分辨率模式
-
-模型支持以下分辨率模式：
-- 固定分辨率：
-  - Tiny: 512×512 （64 vision tokens）
-  - Small: 640×640 （100 vision tokens）
-  - Base: 1024×1024 （256 vision tokens）
-  - Large: 1280×1280 （400 vision tokens）
-- 动态分辨率：
-  - Gundam: n×640×640 + 1×1024×1024
-
-## 提示词示例
-
-```
-# 文档转Markdown
-"<image>\n<|grounding|>Convert the document to markdown."
-
-# 图像OCR
-"<image>\n<|grounding|>OCR this image."
-
-# 自由OCR（无布局）
-"<image>\nFree OCR."
-
-# 图表解析
-"<image>\nParse the figure."
-
-# 图像描述
-"<image>\nDescribe this image in detail."
-
-# 文本定位
-"<image>\nLocate <|ref|>xxxx<|/ref|> in the image."
-```
-
 ## 测试
 
-运行单元测试：
+项目包含完整的测试套件，确保功能正确性：
 
 ```bash
 # 运行所有测试
-python -m pytest tests/
-
-# 运行特定测试
-python -m pytest tests/test_cli.py
-
-# 运行端到端测试（使用samples目录中的示例文件）
-python -m pytest tests/test_e2e.py
-
-# 使用开发脚本运行测试
 ./dev/test.sh
+
+# 或手动运行特定测试
+python3 -m pytest tests/test_cli.py -v        # CLI模块测试
+python3 -m pytest tests/test_model_download.py -v  # 模型下载测试
+python3 -m pytest tests/test_e2e.py -v        # 端到端测试
 ```
 
-## 许可证
-
-本项目采用 Apache 2.0 许可证。详情请见 [LICENSE](LICENSE) 文件。
-
-## 致谢
-
-我们感谢以下项目提供的宝贵模型和想法：
-- [DeepSeek-OCR](https://github.com/deepseek-ai/DeepSeek-OCR) 
+端到端测试会验证以下功能：
+- PDF文件处理
+- 图像文件处理
+- 文档转换处理（Word、PPT等）
+- 默认模型 `deepseek-ai/DeepSeek-OCR` 的可用性

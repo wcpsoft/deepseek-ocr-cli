@@ -50,6 +50,15 @@ else
     uv pip install -e .
 fi
 
+# 检查模型是否存在，如果不存在则下载默认模型
+echo "检查模型..."
+if [ ! -d "models/deepseek-ocr" ]; then
+    echo "默认模型不存在，正在下载..."
+    python3 -m cli.download_models -m deepseek-ocr
+else
+    echo "默认模型已存在"
+fi
+
 # 检查是否提供了输入文件
 if [ $# -eq 0 ]; then
     echo "使用方法: ./dev/run.sh <输入文件> [输出目录]"
