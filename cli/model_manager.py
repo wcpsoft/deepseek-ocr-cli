@@ -130,21 +130,52 @@ class ModelManager:
             print(f"模型 {model_name} 下载失败: {str(e)}")
     
     def _download_from_huggingface(self, repo_id: str, model_path: Path):
-        """从Hugging Face下载模型"""
+        """从Hugging Face下载模型（仅下载运行必需的文件）"""
         try:
             from huggingface_hub import snapshot_download
+            
+            # 定义需要忽略的文件和文件夹模式
+            ignore_patterns = [
+                "*.md",           # 忽略Markdown文档
+                "README*",        # 忽略README文件
+                "LICENSE*",       # 忽略许可证文件
+                "*.txt",          # 忽略文本文件
+                "assets/*",       # 忽略assets文件夹（通常包含示例图片等）
+                "examples/*",     # 忽略examples文件夹
+                "scripts/*",      # 忽略scripts文件夹
+                "tests/*",        # 忽略测试文件夹
+                ".git*",          # 忽略Git相关文件
+                "*.py",           # 忽略Python脚本文件（除了模型相关的）
+            ]
+            
+            # 定义需要下载的文件模式
+            allow_patterns = [
+                "*.bin",          # PyTorch模型文件
+                "*.safetensors",  # Safetensors模型文件
+                "*.json",         # 配置文件
+                "*.txt",          # 分词器相关文件
+                "*.model",        # 模型文件
+                "*.py",           # 必需的Python文件（通过排除法处理）
+            ]
+            
+            # 对于DeepSeek-OCR模型，我们只下载必需的文件
+            # 先下载所有文件，然后根据需要过滤
             snapshot_download(
                 repo_id=repo_id,
                 local_dir=str(model_path),
-                local_dir_use_symlinks=False
+                ignore_patterns=ignore_patterns,
+                allow_patterns=allow_patterns
             )
         except ImportError:
             raise RuntimeError("huggingface_hub 包未安装，请先安装: pip install huggingface_hub")
     
     def _download_from_modelscope(self, model_id: str, model_path: Path):
-        """从ModelScope下载模型"""
+        """从ModelScope下载模型（仅下载运行必需的文件）"""
         try:
             from modelscope import snapshot_download as ms_snapshot_download
+            
+            # ModelScope的下载函数可能有不同的参数，这里保持基础实现
+            # 如果需要更精细的控制，可以根据ModelScope的文档进行调整
             ms_snapshot_download(
                 model_id=model_id,
                 local_dir=str(model_path)

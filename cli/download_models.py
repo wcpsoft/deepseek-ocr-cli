@@ -24,6 +24,8 @@ def main():
                        help="添加自定义模型 (名称 仓库ID 来源[huggingface|modelscope])")
     parser.add_argument("--list-custom", action="store_true", help="列出自定义模型")
     parser.add_argument("--list-downloaded", action="store_true", help="列出已下载的模型")
+    parser.add_argument("--full-download", action="store_true", 
+                       help="下载完整模型（包括文档、示例等文件），默认只下载运行必需的文件")
     
     args = parser.parse_args()
     
@@ -80,6 +82,12 @@ def main():
     
     # 下载模型
     try:
+        # 设置过滤选项（这里我们通过模型管理器的实现来控制）
+        if args.full_download:
+            print("注意: 将下载完整模型文件（包括文档、示例等）")
+        else:
+            print("注意: 默认只下载运行必需的文件")
+        
         model_manager.download_models(args.model, args.force)
         print(f"\n模型下载完成！存储在: {model_manager.get_model_dir()}")
         

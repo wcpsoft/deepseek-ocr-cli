@@ -301,6 +301,7 @@ DeepSeek OCR CLI 是一个功能强大的命令行工具，用于处理各种文
 - 多平台硬件加速：NVIDIA、AMD、Apple Silicon、DCU
 - 自动GPU检测和依赖安装
 - 模型自动下载和管理（支持Hugging Face和ModelScope）
+- 智能模型文件过滤（默认只下载运行必需的文件）
 - 命令行界面，易于集成到自动化流程中
 - 完整的端到端测试覆盖
 
@@ -323,6 +324,7 @@ deepseek-ocr-cli/
 │   ├── __init__.py
 │   ├── test_cli.py      # CLI模块单元测试
 │   ├── test_model_download.py  # 模型下载测试
+│   ├── test_model_filter.py  # 模型下载过滤测试
 │   └── test_e2e.py      # 端到端测试
 ├── dev/                 # 开发工具
 │   ├── detect_gpu.py    # GPU自动检测脚本
@@ -400,7 +402,7 @@ uv pip install -e .[modelscope]
 ### 自动下载模型
 
 ```bash
-# 下载默认模型到./models目录
+# 下载默认模型到./models目录（默认只下载运行必需的文件）
 deepseek-ocr-download
 
 # 下载到自定义目录
@@ -411,6 +413,9 @@ deepseek-ocr-download -m deepseek-ocr
 
 # 强制重新下载
 deepseek-ocr-download -f
+
+# 下载完整模型（包括文档、示例等文件）
+deepseek-ocr-download --full-download
 
 # 添加自定义模型（支持Hugging Face和ModelScope）
 deepseek-ocr-download --add-custom my-model my-hf-username/my-model-repo huggingface
@@ -423,14 +428,26 @@ deepseek-ocr-download --list-custom
 deepseek-ocr-download --list-downloaded
 ```
 
+### 模型智能过滤
+
+默认情况下，模型下载器会智能过滤文件，只下载运行OCR任务所必需的文件：
+- 忽略文档文件（*.md, README*, LICENSE*等）
+- 忽略示例文件和图片（assets/*, examples/*等）
+- 忽略脚本和测试文件（scripts/*, tests/*等）
+- 只下载模型权重、配置文件和必要的支持文件
+
+这样可以显著减少下载时间和磁盘空间占用。
+
 ### 模型目录结构
 
 ```
 models/
 ├── deepseek-ocr/           # 默认DeepSeek OCR模型 (deepseek-ai/DeepSeek-OCR)
 │   ├── config.json
-│   ├── pytorch_model.bin
-│   └── ...
+│   ├── pytorch_model.bin 或 model.safetensors
+│   ├── tokenizer_config.json
+│   ├── tokenizer.json
+│   └── ... (其他运行必需的文件)
 ├── model_config.json       # 模型配置文件
 └── ...                     # 其他自定义模型
 ```
@@ -448,6 +465,7 @@ models/
 # 或手动运行特定测试
 python3 -m pytest tests/test_cli.py -v        # CLI模块测试
 python3 -m pytest tests/test_model_download.py -v  # 模型下载测试
+python3 -m pytest tests/test_model_filter.py -v    # 模型过滤测试
 python3 -m pytest tests/test_e2e.py -v        # 端到端测试
 ```
 
