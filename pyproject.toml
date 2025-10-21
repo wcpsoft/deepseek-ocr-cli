@@ -56,6 +56,7 @@ dev = [
 [project.scripts]
 deepseek-ocr = "cli.main:main"
 deepseek-ocr-download = "cli.download_models:main"
+deepseek-ocr-detect-gpu = "dev.detect_gpu:main"
 
 [project.urls]
 Homepage = "https://github.com/wcpsoft/deepseek-ocr-cli"
