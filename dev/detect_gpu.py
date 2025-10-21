@@ -117,15 +117,15 @@ def get_gpu_type():
 def get_pytorch_install_cmd(gpu_type):
     """根据GPU类型获取PyTorch安装命令"""
     if gpu_type == "nvidia":
-        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118"
+        return "uv pip install -e .[nvidia]"
     elif gpu_type == "amd":
-        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1"
+        return "uv pip install -e .[amd]"
     elif gpu_type == "mps":
-        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu"
+        return "uv pip install -e .[mps]"
     elif gpu_type == "dcu":
-        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu"
+        return "uv pip install -e .[dcu]"
     else:
-        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu"
+        return "uv pip install -e ."
 
 
 def get_extra_require_suffix(gpu_type):
