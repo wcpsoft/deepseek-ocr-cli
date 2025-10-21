@@ -326,7 +326,11 @@ deepseek-ocr-cli/
 │   ├── unit/            # 单元测试
 │   │   ├── test_cli_imports.py        # CLI模块导入测试
 │   │   ├── test_model_manager.py      # 模型管理器测试
-│   │   └── test_model_download_filter.py  # 模型下载过滤测试
+│   │   ├── test_model_download_filter.py  # 模型下载过滤测试
+│   │   ├── test_project_config.py     # 项目配置测试
+│   │   └── test_dependency_installation.py  # 依赖安装测试
+│   ├── integration/     # 集成测试
+│   │   └── test_gpu_detection_integration.py  # GPU检测集成测试
 │   └── e2e/             # 端到端测试
 │       ├── test_model_availability.py     # 模型可用性测试
 │       └── test_document_processing.py    # 文档处理测试
@@ -401,6 +405,27 @@ uv pip install -e .[modelscope]
 - `[dcu]`: DCU (Direct Compute Unit)
 - `[modelscope]`: ModelScope支持
 
+## 项目配置测试
+
+项目包含专门的测试来验证 `pyproject.toml` 配置的正确性：
+
+```bash
+# 运行项目配置测试
+python3 -m pytest tests/unit/test_project_config.py -v
+
+# 运行依赖安装测试
+python3 -m pytest tests/unit/test_dependency_installation.py -v
+
+# 运行GPU检测集成测试
+python3 -m pytest tests/integration/test_gpu_detection_integration.py -v
+```
+
+这些测试确保：
+- `pyproject.toml` 文件格式正确
+- 所有必需的依赖组都已定义
+- GPU检测脚本与依赖组配置一致
+- 安装命令生成正确
+
 ## 模型管理
 
 ### 自动下载模型
@@ -468,14 +493,16 @@ models/
 
 # 或手动运行特定测试
 python3 -m pytest tests/unit/ -v          # 运行单元测试
+python3 -m pytest tests/integration/ -v   # 运行集成测试
 python3 -m pytest tests/e2e/ -v           # 运行端到端测试
 python3 -m pytest tests/ -v               # 运行所有测试
 
 # 运行特定测试文件
 python3 -m pytest tests/unit/test_cli_imports.py -v
-python3 -m pytest tests/e2e/test_document_processing.py -v
+python3 -m pytest tests/integration/test_gpu_detection_integration.py -v
 ```
 
 测试套件包括：
 - **单元测试**：验证各个模块的基本功能
+- **集成测试**：验证模块间的集成和配置正确性
 - **端到端测试**：验证完整的文档处理流程
