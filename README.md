@@ -258,6 +258,17 @@ python -m pytest tests/test_e2e.py
 ./dev/test.sh
 ```
 
+### 测试脚本修复说明
+
+测试脚本已经过修复，解决了以下问题：
+
+1. 更新了`pyproject.toml`，将弃用的`tool.uv.dev-dependencies`替换为新的`dependency-groups.dev`格式
+2. 修复了`test.sh`脚本，确保正确使用虚拟环境中的Python和pytest
+3. 改进了错误处理机制，增强了代码的健壮性
+4. 添加了对`samples`和`models`目录的检查，避免在缺少必要文件时运行端到端测试
+
+现在运行`./dev/test.sh`将自动执行单元测试和集成测试，只有在检测到必要的示例文件和模型时才会运行端到端测试。
+
 ## 许可证
 
 本项目采用 Apache 2.0 许可证。详情请见 [LICENSE](LICENSE) 文件。

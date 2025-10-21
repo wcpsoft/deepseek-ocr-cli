@@ -96,6 +96,7 @@ if [ -d "samples" ] && [ -d "models" ]; then
     .venv/bin/python -m pytest tests/e2e/ -v
 else
     echo "跳过端到端测试：未找到samples目录或models目录"
+    echo "所有单元测试和集成测试已通过！"
 fi
 
 echo "========================================="

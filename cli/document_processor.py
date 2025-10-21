@@ -281,21 +281,12 @@ class DocumentProcessor:
             model_name = self.model_path or 'deepseek-ai/DeepSeek-OCR'
             
             tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-            try:
-                model = AutoModel.from_pretrained(
-                    model_name, 
-                    _attn_implementation='flash_attention_2', 
-                    trust_remote_code=True, 
-                    use_safetensors=True
-                )
-            except (ImportError, AttributeError) as e:
-                # 如果flash_attention_2不可用，使用默认实现
-                print(f"警告: 无法加载flash_attention_2，使用默认注意力实现: {e}")
-                model = AutoModel.from_pretrained(
-                    model_name, 
-                    trust_remote_code=True, 
-                    use_safetensors=True
-                )
+            # 直接使用默认实现，避免flash_attention_2相关问题
+            model = AutoModel.from_pretrained(
+                model_name, 
+                trust_remote_code=True, 
+                use_safetensors=True
+            )
             
             # 检查可用的设备
             if torch.cuda.is_available():
