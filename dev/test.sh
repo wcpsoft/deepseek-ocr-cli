@@ -41,10 +41,40 @@ echo "检测GPU环境..."
 GPU_TYPE=$(python3 dev/detect_gpu.py | grep "GPU_TYPE=" | cut -d'=' -f2)
 EXTRA_SUFFIX=$(python3 dev/detect_gpu.py | grep "EXTRA_SUFFIX=" | cut -d'=' -f2)
 
+# 添加调试信息
+echo "DEBUG: GPU_TYPE='$GPU_TYPE'"
+echo "DEBUG: EXTRA_SUFFIX='$EXTRA_SUFFIX'"
+
 echo "安装开发依赖..."
 if [ -n "$EXTRA_SUFFIX" ]; then
     echo "检测到 $GPU_TYPE GPU，安装相应版本的PyTorch..."
-    uv pip install -e .[dev"$EXTRA_SUFFIX"]
+    # 使用更精确的依赖安装方式，避免跨平台依赖冲突
+    case $GPU_TYPE in
+        "nvidia")
+            echo "执行命令: uv pip install -e .[dev,nvidia]"
+            uv pip install -e .[dev,nvidia]
+            ;;
+        "amd")
+            echo "执行命令: uv pip install -e .[dev,amd]"
+            uv pip install -e .[dev,amd]
+            ;;
+        "mps")
+            echo "执行命令: uv pip install -e .[dev,mps]"
+            uv pip install -e .[dev,mps]
+            ;;
+        "dcu")
+            echo "执行命令: uv pip install -e .[dev,dcu]"
+            uv pip install -e .[dev,dcu]
+            ;;
+        "cpu")
+            echo "执行命令: uv pip install -e .[dev]"
+            uv pip install -e .[dev]
+            ;;
+        *)
+            echo "未知GPU类型，使用默认CPU配置安装..."
+            uv pip install -e .[dev]
+            ;;
+    esac
 else
     echo "未检测到专用GPU，安装CPU版本的PyTorch..."
     uv pip install -e .[dev]
@@ -52,16 +82,21 @@ fi
 
 # 运行单元测试
 echo "运行单元测试..."
-python3 -m pytest tests/test_cli.py -v
+python3 -m pytest tests/unit/ -v
 
-# 运行模型下载测试
-echo "运行模型下载测试..."
-python3 -m pytest tests/test_model_download.py -v
+# 运行集成测试
+echo "运行集成测试..."
+python3 -m pytest tests/integration/ -v
 
 # 运行端到端测试
 echo "运行端到端测试..."
-python3 -m pytest tests/test_e2e.py -v
+echo "注意: 端到端测试需要下载模型文件才能正常运行"
+echo "请先运行 'deepseek-ocr --download-models' 下载模型"
+python3 -m pytest tests/e2e/ -v
 
 echo "========================================="
 echo "  所有测试完成"
 echo "========================================="
+echo ""
+echo "提示: 如果端到端测试因模型依赖问题失败，请确保已安装正确的Transformers版本"
+echo "      并下载了DeepSeek-OCR模型文件到models目录"

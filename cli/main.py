@@ -16,8 +16,8 @@ def main():
     parser = argparse.ArgumentParser(description="DeepSeek OCR CLI工具")
     parser.add_argument("input", help="输入文件路径")
     parser.add_argument("-o", "--output", help="输出目录路径", default="./output")
-    parser.add_argument("-m", "--mode", choices=["vllm", "transformers"], 
-                       help="推理模式", default="vllm")
+    parser.add_argument("-m", "--mode", choices=["auto", "vllm", "transformers"], 
+                       help="推理模式 (auto: 自动选择, vllm: 使用vLLM引擎, transformers: 使用Transformers引擎)", default="auto")
     parser.add_argument("--model-path", help="模型路径", default=None)
     parser.add_argument("--prompt", help="OCR提示词", 
                        default="<image>\n<|grounding|>Convert the document to markdown.")

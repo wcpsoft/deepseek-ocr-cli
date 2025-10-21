@@ -89,8 +89,8 @@ DeepSeek-OCR/
 │       ├── __init__.py
 │       ├── config.py          # 配置文件
 │       ├── deepseek_ocr.py    # vLLM模型实现
-│       ├── vllm_process/      # vLLM处理模块
-│       └── vllm_deepencoder/  # vLLM编码器模块
+│       ├── process/           # 处理模块
+│       └── deepencoder/       # 编码器模块
 ├── tests/                 # 测试目录
 │   └── test_cli.py        # CLI测试脚本
 ├── dev/                   # 开发工具
@@ -105,7 +105,7 @@ DeepSeek-OCR/
 - Python 3.10 或更高版本
 - 支持多种硬件加速平台：
   - NVIDIA GPU (CUDA 11.8 + PyTorch 2.4.1)
-  - AMD GPU (ROCm + PyTorch 2.4.1)
+  - AMD GPU (ROCm + PyTorch ://download.pytorch.org/whl/rocm6.1
   - Apple Silicon (MPS + PyTorch 2.4.1)
   - DCU (Direct Compute Unit)
 - 支持的操作系统：Linux、Windows、macOS
@@ -125,23 +125,49 @@ cd deepseek-ocr-cli
 
 开发脚本会自动检测系统中的GPU类型并安装相应的依赖包。
 
-手动安装步骤：
+### 手动安装步骤
+
 ```bash
 # 创建虚拟环境
 uv venv
 source .venv/bin/activate
 
-# 安装基础依赖
-uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1
-
-# 根据硬件平台安装相应的PyTorch版本：
+# 根据硬件平台安装相应的依赖：
 # NVIDIA GPU:
-# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118
+uv sync --extra nvidia
 # AMD GPU:
-# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1
-# Apple Silicon:
-# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+uv sync --extra amd
+# CPU only:
+uv sync --extra cpu
+# 默认安装（自动选择合适的PyTorch版本）:
+uv sync
+
+# 如果需要从ModelScope下载模型，安装额外依赖：
+uv sync --extra modelscope
 ```
+
+### GPU特定依赖说明
+
+项目通过 `pyproject.toml` 中的可选依赖组管理不同GPU平台的依赖：
+
+- `[nvidia]`: NVIDIA GPU (CUDA 11.8)
+- `[amd]`: AMD GPU (ROCm 6.1)
+- `[cpu]`: CPU only 版本
+- `[modelscope]`: ModelScope支持
+
+> ⚠️ **重要提示**: `[nvidia]`、`[amd]` 和 `[cpu]` 这些依赖组是互斥的，因为它们包含不同版本的 PyTorch。
+> 在同一环境中只能安装其中一个依赖组。开发脚本会自动检测硬件类型并安装相应的依赖组。
+
+### 安装LibreOffice
+
+为了支持办公文档格式转换（Word、PPT、Excel等），需要安装LibreOffice：
+
+- Ubuntu/Debian: `sudo apt-get install libreoffice`
+- CentOS/RHEL: `sudo yum install libreoffice`
+- macOS: `brew install --cask libreoffice`
+- Windows: 从官网下载安装
+
+注意：LibreOffice是一个独立的应用程序，不是Python包，因此不会通过pip或uv安装。
 
 ### 3. 安装项目依赖
 
@@ -156,13 +182,6 @@ uv pip install .[vllm]
 # 如果需要开发依赖
 uv pip install .[dev]
 ```
-
-#### 安装LibreOffice
-为了支持办公文档格式转换，需要安装LibreOffice：
-- Ubuntu/Debian: `sudo apt-get install libreoffice`
-- CentOS/RHEL: `sudo yum install libreoffice`
-- macOS: `brew install --cask libreoffice`
-- Windows: 从官网下载安装
 
 ## 使用方法
 
@@ -184,9 +203,25 @@ deepseek-ocr image.jpg -o output_dir
 # 使用Transformers后端
 deepseek-ocr document.docx -o output_dir --mode transformers
 
+# 使用vLLM后端（需要安装vLLM）
+deepseek-ocr document.docx -o output_dir --mode vllm
+
+# 自动选择后端（默认）
+deepseek-ocr document.docx -o output_dir --mode auto
+
 # 自定义提示词
 deepseek-ocr image.jpg -o output_dir --prompt "<image>\nOCR this image."
 ```
+
+### 智能模式选择
+
+DeepSeek OCR CLI支持智能模式选择：
+
+- `auto`（默认）：自动检测系统中可用的推理引擎，优先使用vLLM（如果已安装），否则使用Transformers
+- `vllm`：强制使用vLLM引擎（需要先安装vLLM）
+- `transformers`：强制使用Transformers引擎
+
+程序会在运行时显示实际使用的推理引擎，方便用户了解当前的处理方式。
 
 ### 开发脚本
 
@@ -381,18 +416,16 @@ source .venv/bin/activate
 
 # 根据硬件平台安装相应的依赖：
 # NVIDIA GPU:
-uv pip install -e .[nvidia]
+uv sync --extra nvidia
 # AMD GPU:
-uv pip install -e .[amd]
-# Apple Silicon:
-uv pip install -e .[mps]
-# DCU:
-uv pip install -e .[dcu]
+uv sync --extra amd
 # CPU only:
-uv pip install -e .
+uv sync --extra cpu
+# 默认安装（自动选择合适的PyTorch版本）:
+uv sync
 
 # 如果需要从ModelScope下载模型，安装额外依赖：
-uv pip install -e .[modelscope]
+uv sync --extra modelscope
 ```
 
 ### GPU特定依赖说明
@@ -401,9 +434,11 @@ uv pip install -e .[modelscope]
 
 - `[nvidia]`: NVIDIA GPU (CUDA 11.8)
 - `[amd]`: AMD GPU (ROCm 6.1)
-- `[mps]`: Apple Silicon (MPS)
-- `[dcu]`: DCU (Direct Compute Unit)
+- `[cpu]`: CPU only 版本
 - `[modelscope]`: ModelScope支持
+
+> ⚠️ **重要提示**: `[nvidia]`、`[amd]` 和 `[cpu]` 这些依赖组是互斥的，因为它们包含不同版本的 PyTorch。
+> 在同一环境中只能安装其中一个依赖组。开发脚本会自动检测硬件类型并安装相应的依赖组。
 
 ## 项目配置测试
 

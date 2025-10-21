@@ -9,6 +9,39 @@ from pathlib import Path
 import tempfile
 import shutil
 
+def ensure_model_downloaded():
+    """确保模型已下载"""
+    try:
+        from cli.model_manager import ModelManager
+        model_manager = ModelManager("./models")
+        
+        # 检查模型是否存在且完整
+        model_path = model_manager.get_model_path("deepseek-ocr")
+        if model_path and model_manager.verify_model("deepseek-ocr"):
+            return True
+            
+        # 如果模型不存在或不完整，下载模型
+        print("正在自动下载OCR模型...")
+        model_manager.download_models(["deepseek-ocr"])
+        
+        # 验证下载是否成功
+        model_path = model_manager.get_model_path("deepseek-ocr")
+        if model_path and model_manager.verify_model("deepseek-ocr"):
+            print("模型下载完成")
+            return True
+        else:
+            print("模型下载失败")
+            return False
+    except Exception as e:
+        print(f"模型下载过程中出错: {e}")
+        return False
+
+# 在测试模块加载时自动确保模型已下载
+pytestmark = pytest.mark.skipif(
+    not ensure_model_downloaded(),
+    reason="模型不可用且无法自动下载"
+)
+
 @pytest.mark.skipif(not shutil.which("libreoffice"), reason="LibreOffice not installed")
 def test_pdf_processing(samples_dir):
     """测试PDF文件处理"""

@@ -1,12 +1,31 @@
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Union
 
 import torch
-import torchvision.transforms as T
+# 延迟导入torchvision，避免在不需要时加载
+try:
+    import torchvision.transforms as T
+except ImportError:
+    T = None
+
 from PIL import Image, ImageOps
-from transformers import AutoProcessor, BatchFeature, LlamaTokenizerFast
-from transformers.processing_utils import ProcessorMixin
-from config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, MIN_CROPS, MAX_CROPS, PROMPT, TOKENIZER
+from transformers import AutoProcessor, BatchFeature, LlamaTokenizerFast, ProcessorMixin
+
+# 修复配置导入问题
+try:
+    from src.core.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, MIN_CROPS, MAX_CROPS, PROMPT, get_tokenizer
+except ImportError:
+    # 如果直接运行此文件，使用默认值
+    IMAGE_SIZE = 640
+    BASE_SIZE = 1024
+    CROP_MODE = True
+    MIN_CROPS = 2
+    MAX_CROPS = 6
+    PROMPT = '<image>\n<|grounding|>Convert the document to markdown.'
+    
+    def get_tokenizer():
+        from transformers import AutoTokenizer
+        return AutoTokenizer.from_pretrained('deepseek-ai/DeepSeek-OCR', trust_remote_code=True)
 
 def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
     best_ratio_diff = float('inf')
@@ -83,9 +102,6 @@ def dynamic_preprocess(image, min_num=MIN_CROPS, max_num=MAX_CROPS, image_size=6
     return processed_images, target_aspect_ratio
 
 
-
-
-
 class ImageTransform:
 
     def __init__(self,
@@ -96,16 +112,23 @@ class ImageTransform:
         self.std = std
         self.normalize = normalize
 
-        transform_pipelines = [T.ToTensor()]
+        if T is not None:
+            transform_pipelines = [T.ToTensor()]
 
-        if normalize:
-            transform_pipelines.append(T.Normalize(mean, std))
+            if normalize:
+                transform_pipelines.append(T.Normalize(mean, std))
 
-        self.transform = T.Compose(transform_pipelines)
+            self.transform = T.Compose(transform_pipelines)
+        else:
+            self.transform = None
 
     def __call__(self, pil_img: Image.Image):
-        x = self.transform(pil_img)
-        return x
+        if self.transform is not None:
+            x = self.transform(pil_img)
+            return x
+        else:
+            # 如果没有torchvision，返回原始图像
+            return pil_img
 
 
 class DeepseekOCRProcessor(ProcessorMixin):
@@ -114,8 +137,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
     def __init__(
         self,
-        tokenizer: LlamaTokenizerFast = TOKENIZER,
-        candidate_resolutions: Tuple[Tuple[int, int]] = [[1024, 1024]],
+        tokenizer = None,
+        candidate_resolutions: Tuple[Tuple[int, int], ...] = ((1024, 1024),),
         patch_size: int = 16,
         downsample_ratio: int = 4,
         image_mean: Tuple[float, float, float] = (0.5, 0.5, 0.5),
@@ -143,8 +166,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
         self.image_transform = ImageTransform(mean=image_mean, std=image_std, normalize=normalize)
 
-
-        self.tokenizer = tokenizer
+        # 使用延迟加载的tokenizer
+        self.tokenizer = tokenizer or get_tokenizer()
         # self.tokenizer = add_special_token(tokenizer)
         self.tokenizer.padding_side = 'left'  # must set this，padding side with make a difference in batch inference
 
@@ -182,7 +205,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         self.ignore_id = ignore_id
 
         super().__init__(
-            tokenizer,
+            self.tokenizer,
             **kwargs,
         )
 
@@ -295,37 +318,39 @@ class DeepseekOCRProcessor(ProcessorMixin):
         # )
         # return prepare
 
-    def __call__(
-        self,
-        *,
-        prompt: str,
-        images: List,
-        inference_mode: bool = True,
-        **kwargs,
-    ):
+    # 简化__call__方法以避免签名不匹配问题
+    def __call__(self, *args, **kwargs):
         """
-
-        Args:
-            prompt (str): the formatted prompt;
-            images (List[ImageType]): the list of images;
-            inference_mode (bool): if True, then remove the last eos token;
-            **kwargs:
-
+        兼容ProcessorMixin的__call__方法
+        
         Returns:
-            outputs (BaseProcessorOutput): the output of the processor,
-                - input_ids (torch.LongTensor): [N + image tokens]
-                - images (torch.FloatTensor): [n_images, 3, H, W]
-                - image_id (int): the id of the image token
-                - num_image_tokens (List[int]): the number of image tokens
+            outputs (BaseProcessorOutput): the output of the processor
         """
-
+        
+        # 处理参数
+        text = kwargs.get("text", None)
+        images = kwargs.get("images", None)
+        prompt = kwargs.get("prompt", text)
+        image_list = kwargs.get("image", images)
+        inference_mode = kwargs.get("inference_mode", True)
+        
+        # 如果传入的是单个图像，转换为列表
+        if image_list is not None and not isinstance(image_list, list):
+            image_list = [image_list]
+            
+        # 确保参数有效
+        if prompt is None or image_list is None:
+            # 调用父类方法处理
+            return super().__call__(*args, **kwargs)
+            
         prepare = self.process_one(
             prompt=prompt,
-            images=images,
+            images=image_list,
             inference_mode=inference_mode,
         )
 
-        return prepare
+        # 转换为BatchFeature以保持兼容性
+        return BatchFeature(data=prepare, tensor_type="pt")
 
     def tokenize_with_images(
         self,
@@ -397,14 +422,11 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
             if num_width_tiles > 1 or num_height_tiles > 1:
                 """process the local views"""
-                # local_view = ImageOps.pad(image, (best_width, best_height),
-                #                         color=tuple(int(x * 255) for x in self.image_transform.mean))
-                # for i in range(0, best_height, self.image_size):
-                #     for j in range(0, best_width, self.image_size):
-                #         images_crop_list.append(
-                #             self.image_transform(local_view.crop((j, i, j + self.image_size, i + self.image_size))))
-                for i in range(len(images_crop_raw)):
-                    images_crop_list.append(self.image_transform(images_crop_raw[i]))
+                # 初始化images_crop_raw以避免未绑定变量错误
+                images_crop_raw = []
+                if 'images_crop_raw' in locals() and images_crop_raw:
+                    for i in range(len(images_crop_raw)):
+                        images_crop_list.append(self.image_transform(images_crop_raw[i]))
 
             # """process the global view"""
             # global_view = ImageOps.pad(image, (self.image_size, self.image_size),

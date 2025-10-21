@@ -19,7 +19,7 @@ from PIL import Image
 
 
 class DocumentProcessor:
-    def __init__(self, mode="vllm", model_path=None, prompt=None, 
+    def __init__(self, mode="auto", model_path=None, prompt=None, 
                  base_size=1024, image_size=640, crop_mode=True):
         self.mode = mode
         self.model_path = model_path
@@ -157,28 +157,55 @@ class DocumentProcessor:
         """执行OCR识别"""
         print(f"正在对 {len(images)} 张图像进行OCR识别...")
         
-        if self.mode == "vllm":
+        # 智能模式选择
+        actual_mode = self._determine_mode()
+        
+        if actual_mode == "vllm":
+            print("使用 vLLM 引擎进行OCR识别...")
             self._perform_ocr_vllm(images, output_dir)
-        elif self.mode == "transformers":
+        elif actual_mode == "transformers":
+            print("使用 Transformers 引擎进行OCR识别...")
             self._perform_ocr_transformers(images, output_dir)
         else:
-            raise ValueError(f"不支持的模式: {self.mode}")
+            raise ValueError(f"不支持的模式: {actual_mode}")
+    
+    def _determine_mode(self):
+        """确定实际使用的模式"""
+        if self.mode == "auto":
+            # 自动检测可用的引擎
+            if self._is_vllm_available():
+                return "vllm"
+            else:
+                return "transformers"
+        else:
+            # 使用指定的模式
+            return self.mode
+    
+    def _is_vllm_available(self):
+        """检查vLLM是否可用"""
+        try:
+            import vllm  # type: ignore # noqa: F401
+            return True
+        except ImportError:
+            return False
     
     def _perform_ocr_vllm(self, images: List[Image.Image], output_dir: Path):
         """使用vLLM执行OCR"""
         # 这里需要导入vLLM相关模块
         try:
-            # 添加CLI目录到路径
+            # 添加项目根目录到路径
             import sys
-            sys.path.append(os.path.join(os.path.dirname(__file__)))
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.append(project_root)
             
             # 延迟导入，避免在不需要时加载依赖
-            from config import MODEL_PATH, PROMPT
-            from deepseek_ocr import DeepseekOCRForCausalLM
-            from vllm.model_executor.models.registry import ModelRegistry
-            from vllm import LLM, SamplingParams
-            from vllm_process.ngram_norepeat import NoRepeatNGramLogitsProcessor
-            from vllm_process.image_process import DeepseekOCRProcessor
+            from src.core.config import MODEL_PATH, PROMPT
+            from src.core.deepseek_ocr import DeepseekOCRForCausalLM
+            from vllm.model_executor.models.registry import ModelRegistry  # type: ignore
+            from vllm import LLM, SamplingParams  # type: ignore
+            from src.core.process.ngram_norepeat import NoRepeatNGramLogitsProcessor
+            from src.core.process.image_process import DeepseekOCRProcessor
             
             # 设置模型路径
             model_path = self.model_path or MODEL_PATH
@@ -239,25 +266,46 @@ class DocumentProcessor:
     def _perform_ocr_transformers(self, images: List[Image.Image], output_dir: Path):
         """使用Transformers执行OCR"""
         try:
-            # 添加HF目录到路径
+            # 添加项目根目录到路径
             import sys
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'DeepSeek-OCR-hf'))
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if project_root not in sys.path:
+                sys.path.append(project_root)
             
             # 延迟导入，避免在不需要时加载依赖
-            from transformers import AutoModel, AutoTokenizer
+            from transformers.models.auto.modeling_auto import AutoModel
+            from transformers.models.auto.tokenization_auto import AutoTokenizer
             import torch
             
             # 设置模型路径
             model_name = self.model_path or 'deepseek-ai/DeepSeek-OCR'
             
             tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-            model = AutoModel.from_pretrained(
-                model_name, 
-                _attn_implementation='flash_attention_2', 
-                trust_remote_code=True, 
-                use_safetensors=True
-            )
-            model = model.eval().cuda().to(torch.bfloat16)
+            try:
+                model = AutoModel.from_pretrained(
+                    model_name, 
+                    _attn_implementation='flash_attention_2', 
+                    trust_remote_code=True, 
+                    use_safetensors=True
+                )
+            except ImportError as e:
+                # 如果flash_attention_2不可用，使用默认实现
+                print(f"警告: 无法加载flash_attention_2，使用默认注意力实现: {e}")
+                model = AutoModel.from_pretrained(
+                    model_name, 
+                    trust_remote_code=True, 
+                    use_safetensors=True
+                )
+            
+            # 检查可用的设备
+            if torch.cuda.is_available():
+                device = torch.device("cuda")
+            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
+                device = torch.device("mps")
+            else:
+                device = torch.device("cpu")
+            
+            model = model.eval().to(device).to(torch.bfloat16)
             
             # 处理每张图像
             results = []

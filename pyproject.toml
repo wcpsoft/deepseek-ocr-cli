@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2", "toml>=0.10.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,8 +25,6 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "transformers==4.46.3",
-    "tokenizers==0.20.3",
     "PyMuPDF",
     "img2pdf",
     "einops",
@@ -34,16 +32,13 @@ dependencies = [
     "addict",
     "Pillow",
     "numpy",
-    "torch>=2.4.1",
     "huggingface-hub>=0.20.0",
-    "libreoffice>=7.0.0",
+    "fsspec>=2023.1.0,<=2025.3.0",
+    "matplotlib",
+    "toml>=0.10.2",
 ]
 
 [project.optional-dependencies]
-vllm = [
-    "vllm>=0.8.5",
-    "flash-attn>=2.7.3",
-]
 cli = [
     "huggingface-hub>=0.20.0",
 ]
@@ -55,26 +50,44 @@ dev = [
 modelscope = [
     "modelscope>=1.10.0",
 ]
-# GPU特定依赖
 nvidia = [
-    "torch==2.4.1+cu118",
-    "torchvision==0.19.1+cu118",
-    "torchaudio==2.4.1+cu118",
+    "transformers<=4.51.1",
+    "tokenizers<=0.22",
+    "torch<2.6.1",
+    "torchvision>=0.21.0",
+    "torchaudio<2.6.1",
+    "vllm>=0.8.5,<=0.10.1",
 ]
 amd = [
-    "torch==2.4.1+rocm6.1",
-    "torchvision==0.19.1+rocm6.1",
-    "torchaudio==2.4.1+rocm6.1",
+    "transformers<=4.51.1",
+    "tokenizers<=0.22",
+    "torch<2.6.1",
+    "torchvision>=0.21.0",
+    "torchaudio<2.6.1",
+    "vllm>=0.8.5,<=0.10.1",
+]
+cpu = [
+    "transformers<=4.51.1",
+    "tokenizers<=0.22",
+    "torch<2.6.1",
+    "torchvision>=0.21.0",
+    "torchaudio<2.6.1",
+    "vllm>=0.8.5,<=0.10.1",
 ]
 mps = [
-    "torch==2.4.1",
-    "torchvision==0.19.1",
-    "torchaudio==2.4.1",
+    "transformers<=4.51.1",
+    "tokenizers<=0.22",
+    "torch<2.6.1",
+    "torchvision>=0.21.0",
+    "torchaudio<2.6.1",
 ]
 dcu = [
-    "torch==2.4.1",
-    "torchvision==0.19.1",
-    "torchaudio==2.4.1",
+    "transformers<=4.51.1",
+    "tokenizers<=0.22",
+    "torch<2.6.1",
+    "torchvision>=0.21.0",
+    "torchaudio<2.6.1",
+    "vllm>=0.8.5,<=0.10.1",
 ]
 
 [project.scripts]
@@ -101,3 +114,45 @@ dev-dependencies = [
     "black>=22.0.0",
     "flake8>=4.0.0",
 ]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "pytorch-cu118", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchvision = [
+    { index = "pytorch", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "pytorch-cu118", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchaudio = [
+    { index = "pytorch", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
+    { index = "pytorch-cu118", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+vllm = [
+    { index = "vllm-dcu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://mirrors.aliyun.com/pytorch-wheels/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://mirrors.aliyun.com/pytorch-wheels/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-rocm"
+url = "https://mirrors.aliyun.com/pytorch-wheels/rocm6.1"
+explicit = true
+
+[[tool.uv.index]]
+name = "vllm-dcu"
+url = "https://pypi.org/simple"
+explicit = true

@@ -39,4 +39,12 @@ PROMPT = '<image>\n<|grounding|>Convert the document to markdown.'
 
 from transformers import AutoTokenizer
 
-TOKENIZER = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+# 延迟导入TOKENIZER，避免在不需要时加载依赖
+TOKENIZER = None
+
+def get_tokenizer():
+    """延迟加载tokenizer"""
+    global TOKENIZER
+    if TOKENIZER is None:
+        TOKENIZER = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
+    return TOKENIZER
