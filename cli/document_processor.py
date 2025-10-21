@@ -288,7 +288,7 @@ class DocumentProcessor:
                     trust_remote_code=True, 
                     use_safetensors=True
                 )
-            except ImportError as e:
+            except (ImportError, AttributeError) as e:
                 # 如果flash_attention_2不可用，使用默认实现
                 print(f"警告: 无法加载flash_attention_2，使用默认注意力实现: {e}")
                 model = AutoModel.from_pretrained(

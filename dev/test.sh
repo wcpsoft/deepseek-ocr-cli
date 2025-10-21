@@ -92,7 +92,11 @@ echo "运行集成测试..."
 echo "运行端到端测试..."
 echo "注意: 端到端测试需要下载模型文件才能正常运行"
 echo "请先运行 'deepseek-ocr --download-models' 下载模型"
-.venv/bin/python -m pytest tests/e2e/ -v
+if [ -d "samples" ] && [ -d "models" ]; then
+    .venv/bin/python -m pytest tests/e2e/ -v
+else
+    echo "跳过端到端测试：未找到samples目录或models目录"
+fi
 
 echo "========================================="
 echo "  所有测试完成"
