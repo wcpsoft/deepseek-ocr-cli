@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepseek-ocr-cli"
+version = "1.0.0"
+description = "DeepSeek OCR CLI - 基于视觉编码器与大语言模型的光学字符识别系统命令行工具"
+readme = "README.md"
+authors = [
+    {name = "Rxzhang", email = "rxzhang@example.com"},
+]
+license = {text = "Apache-2.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "transformers==4.46.3",
+    "tokenizers==0.20.3",
+    "PyMuPDF",
+    "img2pdf",
+    "einops",
+    "easydict",
+    "addict",
+    "Pillow",
+    "numpy",
+    "torch>=2.6.0",
+    "huggingface-hub>=0.20.0",
+    "libreoffice>=7.0.0",
+]
+
+[project.optional-dependencies]
+vllm = [
+    "vllm>=0.8.5",
+    "flash-attn>=2.7.3",
+]
+cli = [
+    "huggingface-hub>=0.20.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+]
+
+[project.scripts]
+deepseek-ocr = "cli.main:main"
+deepseek-ocr-download = "cli.download_models:main"
+
+[project.urls]
+Homepage = "https://github.com/wcpsoft/deepseek-ocr-cli"
+Repository = "https://github.com/wcpsoft/deepseek-ocr-cli.git"
+Documentation = "https://github.com/wcpsoft/deepseek-ocr-cli/blob/main/README.md"
+
+[tool.setuptools.packages.find]
+include = ["src*", "cli*"]
+exclude = ["assets*", "tests*"]
+
+[tool.setuptools.package-data]
+cli = ["*.py"]
+src = ["*.py"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+]

@@ -27,7 +27,7 @@ from vllm.sequence import IntermediateTensors
 from vllm.transformers_utils.configs.deepseek_vl2 import (DeepseekVLV2Config,
                                                           MlpProjectorConfig,
                                                           VisionEncoderConfig)
-from process.image_process import (
+from vllm_process.image_process import (
     DeepseekOCRProcessor, count_tiles)
 from vllm.transformers_utils.tokenizer import cached_tokenizer_from_config
 # from vllm.utils import is_list_of
@@ -37,9 +37,9 @@ from vllm.model_executor.models.utils import (AutoWeightsLoader, WeightsMapper, 
                     init_vllm_registered_model, maybe_prefix,
                     merge_multimodal_embeddings)
 
-from deepencoder.sam_vary_sdpa import build_sam_vit_b
-from deepencoder.clip_sdpa import build_clip_l
-from deepencoder.build_linear import MlpProjector
+from vllm_deepencoder.sam_vary_sdpa import build_sam_vit_b
+from vllm_deepencoder.clip_sdpa import build_clip_l
+from vllm_deepencoder.build_linear import MlpProjector
 from addict import Dict
 # import time
 from config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT

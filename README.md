@@ -1,181 +1,194 @@
-<!-- markdownlint-disable first-line-h1 -->
-<!-- markdownlint-disable html -->
-<!-- markdownlint-disable no-duplicate-header -->
+## 项目介绍
 
+DeepSeek-OCR-cli 是一个基于视觉编码器与大语言模型的光学字符识别系统命令行工具。本项目基于 [DeepSeek-OCR](https://github.com/deepseek-ai/DeepSeek-OCR) 项目基础上改造，让用户直接可以使用，提供了增强功能，增加了对多种文档格式的支持，包括 Word、PPT、Excel 等，并提供统一的命令行接口进行处理。
 
-<div align="center">
-  <img src="assets/logo.svg" width="60%" alt="DeepSeek AI" />
-</div>
+**项目作者：Rxzhang**
 
+### 核心功能
+- 文档转Markdown
+- 图像OCR
+- 图表解析
+- 自由描述
+- 文本定位
 
-<hr>
-<div align="center">
-  <a href="https://www.deepseek.com/" target="_blank">
-    <img alt="Homepage" src="assets/badge.svg" />
-  </a>
-  <a href="https://huggingface.co/deepseek-ai/DeepSeek-OCR" target="_blank">
-    <img alt="Hugging Face" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-DeepSeek%20AI-ffc107?color=ffc107&logoColor=white" />
-  </a>
+### 增强功能
+- 支持 Word (.doc, .docx)、PPT (.ppt, .pptx)、Excel (.xls, .xlsx) 等办公文档格式
+- 自动将办公文档转换为PDF，再转换为图像进行OCR处理
+- 统一的命令行接口，简化使用流程
+- 支持vLLM和Transformers两种推理后端
 
-</div>
+## 项目结构
 
-<div align="center">
+```
+DeepSeek-OCR/
+├── src/                   # 源代码目录
+│   ├── __init__.py
+│   └── core/              # 核心算法实现
+│       ├── __init__.py
+│       ├── config.py          # 配置文件
+│       ├── deepseek_ocr.py    # vLLM模型实现
+│       ├── vllm_process/      # vLLM处理模块
+│       └── vllm_deepencoder/  # vLLM编码器模块
+├── cli/                   # 命令行工具
+│   ├── __init__.py
+│   ├── main.py            # 主入口
+│   ├── document_processor.py  # 文档处理核心
+│   ├── model_manager.py   # 模型管理
+│   ├── pdf_converter.py   # PDF转换器
+│   ├── download_models.py # 模型下载
+│   ├── example_usage.py   # 使用示例
+│   └── test_cli.py        # CLI测试
+├── tests/                 # 测试目录
+│   └── test_cli.py        # CLI测试脚本
+├── README.md              # 项目说明与使用指南
+└── pyproject.toml         # 项目配置
+```
 
-  <a href="https://discord.gg/Tc7c45Zzu5" target="_blank">
-    <img alt="Discord" src="https://img.shields.io/badge/Discord-DeepSeek%20AI-7289da?logo=discord&logoColor=white&color=7289da" />
-  </a>
-  <a href="https://twitter.com/deepseek_ai" target="_blank">
-    <img alt="Twitter Follow" src="https://img.shields.io/badge/Twitter-deepseek_ai-white?logo=x&logoColor=white" />
-  </a>
+## 环境要求
 
-</div>
+- Python 3.10 或更高版本
+- CUDA 11.8 + PyTorch 2.6.0
+- 支持的系统：Linux、Windows（需要WSL）、macOS
 
+## 安装指南
 
-
-<p align="center">
-  <a href="https://huggingface.co/deepseek-ai/DeepSeek-OCR"><b>📥 Model Download</b></a> |
-  <a href="https://github.com/deepseek-ai/DeepSeek-OCR/blob/main/DeepSeek_OCR_paper.pdf"><b>📄 Paper Link</b></a> |
-  <a href="./DeepSeek_OCR_paper.pdf"><b>📄 Arxiv Paper Link</b></a> |
-</p>
-
-<h2>
-<p align="center">
-  <a href="">DeepSeek-OCR: Contexts Optical Compression</a>
-</p>
-</h2>
-
-<p align="center">
-<img src="assets/fig1.png" style="width: 1000px" align=center>
-</p>
-<p align="center">
-<a href="">Explore the boundaries of visual-text compression.</a>       
-</p>
-
-## Release
-- [2025/10/20]🚀🚀🚀 We release DeepSeek-OCR, a model to investigate the role of vision encoders from an LLM-centric viewpoint.
-
-## Contents
-- [Install](#install)
-- [vLLM Inference](#vllm-inference)
-- [Transformers Inference](#transformers-inference)
-  
-
-
-
-
-## Install
->Our environment is cuda11.8+torch2.6.0.
-1. Clone this repository and navigate to the DeepSeek-OCR folder
+### 1. 克隆项目
 ```bash
 git clone https://github.com/deepseek-ai/DeepSeek-OCR.git
+cd DeepSeek-OCR
 ```
-2. Conda
-```Shell
-conda create -n deepseek-ocr python=3.12.9 -y
-conda activate deepseek-ocr
-```
-3. Packages
 
-- download the vllm-0.8.5 [whl](https://github.com/vllm-project/vllm/releases/tag/v0.8.5) 
-```Shell
+### 2. 创建Conda环境
+```bash
+conda create -n deepseek-ocr-cli python=3.12.9 -y
+conda activate deepseek-ocr-cli
+```
+
+### 3. 安装依赖
+
+#### 基础依赖
+```bash
 pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
-pip install vllm-0.8.5+cu118-cp38-abi3-manylinux1_x86_64.whl
-pip install -r requirements.txt
-pip install flash-attn==2.7.3 --no-build-isolation
 ```
-**Note:** if you want vLLM and transformers codes to run in the same environment, you don't need to worry about this installation error like: vllm 0.8.5+cu118 requires transformers>=4.51.1
 
-## vLLM-Inference
-- VLLM:
->**Note:** change the INPUT_PATH/OUTPUT_PATH and other settings in the DeepSeek-OCR-master/DeepSeek-OCR-vllm/config.py
-```Shell
-cd DeepSeek-OCR-master/DeepSeek-OCR-vllm
+#### 安装项目
+```bash
+# 安装核心依赖
+pip install .
+
+# 如果需要vLLM支持
+pip install .[vllm]
+
+# 如果需要开发依赖
+pip install .[dev]
 ```
-1. image: streaming output
-```Shell
-python run_dpsk_ocr_image.py
+
+#### 安装LibreOffice
+为了支持办公文档格式转换，需要安装LibreOffice：
+- Ubuntu/Debian: `sudo apt-get install libreoffice`
+- CentOS/RHEL: `sudo yum install libreoffice`
+- macOS: `brew install --cask libreoffice`
+- Windows: 从官网下载安装
+
+## 使用方法
+
+### 命令行工具
+
+```bash
+# 查看帮助信息
+deepseek-ocr --help
+
+# 处理Word文档
+deepseek-ocr document.docx -o output_dir
+
+# 处理PDF文档
+deepseek-ocr document.pdf -o output_dir
+
+# 处理图像文件
+deepseek-ocr image.jpg -o output_dir
+
+# 使用Transformers后端
+deepseek-ocr document.docx -o output_dir --mode transformers
+
+# 自定义提示词
+deepseek-ocr image.jpg -o output_dir --prompt "<image>\nOCR this image."
 ```
-2. pdf: concurrency ~2500tokens/s(an A100-40G)
-```Shell
-python run_dpsk_ocr_pdf.py
+
+### 下载模型
+
+```bash
+# 下载模型到本地
+deepseek-ocr-download
 ```
-3. batch eval for benchmarks
-```Shell
-python run_dpsk_ocr_eval_batch.py
-```
-## Transformers-Inference
-- Transformers
+
+### Python API
+
 ```python
-from transformers import AutoModel, AutoTokenizer
-import torch
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-model_name = 'deepseek-ai/DeepSeek-OCR'
+from cli.document_processor import DocumentProcessor
 
-tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-model = AutoModel.from_pretrained(model_name, _attn_implementation='flash_attention_2', trust_remote_code=True, use_safetensors=True)
-model = model.eval().cuda().to(torch.bfloat16)
+# 创建处理器
+processor = DocumentProcessor(mode="vllm")
 
-# prompt = "<image>\nFree OCR. "
-prompt = "<image>\n<|grounding|>Convert the document to markdown. "
-image_file = 'your_image.jpg'
-output_path = 'your/output/dir'
-
-res = model.infer(tokenizer, prompt=prompt, image_file=image_file, output_path = output_path, base_size = 1024, image_size = 640, crop_mode=True, save_results = True, test_compress = True)
+# 处理文档
+processor.process("input.docx", "output_dir")
 ```
-or you can
-```Shell
-cd DeepSeek-OCR-master/DeepSeek-OCR-hf
-python run_dpsk_ocr.py
-```
-## Support-Modes
-The current open-source model supports the following modes:
-- Native resolution:
-  - Tiny: 512×512 （64 vision tokens）✅
-  - Small: 640×640 （100 vision tokens）✅
-  - Base: 1024×1024 （256 vision tokens）✅
-  - Large: 1280×1280 （400 vision tokens）✅
-- Dynamic resolution
-  - Gundam: n×640×640 + 1×1024×1024 ✅
 
-## Prompts examples
+## 支持的文件格式
+
+- Microsoft Office: .doc, .docx, .ppt, .pptx, .xls, .xlsx
+- PDF: .pdf
+- 图像: .jpg, .jpeg, .png
+
+## 分辨率模式
+
+模型支持以下分辨率模式：
+- 固定分辨率：
+  - Tiny: 512×512 （64 vision tokens）
+  - Small: 640×640 （100 vision tokens）
+  - Base: 1024×1024 （256 vision tokens）
+  - Large: 1280×1280 （400 vision tokens）
+- 动态分辨率：
+  - Gundam: n×640×640 + 1×1024×1024
+
+## 提示词示例
+
 ```python
-# document: <image>\n<|grounding|>Convert the document to markdown.
-# other image: <image>\n<|grounding|>OCR this image.
-# without layouts: <image>\nFree OCR.
-# figures in document: <image>\nParse the figure.
-# general: <image>\nDescribe this image in detail.
-# rec: <image>\nLocate <|ref|>xxxx<|/ref|> in the image.
-# '先天下之忧而忧'
+# 文档转Markdown
+"<image>\n<|grounding|>Convert the document to markdown."
+
+# 图像OCR
+"<image>\n<|grounding|>OCR this image."
+
+# 自由OCR（无布局）
+"<image>\nFree OCR."
+
+# 图表解析
+"<image>\nParse the figure."
+
+# 图像描述
+"<image>\nDescribe this image in detail."
+
+# 文本定位
+"<image>\nLocate <|ref|>xxxx<|/ref|> in the image."
 ```
 
+## 测试
 
-## Visualizations
-<table>
-<tr>
-<td><img src="assets/show1.jpg" style="width: 500px"></td>
-<td><img src="assets/show2.jpg" style="width: 500px"></td>
-</tr>
-<tr>
-<td><img src="assets/show3.jpg" style="width: 500px"></td>
-<td><img src="assets/show4.jpg" style="width: 500px"></td>
-</tr>
-</table>
+运行单元测试：
 
+```bash
+# 运行所有测试
+python -m pytest tests/
 
-## Acknowledgement
+# 运行特定测试
+python -m pytest tests/test_cli.py
+```
 
-We would like to thank [Vary](https://github.com/Ucas-HaoranWei/Vary/), [GOT-OCR2.0](https://github.com/Ucas-HaoranWei/GOT-OCR2.0/), [MinerU](https://github.com/opendatalab/MinerU), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), [OneChart](https://github.com/LingyvKong/OneChart), [Slow Perception](https://github.com/Ucas-HaoranWei/Slow-Perception) for their valuable models and ideas.
+## 许可证
 
-We also appreciate the benchmarks: [Fox](https://github.com/ucaslcl/Fox), [OminiDocBench](https://github.com/opendatalab/OmniDocBench).
+本项目采用 Apache 2.0 许可证。详情请见 [LICENSE](LICENSE) 文件。
 
-## Citation
+## 致谢
 
-coming soon！
-
-
-
-
-
-
-
+我们感谢以下项目提供的宝贵模型和想法：
+- [DeepSeek-OCR](https://github.com/deepseek-ai/DeepSeek-OCR) 
