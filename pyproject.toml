@@ -52,6 +52,27 @@ dev = [
     "black>=22.0.0",
     "flake8>=4.0.0",
 ]
+# GPU特定依赖
+nvidia = [
+    "torch==2.4.1+cu118",
+    "torchvision==0.19.1+cu118",
+    "torchaudio==2.4.1+cu118",
+]
+amd = [
+    "torch==2.4.1+rocm6.1",
+    "torchvision==0.19.1+rocm6.1",
+    "torchaudio==2.4.1+rocm6.1",
+]
+mps = [
+    "torch==2.4.1",
+    "torchvision==0.19.1",
+    "torchaudio==2.4.1",
+]
+dcu = [
+    "torch==2.4.1",
+    "torchvision==0.19.1",
+    "torchaudio==2.4.1",
+]
 
 [project.scripts]
 deepseek-ocr = "cli.main:main"

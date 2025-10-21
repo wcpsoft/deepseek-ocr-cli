@@ -99,49 +99,84 @@ def detect_dcu():
     return False
 
 
+def get_gpu_type():
+    """获取GPU类型"""
+    # 检测各种GPU类型
+    if detect_nvidia_gpu()[0]:
+        return "nvidia"
+    elif detect_amd_gpu():
+        return "amd"
+    elif detect_apple_silicon():
+        return "mps"
+    elif detect_dcu():
+        return "dcu"
+    else:
+        return "cpu"
+
+
+def get_pytorch_install_cmd(gpu_type):
+    """根据GPU类型获取PyTorch安装命令"""
+    if gpu_type == "nvidia":
+        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118"
+    elif gpu_type == "amd":
+        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1"
+    elif gpu_type == "mps":
+        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu"
+    elif gpu_type == "dcu":
+        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu"
+    else:
+        return "uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu"
+
+
+def get_extra_require_suffix(gpu_type):
+    """根据GPU类型获取额外依赖后缀"""
+    if gpu_type == "nvidia":
+        return "[nvidia]"
+    elif gpu_type == "amd":
+        return "[amd]"
+    elif gpu_type == "mps":
+        return "[mps]"
+    elif gpu_type == "dcu":
+        return "[dcu]"
+    else:
+        return ""
+
+
 def main():
     """主函数，检测GPU类型并输出相应信息"""
     print("正在检测系统GPU环境...")
     print(f"操作系统: {platform.system()} {platform.release()}")
     print(f"架构: {platform.machine()}")
     
-    gpu_type = "cpu"
+    gpu_type = get_gpu_type()
     cuda_version = None
     
     # 检测各种GPU类型
-    if detect_nvidia_gpu()[0]:
-        gpu_type = "nvidia"
+    if gpu_type == "nvidia":
         _, cuda_version = detect_nvidia_gpu()
         print("✓ 检测到NVIDIA GPU")
         if cuda_version:
             print(f"  CUDA版本: {cuda_version}")
-    elif detect_amd_gpu():
-        gpu_type = "amd"
+    elif gpu_type == "amd":
         print("✓ 检测到AMD GPU (ROCm)")
-    elif detect_apple_silicon():
-        gpu_type = "mps"
+    elif gpu_type == "mps":
         print("✓ 检测到Apple Silicon (MPS)")
-    elif detect_dcu():
-        gpu_type = "dcu"
+    elif gpu_type == "dcu":
         print("✓ 检测到DCU (Direct Compute Unit)")
     else:
         print("⚠ 未检测到专用GPU，将使用CPU运行")
     
     # 输出推荐的PyTorch安装命令
     print("\n推荐的PyTorch安装命令:")
-    if gpu_type == "nvidia":
-        print("  uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118")
-    elif gpu_type == "amd":
-        print("  uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1")
-    elif gpu_type == "mps":
-        print("  uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu")
-    elif gpu_type == "dcu":
-        print("  uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu")
-    else:
-        print("  uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu")
+    print(f"  {get_pytorch_install_cmd(gpu_type)}")
     
     # 输出GPU类型供其他脚本使用
     print(f"\nGPU_TYPE={gpu_type}")
+    
+    # 输出额外依赖后缀
+    extra_suffix = get_extra_require_suffix(gpu_type)
+    if extra_suffix:
+        print(f"EXTRA_SUFFIX={extra_suffix}")
     
     return gpu_type
 

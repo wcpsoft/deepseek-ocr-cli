@@ -300,6 +300,7 @@ DeepSeek OCR CLI 是一个功能强大的命令行工具，用于处理各种文
 - 双推理引擎支持：Transformers和vLLM
 - 多平台硬件加速：NVIDIA、AMD、Apple Silicon、DCU
 - 自动GPU检测和依赖安装
+- 模型自动下载和管理
 - 命令行界面，易于集成到自动化流程中
 
 ## 项目结构
@@ -327,7 +328,9 @@ deepseek-ocr-cli/
 │   └── test.sh          # 测试脚本（自动检测GPU并安装依赖）
 ├── samples/             # 示例文件
 ├── assets/              # 资源文件
+├── models/              # 模型文件（默认下载目录）
 ├── pyproject.toml       # 项目配置和依赖声明
+├── setup.py             # 项目安装配置
 ├── README.md            # 项目说明文档
 └── LICENSE              # 许可证文件
 ```
@@ -357,44 +360,75 @@ cd deepseek-ocr-cli
 
 开发脚本会自动检测系统中的GPU类型并安装相应的依赖包。
 
-手动安装步骤：
+### 手动安装步骤
+
 ```bash
 # 创建虚拟环境
 uv venv
 source .venv/bin/activate
 
-# 安装基础依赖
-uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1
-
-# 根据硬件平台安装相应的PyTorch版本：
+# 根据硬件平台安装相应的依赖：
 # NVIDIA GPU:
-# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118
+uv pip install -e .[nvidia]
 # AMD GPU:
-# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1
+uv pip install -e .[amd]
 # Apple Silicon:
-# uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+uv pip install -e .[mps]
+# DCU:
+uv pip install -e .[dcu]
+# CPU only:
+uv pip install -e .
 ```
 
-### 3. 安装项目依赖
+### GPU特定依赖说明
 
-#### 安装项目
+项目通过 `pyproject.toml` 中的可选依赖组管理不同GPU平台的依赖：
+
+- `[nvidia]`: NVIDIA GPU (CUDA 11.8)
+- `[amd]`: AMD GPU (ROCm 6.1)
+- `[mps]`: Apple Silicon (MPS)
+- `[dcu]`: DCU (Direct Compute Unit)
+
+## 模型管理
+
+### 自动下载模型
+
 ```bash
-# 安装核心依赖
-uv pip install .
+# 下载默认模型到./models目录
+deepseek-ocr-download
 
-# 如果需要vLLM支持
-uv pip install .[vllm]
+# 下载到自定义目录
+deepseek-ocr-download -d /path/to/models
 
-# 如果需要开发依赖
-uv pip install .[dev]
+# 下载特定模型
+deepseek-ocr-download -m deepseek-ocr
+
+# 强制重新下载
+deepseek-ocr-download -f
+
+# 添加自定义模型
+deepseek-ocr-download --add-custom my-model my-hf-username/my-model-repo
+
+# 列出自定义模型
+deepseek-ocr-download --list-custom
+
+# 列出已下载模型
+deepseek-ocr-download --list-downloaded
 ```
 
-#### 安装LibreOffice
-为了支持办公文档格式转换，需要安装LibreOffice：
-- Ubuntu/Debian: `sudo apt-get install libreoffice`
-- CentOS/RHEL: `sudo yum install libreoffice`
-- macOS: `brew install --cask libreoffice`
-- Windows: 从官网下载安装
+### 模型目录结构
+
+```
+models/
+├── deepseek-ocr/           # 默认DeepSeek OCR模型
+│   ├── config.json
+│   ├── pytorch_model.bin
+│   └── ...
+├── model_config.json       # 模型配置文件
+└── ...                     # 其他自定义模型
+```
+
+模型配置文件 `model_config.json` 记录了已下载模型的信息和自定义模型的映射关系。
 
 ## 使用方法
 

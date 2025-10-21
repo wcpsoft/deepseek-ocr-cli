@@ -39,27 +39,23 @@ source .venv/bin/activate
 # 自动检测GPU类型并安装相应依赖
 echo "检测GPU环境..."
 GPU_TYPE=$(python3 dev/detect_gpu.py | grep "GPU_TYPE=" | cut -d'=' -f2)
+EXTRA_SUFFIX=$(python3 dev/detect_gpu.py | grep "EXTRA_SUFFIX=" | cut -d'=' -f2)
 
 echo "安装开发依赖..."
 if [ "$GPU_TYPE" = "nvidia" ]; then
     echo "检测到NVIDIA GPU，安装CUDA版本的PyTorch..."
-    uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu118
-    uv pip install -e .[dev]
+    uv pip install -e .[dev,nvidia]
 elif [ "$GPU_TYPE" = "amd" ]; then
     echo "检测到AMD GPU，安装ROCm版本的PyTorch..."
-    uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/rocm6.1
-    uv pip install -e .[dev]
+    uv pip install -e .[dev,amd]
 elif [ "$GPU_TYPE" = "mps" ]; then
-    echo "检测到Apple Silicon，安装CPU版本的PyTorch..."
-    uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
-    uv pip install -e .[dev]
+    echo "检测到Apple Silicon，安装MPS版本的PyTorch..."
+    uv pip install -e .[dev,mps]
 elif [ "$GPU_TYPE" = "dcu" ]; then
-    echo "检测到DCU，安装CPU版本的PyTorch..."
-    uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
-    uv pip install -e .[dev]
+    echo "检测到DCU，安装DCU版本的PyTorch..."
+    uv pip install -e .[dev,dcu]
 else
     echo "未检测到专用GPU，安装CPU版本的PyTorch..."
-    uv pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
     uv pip install -e .[dev]
 fi
 
