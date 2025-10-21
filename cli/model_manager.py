@@ -206,17 +206,17 @@ class ModelManager:
         
         # 检查是否存在基本文件
         model_path = Path(model_path)
-        required_files = ["config.json", "pytorch_model.bin"]
+        required_files = ["config.json"]
+        
+        # 检查是否存在模型文件（支持多种格式）
+        model_files = list(model_path.glob("pytorch_model*.bin")) + list(model_path.glob("*.safetensors"))
         
         for file in required_files:
             if not (model_path / file).exists():
-                # 检查是否存在分片模型文件
-                if file == "pytorch_model.bin":
-                    shard_pattern = "pytorch_model-*.bin"
-                    shards = list(model_path.glob(shard_pattern))
-                    if not shards:
-                        return False
-                else:
-                    return False
+                return False
+        
+        # 检查是否存在模型权重文件
+        if not model_files:
+            return False
         
         return True
