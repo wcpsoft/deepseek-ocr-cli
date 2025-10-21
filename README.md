@@ -1,3 +1,56 @@
+<!-- markdownlint-disable first-line-h1 -->
+<!-- markdownlint-disable html -->
+<!-- markdownlint-disable no-duplicate-header -->
+
+
+<div align="center">
+  <img src="assets/logo.svg" width="60%" alt="DeepSeek AI" />
+</div>
+
+
+<hr>
+<div align="center">
+  <a href="https://www.deepseek.com/" target="_blank">
+    <img alt="Homepage" src="assets/badge.svg" />
+  </a>
+  <a href="https://huggingface.co/deepseek-ai/DeepSeek-OCR" target="_blank">
+    <img alt="Hugging Face" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-DeepSeek%20AI-ffc107?color=ffc107&logoColor=white" />
+  </a>
+
+</div>
+
+<div align="center">
+
+  <a href="https://discord.gg/Tc7c45Zzu5" target="_blank">
+    <img alt="Discord" src="https://img.shields.io/badge/Discord-DeepSeek%20AI-7289da?logo=discord&logoColor=white&color=7289da" />
+  </a>
+  <a href="https://twitter.com/deepseek_ai" target="_blank">
+    <img alt="Twitter Follow" src="https://img.shields.io/badge/Twitter-deepseek_ai-white?logo=x&logoColor=white" />
+  </a>
+
+</div>
+
+
+
+<p align="center">
+  <a href="https://huggingface.co/deepseek-ai/DeepSeek-OCR"><b>📥 Model Download</b></a> |
+  <a href="https://github.com/deepseek-ai/DeepSeek-OCR/blob/main/DeepSeek_OCR_paper.pdf"><b>📄 Paper Link</b></a> |
+  <a href="DeepSeek_OCR_paper.pdf"><b>📄 Arxiv Paper Link</b></a> |
+</p>
+
+<h2>
+<p align="center">
+  <a href="">DeepSeek-OCR-cli: Contexts Optical Compression CLI Tool</a>
+</p>
+</h2>
+
+<p align="center">
+<img src="assets/fig1.png" style="width: 1000px" align=center>
+</p>
+<p align="center">
+<a href="">Explore the boundaries of visual-text compression.</a>       
+</p>
+
 ## 项目介绍
 
 DeepSeek-OCR-cli 是一个基于视觉编码器与大语言模型的光学字符识别系统命令行工具。本项目基于 [DeepSeek-OCR](https://github.com/deepseek-ai/DeepSeek-OCR) 项目基础上改造，让用户直接可以使用，提供了增强功能，增加了对多种文档格式的支持，包括 Word、PPT、Excel 等，并提供统一的命令行接口进行处理。
@@ -47,40 +100,55 @@ DeepSeek-OCR/
 ## 环境要求
 
 - Python 3.10 或更高版本
-- CUDA 11.8 + PyTorch 2.6.0
-- 支持的系统：Linux、Windows（需要WSL）、macOS
+- 支持多种硬件加速平台：
+  - NVIDIA GPU (CUDA 11.8 + PyTorch 2.6.0)
+  - AMD GPU (ROCm + PyTorch 2.6.0)
+  - Apple Silicon (MPS + PyTorch 2.6.0)
+  - DCU (Direct Compute Unit)
+- 支持的操作系统：Linux、Windows、macOS
 
 ## 安装指南
 
 ### 1. 克隆项目
 ```bash
-git clone https://github.com/deepseek-ai/DeepSeek-OCR.git
-cd DeepSeek-OCR
+git clone https://github.com/wcpsoft/deepseek-ocr-cli.git
+cd deepseek-ocr-cli
 ```
 
-### 2. 创建Conda环境
+### 2. 创建Python环境（使用uv管理）
 ```bash
-conda create -n deepseek-ocr-cli python=3.12.9 -y
-conda activate deepseek-ocr-cli
+# 安装uv（如果尚未安装）
+pip install uv
+
+# 创建虚拟环境并安装依赖
+uv venv
+source .venv/bin/activate  # Linux/macOS
+# 或 .venv\Scripts\activate  # Windows
+
+# 安装基础依赖
+uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0
+
+# 根据硬件平台安装相应的PyTorch版本：
+# NVIDIA GPU:
+# uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+# AMD GPU:
+# uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/rocm6.1
+# Apple Silicon:
+# uv pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
 ```
 
-### 3. 安装依赖
-
-#### 基础依赖
-```bash
-pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
-```
+### 3. 安装项目依赖
 
 #### 安装项目
 ```bash
 # 安装核心依赖
-pip install .
+uv pip install .
 
 # 如果需要vLLM支持
-pip install .[vllm]
+uv pip install .[vllm]
 
 # 如果需要开发依赖
-pip install .[dev]
+uv pip install .[dev]
 ```
 
 #### 安装LibreOffice
