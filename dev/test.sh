@@ -82,17 +82,17 @@ fi
 
 # 运行单元测试
 echo "运行单元测试..."
-python3 -m pytest tests/unit/ -v
+.venv/bin/python -m pytest tests/unit/ -v
 
 # 运行集成测试
 echo "运行集成测试..."
-python3 -m pytest tests/integration/ -v
+.venv/bin/python -m pytest tests/integration/ -v
 
 # 运行端到端测试
 echo "运行端到端测试..."
 echo "注意: 端到端测试需要下载模型文件才能正常运行"
 echo "请先运行 'deepseek-ocr --download-models' 下载模型"
-python3 -m pytest tests/e2e/ -v
+.venv/bin/python -m pytest tests/e2e/ -v
 
 echo "========================================="
 echo "  所有测试完成"

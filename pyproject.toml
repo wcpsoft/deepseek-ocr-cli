@@ -108,8 +108,8 @@ exclude = ["assets*", "tests*"]
 cli = ["*.py"]
 src = ["*.py"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=7.0.0",
     "black>=22.0.0",
     "flake8>=4.0.0",
