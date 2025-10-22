@@ -6,4 +6,4 @@ torchvision>=0.20,<0.21
 torchaudio==2.5.1
 transformers==4.47.1
 tokenizers
-vllm==0.8.5.post1
+# vllm==0.8.5.post1
