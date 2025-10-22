@@ -299,7 +299,8 @@ if VLLM_AVAILABLE:
             quant_config = vllm_config.quant_config
             multimodal_config = vllm_config.model_config.multimodal_config
 
-            # config.model_type ='deepseek_vl_v2'
+            # 明确设置模型类型以避免类型不匹配警告
+            config.model_type = 'deepseek_ocr'
 
             self.config = config
             self.multimodal_config = multimodal_config

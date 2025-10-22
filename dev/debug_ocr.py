@@ -6,11 +6,19 @@
 
 import sys
 import os
+import warnings
 from pathlib import Path
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+# 抑制CUDA相关警告
+warnings.filterwarnings("ignore", message=".*Unable to register.*factory.*")
+warnings.filterwarnings("ignore", message=".*computation placer already registered.*")
+
+# 设置环境变量以减少警告
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 def main():
     try:

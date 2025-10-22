@@ -138,9 +138,6 @@ class TransformersOCRProcessor(OCRProcessor):
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             if project_root not in sys.path:
                 sys.path.append(project_root)
-            
-            # 延迟导入，避免在不需要时加载依赖
-            from transformers.models.auto.modeling_auto import AutoModel
             import torch
             
             # 设置模型路径，优先使用本地模型
@@ -162,22 +159,22 @@ class TransformersOCRProcessor(OCRProcessor):
                 print(f"警告: Tokenizer加载失败 ({str(e)})，将使用默认tokenizer处理")
                 tokenizer = None
             
-            # 直接使用默认实现，避免flash_attention_2相关问题
             # 添加额外的配置来避免加载有问题的模块
             model_kwargs = {
                 "trust_remote_code": True,
-                "use_safetensors": True,  # type: ignore
+                "use_safetensors": True,
             }
             
             # 尝试加载模型，如果出现flash attention相关错误则尝试其他配置
             try:
                 from transformers import AutoModel
+                # 明确指定模型类以避免类型不匹配问题
                 model = AutoModel.from_pretrained(model_name, **model_kwargs)
             except ImportError as e:
                 if "LlamaFlashAttention2" in str(e):
                     print("警告: 检测到LlamaFlashAttention2导入错误，尝试使用兼容配置...")
                     # 添加额外的配置来避免flash attention问题
-                    model_kwargs["attn_implementation"] = "eager"  # type: ignore # 使用eager attention而不是flash attention
+                    model_kwargs["attn_implementation"] = "eager"  # 使用eager attention而不是flash attention
                     from transformers import AutoModel
                     model = AutoModel.from_pretrained(model_name, **model_kwargs)
                 else:

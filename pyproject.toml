@@ -60,6 +60,7 @@ deepseek-ocr = "cli.main:main"
 deepseek-ocr-download = "cli.download_models:main"
 deepseek-ocr-detect-gpu = "dev.detect_gpu:main"
 deepseek-ocr-debug = "dev.debug_ocr:main"
+deepseek-ocr-debug-fixed = "dev.fix_cuda_warnings:main"
 
 [project.urls]
 Homepage = "https://github.com/wcpsoft/deepseek-ocr-cli"
@@ -80,6 +81,8 @@ filterwarnings = [
     "ignore::DeprecationWarning:.*fitz.*",
     "ignore::DeprecationWarning:.*builtin type.*has no __module__ attribute.*",
     "ignore::DeprecationWarning",
+    "ignore::UserWarning:.*Unable to register.*factory.*",
+    "ignore::UserWarning:.*computation placer already registered.*",
 ]
 testpaths = [
     "tests",

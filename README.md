@@ -66,6 +66,9 @@ python -c "import fitz; import img2pdf; print('核心依赖验证成功')"
 
 # 测试基本功能
 ./dev/debug_ocr.py
+
+# 使用修复CUDA警告的版本测试（推荐）
+./dev/fix_cuda_warnings.py debug
 ```
 
 ## 重要依赖说明
@@ -248,6 +251,12 @@ deepseek-ocr document.docx -o output_dir --mode auto
 
 # 自定义提示词
 deepseek-ocr image.jpg -o output_dir --prompt "<image>\nOCR this image."
+
+# 使用修复CUDA警告的调试脚本
+deepseek-ocr-debug-fixed debug
+
+# 或者直接运行脚本
+./dev/fix_cuda_warnings.py debug
 ```
 
 ### Python API
@@ -289,11 +298,17 @@ deepseek-ocr-download
 项目提供了便捷的调试脚本：
 
 ```bash
-# 使用调试脚本快速测试OCR功能
+# 使用调试脚本快速测试OCR功能（可能会显示CUDA警告）
 python dev/debug_ocr.py
+
+# 使用修复CUDA警告的版本（推荐）
+python dev/fix_cuda_warnings.py debug
 
 # 或者使用安装后的命令
 deepseek-ocr-debug
+
+# 使用修复CUDA警告的版本
+deepseek-ocr-debug-fixed debug
 ```
 
 ## 分辨率模式
