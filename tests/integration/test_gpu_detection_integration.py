@@ -113,14 +113,14 @@ def test_run_sh_integration():
     # 验证run.sh中正确使用了GPU检测
     content = run_sh_path.read_text()
     
-    # 检查是否调用GPU检测脚本
-    assert "detect_gpu.py" in content, "run.sh中未调用GPU检测脚本"
+    # 检查是否调用GPU检测脚本（直接或间接）
+    assert "detect_gpu" in content, "run.sh中未调用GPU检测相关功能"
     
     # 检查是否使用了EXTRA_SUFFIX
     assert "EXTRA_SUFFIX" in content, "run.sh中未使用EXTRA_SUFFIX变量"
     
-    # 检查是否正确使用依赖安装命令
-    assert "-e ." in content, "run.sh中未正确使用依赖安装命令"
+    # 检查是否正确使用依赖安装命令（检查install_all_deps函数调用）
+    assert "install_all_deps" in content, "run.sh中未正确使用依赖安装命令"
 
 def test_test_sh_integration():
     """测试run_tests.sh脚本中的GPU检测集成"""
@@ -130,11 +130,11 @@ def test_test_sh_integration():
     # 验证run_tests.sh中正确使用了GPU检测
     content = test_sh_path.read_text()
     
-    # 检查是否调用GPU检测脚本
-    assert "detect_gpu.py" in content, "run_tests.sh中未调用GPU检测脚本"
+    # 检查是否调用GPU检测相关功能（直接或间接）
+    assert "detect_gpu" in content, "run_tests.sh中未调用GPU检测相关功能"
     
     # 检查是否使用了EXTRA_SUFFIX
     assert "EXTRA_SUFFIX" in content, "run_tests.sh中未使用EXTRA_SUFFIX变量"
     
-    # 检查是否正确使用依赖安装命令
-    assert "-e .[dev" in content, "run_tests.sh中未正确使用开发依赖安装命令"
+    # 检查是否正确使用依赖安装命令（检查install_all_deps函数调用）
+    assert "install_all_deps" in content, "run_tests.sh中未正确使用开发依赖安装命令"

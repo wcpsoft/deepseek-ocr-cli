@@ -61,13 +61,13 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 from transformers import BatchFeature
 
-from process.image_process import (
+from src.core.process.image_process import (
     DeepseekOCRProcessor, count_tiles)
 from transformers.utils import is_list_of
 
-from deepencoder.sam_vary_sdpa import build_sam_vit_b
-from deepencoder.clip_sdpa import build_clip_l
-from deepencoder.build_linear import MlpProjector
+from src.core.deepencoder.sam_vary_sdpa import build_sam_vit_b
+from src.core.deepencoder.clip_sdpa import build_clip_l
+from src.core.deepencoder.build_linear import MlpProjector
 from addict import Dict
 # import time
 from config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT

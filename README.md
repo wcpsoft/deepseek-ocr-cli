@@ -145,10 +145,13 @@ DeepSeek-OCR/
 │   └── test_cli.py        # CLI测试
 ├── src/                   # 源代码目录
 │   ├── __init__.py
+│   ├── app.py             # Web API服务入口
+│   ├── cli.py             # CLI入口
 │   └── core/              # 核心算法实现
 │       ├── __init__.py
 │       ├── config.py          # 配置文件
 │       ├── deepseek_ocr.py    # vLLM模型实现
+│       ├── api/               # Web API服务
 │       ├── process/           # 处理模块
 │       └── deepencoder/       # 编码器模块
 ├── dev/                   # 开发工具
@@ -254,6 +257,34 @@ deepseek-ocr-debug
 
 # 或者直接运行脚本
 ./dev/debug.py
+```
+
+### 两种使用方式
+
+项目现在支持两种使用方式：
+
+1. **命令行模式**：使用传统的CLI命令行工具
+2. **Web API模式**：通过Web界面和RESTful API进行OCR处理
+
+两种模式都支持相同的OCR功能，包括对vLLM和Transformers两种推理引擎的支持。
+
+### Web API服务
+
+项目现在支持通过Web API进行OCR处理，提供图形界面和RESTful API接口：
+
+```bash
+# 启动Web API服务
+python src/app.py
+
+# 或使用uvicorn直接启动
+uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload
+
+# 访问Web界面
+# 打开浏览器访问 http://localhost:8000
+
+# 使用API接口
+# POST /api/ocr/pdf - 上传PDF文件进行OCR处理
+# GET /api/download/{job_id}/{file_type} - 下载处理结果
 ```
 
 ### Python API

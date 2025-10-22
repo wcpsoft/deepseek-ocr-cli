@@ -1,8 +1,8 @@
 # CPU-only PyTorch, Transformers and vLLM requirements
 PyMuPDF
 img2pdf
-torch==2.4.1
-torchvision==0.19.1
-torchaudio==2.4.1
+torch>=2.6,<2.7
+torchvision
+torchaudio>=2.6,<2.7
 transformers==4.47.1
 tokenizers

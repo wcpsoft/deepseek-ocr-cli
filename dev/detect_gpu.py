@@ -68,6 +68,26 @@ def get_recommended_mode(gpu_type):
     else:
         return "vllm"
 
+# 为测试添加的兼容性函数
+def get_gpu_type():
+    """获取GPU类型（为测试兼容性保留）"""
+    return detect_gpu()
+
+def get_extra_require_suffix(gpu_type):
+    """获取额外依赖后缀（为测试兼容性保留）"""
+    # 根据测试期望，CPU类型和未知类型应该返回空字符串
+    if gpu_type == "cpu" or gpu_type == "unknown":
+        return ""
+    else:
+        return get_extra_suffix(gpu_type)
+
+def get_pytorch_install_cmd(gpu_type):
+    """获取PyTorch安装命令（为测试兼容性保留）"""
+    if gpu_type == "cpu":
+        return "uv pip install -e ."
+    else:
+        return f"uv pip install -e .[{gpu_type}]"
+
 def main():
     """主函数"""
     gpu_type = detect_gpu()

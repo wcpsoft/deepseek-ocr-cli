@@ -1,6 +1,7 @@
 # AMD GPU PyTorch, Transformers and vLLM requirements (ROCm)
 PyMuPDF
 img2pdf
+flash-attn==2.7.3 --no-build-isolation
 torch==2.5.1
 torchvision==0.20
 torchaudio==2.5.1

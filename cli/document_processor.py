@@ -14,7 +14,7 @@ from typing import Optional, List
 from abc import ABC, abstractmethod
 
 # PyMuPDF用于PDF处理
-import fitz  # type: ignore
+import pymupdf as fitz
 import img2pdf  # type: ignore
 from PIL import Image
 
@@ -174,7 +174,7 @@ class TransformersOCRProcessor(OCRProcessor):
                 if "LlamaFlashAttention2" in str(e):
                     print("警告: 检测到LlamaFlashAttention2导入错误，尝试使用兼容配置...")
                     # 添加额外的配置来避免flash attention问题
-                    model_kwargs["attn_implementation"] = "eager"  # 使用eager attention而不是flash attention
+                    model_kwargs["attn_implementation"] = "eager"  # type: ignore # 使用eager attention而不是flash attention
                     from transformers import AutoModel
                     model = AutoModel.from_pretrained(model_name, **model_kwargs)
                 else:
@@ -187,12 +187,18 @@ class TransformersOCRProcessor(OCRProcessor):
             if torch.cuda.is_available():
                 device = torch.device("cuda")
                 print("使用CUDA设备进行推理")
+                # 只在CUDA环境下启用自动混合精度
+                use_amp = True
             elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
                 device = torch.device("mps")
                 print("使用MPS设备进行推理")
+                # MPS环境下不使用自动混合精度以避免警告
+                use_amp = False
             else:
                 device = torch.device("cpu")
                 print("使用CPU设备进行推理")
+                # CPU环境下不使用自动混合精度
+                use_amp = False
             
             model = model.eval().to(device).to(torch.bfloat16)
             
@@ -371,19 +377,19 @@ class DocumentProcessor:
         """将PDF转换为图像列表"""
         images = []
         
-        pdf_document = fitz.open(str(pdf_path))
+        pdf_document = fitz.open(str(pdf_path))  # type: ignore
         zoom = 144 / 72.0  # 144 DPI
-        matrix = fitz.Matrix(zoom, zoom)
+        matrix = fitz.Matrix(zoom, zoom)  # type: ignore
         
         for page_num in range(pdf_document.page_count):
             page = pdf_document[page_num]
-            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+            pixmap = page.get_pixmap(matrix=matrix, alpha=False)  # type: ignore
             
             # 转换为PIL图像
             image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
             images.append(image)
         
-        pdf_document.close()
+        pdf_document.close()  # type: ignore
         return images
     
     def _perform_ocr(self, images: List[Image.Image], output_dir: Path):

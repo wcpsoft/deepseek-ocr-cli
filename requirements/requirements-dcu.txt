@@ -1,8 +1,9 @@
 # DCU PyTorch, Transformers and vLLM requirements
 PyMuPDF
 img2pdf
+flash-attn==2.6.1 --no-build-isolation
 torch==2.4.1
-torchvision==0.19
+torchvision
 torchaudio==1.4.1
 transformers==4.47.1
 tokenizers
