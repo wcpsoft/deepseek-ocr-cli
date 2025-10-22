@@ -9,12 +9,23 @@ import os
 import subprocess
 import tempfile
 import shutil
+import warnings
 from pathlib import Path
 from typing import Optional, List
 from abc import ABC, abstractmethod
 
+# 设置MPS回退环境变量
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
 # PyMuPDF用于PDF处理
-import pymupdf as fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    try:
+        import fitz
+    except ImportError:
+        raise ImportError("请安装PyMuPDF包: pip install PyMuPDF")
+
 import img2pdf  # type: ignore
 from PIL import Image
 
@@ -88,18 +99,31 @@ class VLLMOCRProcessor(OCRProcessor):
             # 处理图像
             batch_inputs = []
             for image in images:
-                cache_item = {
-                    "prompt": prompt,
-                    "multi_modal_data": {
-                        "image": DeepseekOCRProcessor().tokenize_with_images(
-                            images=[image], 
-                            bos=True, 
-                            eos=True, 
-                            cropping=self.crop_mode
-                        )
-                    },
-                }
-                batch_inputs.append(cache_item)
+                # 使用processor处理图像
+                from src.core.process.image_process import DeepseekOCRProcessor
+                processor = DeepseekOCRProcessor()
+                
+                # 处理图像和提示词
+                prompt = self.prompt or "<image>\n<|grounding|>Convert the document to markdown."
+                # 使用tokenize_with_images方法处理图像
+                processed_data = processor.tokenize_with_images(
+                    images=[image], 
+                    bos=True, 
+                    eos=True, 
+                    cropping=self.crop_mode
+                )
+                
+                # 构造输入数据
+                if processed_data and len(processed_data) > 0:
+                    cache_item = {
+                        "prompt": prompt,
+                        "multi_modal_data": {
+                            "image": processed_data
+                        },
+                    }
+                    batch_inputs.append(cache_item)
+                else:
+                    raise ValueError("图像处理失败，未生成有效的输入数据")
             
             # 生成结果
             outputs_list = llm.generate(batch_inputs, sampling_params=sampling_params)
@@ -151,56 +175,31 @@ class TransformersOCRProcessor(OCRProcessor):
             else:
                 print(f"本地模型不存在，将从远程下载: {model_name}")
             
-            # 尝试加载tokenizer，如果失败则使用备用方法
-            try:
-                from transformers import AutoTokenizer
-                tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-            except Exception as e:
-                print(f"警告: Tokenizer加载失败 ({str(e)})，将使用默认tokenizer处理")
-                tokenizer = None
+            # 加载tokenizer
+            from transformers import AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
             
-            # 添加额外的配置来避免加载有问题的模块
-            model_kwargs = {
-                "trust_remote_code": True,
-                "use_safetensors": True,
-            }
+            # 通过修改sys.modules来确保使用我们自己的模型类
+            import sys
+            # 将我们自己的模块添加到sys.modules中
+            import src.core.deepseek_ocr
+            sys.modules['modeling_deepseekocr'] = src.core.deepseek_ocr
             
-            # 尝试加载模型，如果出现flash attention相关错误则尝试其他配置
-            try:
-                from transformers import AutoModel
-                # 明确指定模型类以避免类型不匹配问题
-                model = AutoModel.from_pretrained(model_name, **model_kwargs)
-            except ImportError as e:
-                if "LlamaFlashAttention2" in str(e):
-                    print("警告: 检测到LlamaFlashAttention2导入错误，尝试使用兼容配置...")
-                    # 添加额外的配置来避免flash attention问题
-                    model_kwargs["attn_implementation"] = "eager"  # type: ignore # 使用eager attention而不是flash attention
-                    from transformers import AutoModel
-                    model = AutoModel.from_pretrained(model_name, **model_kwargs)
-                else:
-                    raise e
-            except Exception as e:
-                print(f"模型加载失败: {str(e)}")
-                raise e
+            # 使用Hugging Face的AutoModel加载模型
+            from transformers import AutoModel
+            model = AutoModel.from_pretrained(model_name, trust_remote_code=True, use_safetensors=True)
             
             # 检查可用的设备
-            if torch.cuda.is_available():
-                device = torch.device("cuda")
-                print("使用CUDA设备进行推理")
-                # 只在CUDA环境下启用自动混合精度
-                use_amp = True
-            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
-                device = torch.device("mps")
-                print("使用MPS设备进行推理")
-                # MPS环境下不使用自动混合精度以避免警告
-                use_amp = False
-            else:
-                device = torch.device("cpu")
-                print("使用CPU设备进行推理")
-                # CPU环境下不使用自动混合精度
-                use_amp = False
+            device = self._get_compatible_device()
+            print(f"使用 {device.type.upper()} 设备进行推理")
             
-            model = model.eval().to(device).to(torch.bfloat16)
+            # 将模型移到设备上并设置为评估模式
+            model = model.eval().to(device)
+            if device.type != "cpu":
+                model = model.to(torch.bfloat16)
+            
+            # 确保输出目录存在
+            output_dir.mkdir(parents=True, exist_ok=True)
             
             # 处理每张图像
             results = []
@@ -210,23 +209,18 @@ class TransformersOCRProcessor(OCRProcessor):
                 image.save(temp_image_path, "JPEG")
                 
                 try:
-                    # 执行推理
-                    if hasattr(model, 'infer') and callable(getattr(model, 'infer')):
-                        result = model.infer(
-                            tokenizer if tokenizer else None, 
-                            prompt=self.prompt,
-                            image_file=str(temp_image_path),
-                            output_path=str(output_dir),
-                            base_size=self.base_size,
-                            image_size=self.image_size,
-                            crop_mode=self.crop_mode,
-                            save_results=False,
-                            test_compress=True
-                        )
-                    else:
-                        # 如果模型没有infer方法，使用默认处理
-                        result = f"图像 {i+1} 处理完成 (模型不支持infer方法)"
-                    
+                    # 使用模型的infer方法处理图像
+                    prompt = self.prompt or "<image>\n<|grounding|>Convert the document to markdown."
+                    # 确保传递正确的image_file参数
+                    result = model.infer(
+                        tokenizer=tokenizer,
+                        prompt=prompt,
+                        image_file=str(temp_image_path),  # 确保传递正确的文件路径
+                        output_path=str(output_dir),      # 传递输出路径
+                        base_size=self.base_size,
+                        image_size=self.image_size,
+                        crop_mode=self.crop_mode
+                    )
                     results.append(result)
                 except Exception as infer_error:
                     print(f"警告: 图像 {i+1} 处理失败 ({str(infer_error)})")
@@ -241,6 +235,45 @@ class TransformersOCRProcessor(OCRProcessor):
             
         except Exception as e:
             raise RuntimeError(f"Transformers OCR执行失败: {str(e)}")
+    
+    def _get_compatible_device(self):
+        """获取兼容的设备，避免CUDA相关警告"""
+        import torch
+        
+        # 首先检查CUDA
+        if torch.cuda.is_available():
+            try:
+                # 尝试创建CUDA设备以验证是否真正可用
+                device = torch.device("cuda")
+                # 尝试在设备上创建一个张量来验证
+                test_tensor = torch.zeros(1).to(device)
+                # 清理测试张量
+                del test_tensor
+                torch.cuda.empty_cache()
+                return device
+            except Exception as e:
+                print(f"警告: CUDA设备不可用 ({str(e)})，尝试其他设备...")
+                # 如果CUDA不可用，继续检查其他设备
+                pass
+        
+        # 检查MPS
+        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            try:
+                # 尝试创建MPS设备以验证是否真正可用
+                device = torch.device("mps")
+                # 尝试在设备上创建一个张量来验证
+                test_tensor = torch.zeros(1).to(device)
+                # 清理测试张量
+                del test_tensor
+                return device
+            except Exception as e:
+                print(f"警告: MPS设备不可用 ({str(e)})，使用CPU...")
+                # 如果MPS不可用，继续使用CPU
+                pass
+        
+        # 默认使用CPU
+        print("使用CPU设备进行推理")
+        return torch.device("cpu")
     
     def _save_results(self, results: list, output_dir: Path) -> None:
         """保存OCR结果"""

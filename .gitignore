@@ -9,7 +9,7 @@ __pycache__/
 venv/
 env/
 output/
-
+.qoder/
 # Distribution / packaging
 .Python
 build/

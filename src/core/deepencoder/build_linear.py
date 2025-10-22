@@ -1,16 +1,34 @@
+"""
+MLP投影器实现
+用于将视觉特征映射到语言模型的嵌入空间
+"""
+
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import copy
+from typing import List, Union, Any
 
 
 class MlpProjector(nn.Module):
+    """
+    MLP投影器类
+    用于将视觉特征投影到语言模型的嵌入空间
+    """
 
     def __init__(self, cfg):
-
+        """
+        初始化MLP投影器
+        
+        Args:
+            cfg: 配置对象，包含投影器的相关配置参数
+        """
         super().__init__()
 
         self.cfg = cfg
+
+        # 初始化modules变量
+        modules: Any = None
 
         if cfg.projector_type == "identity":
             modules = nn.Identity()
@@ -20,47 +38,47 @@ class MlpProjector(nn.Module):
 
         elif cfg.projector_type == "mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
-            modules = [nn.Linear(cfg.input_dim, cfg.n_embed)]
+            modules_list_1: List[Union[nn.Linear, nn.GELU]] = [nn.Linear(cfg.input_dim, cfg.n_embed)]
             for _ in range(1, mlp_depth):
-                modules.append(nn.GELU())
-                modules.append(nn.Linear(cfg.n_embed, cfg.n_embed))
-            modules = nn.Sequential(*modules)
+                modules_list_1.append(nn.GELU())
+                modules_list_1.append(nn.Linear(cfg.n_embed, cfg.n_embed))
+            modules = nn.Sequential(*modules_list_1)
         
         elif cfg.projector_type == "normlayer_downsample_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
             mlp_ratio = cfg.get("mlp_ratio", 1)
-            modules = [
+            modules_list_2: List[nn.Module] = [
                 nn.LayerNorm(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio),
                 nn.Linear(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio, cfg.n_embed * mlp_ratio)
             ]
             for _ in range(1, mlp_depth - 1):
-                modules.append(nn.GELU())
-                modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio))
-            modules.append(nn.GELU())
-            modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed))
-            modules = nn.Sequential(*modules)
+                modules_list_2.append(nn.GELU())
+                modules_list_2.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio))
+            modules_list_2.append(nn.GELU())
+            modules_list_2.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed))
+            modules = nn.Sequential(*modules_list_2)
         
         elif cfg.projector_type == "downsample_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
             mlp_ratio = cfg.get("mlp_ratio", 1)
-            modules = [nn.Linear(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio, cfg.n_embed * mlp_ratio)]
+            modules_list_3: List[nn.Module] = [nn.Linear(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio, cfg.n_embed * mlp_ratio)]
             for _ in range(1, mlp_depth - 1):
-                modules.append(nn.GELU())
-                modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio))
-            modules.append(nn.GELU())
-            modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed))
-            modules = nn.Sequential(*modules)
+                modules_list_3.append(nn.GELU())
+                modules_list_3.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio))
+            modules_list_3.append(nn.GELU())
+            modules_list_3.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed))
+            modules = nn.Sequential(*modules_list_3)
 
         elif cfg.projector_type == "low_high_hybrid_split_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
             self.high_up_proj = nn.Linear(cfg.input_dim, cfg.n_embed // 2)
             self.low_up_proj = nn.Linear(cfg.input_dim, cfg.n_embed // 2)
 
-            modules = []
+            modules_list_4: List[nn.Module] = []
             for _ in range(1, mlp_depth):
-                modules.append(nn.GELU())
-                modules.append(nn.Linear(cfg.n_embed, cfg.n_embed))
-            modules = nn.Sequential(*modules)
+                modules_list_4.append(nn.GELU())
+                modules_list_4.append(nn.Linear(cfg.n_embed, cfg.n_embed))
+            modules = nn.Sequential(*modules_list_4)
 
         elif cfg.projector_type == "hybrid_split_feature_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
@@ -68,33 +86,50 @@ class MlpProjector(nn.Module):
             self.high_up_proj = nn.Linear(cfg.input_dim[0], int(cfg.n_embed * channel_div))
             self.low_up_proj = nn.Linear(cfg.input_dim[1], cfg.n_embed - int(cfg.n_embed * channel_div))
 
-            modules = []
+            modules_list_5: List[nn.Module] = []
             for _ in range(1, mlp_depth):
-                modules.append(nn.GELU())
-                modules.append(nn.Linear(cfg.n_embed, cfg.n_embed))
-            modules = nn.Sequential(*modules)
+                modules_list_5.append(nn.GELU())
+                modules_list_5.append(nn.Linear(cfg.n_embed, cfg.n_embed))
+            modules = nn.Sequential(*modules_list_5)
 
         elif cfg.projector_type == "low_high_split_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
-            modules = []
+            modules_list_high: List[nn.Module] = []
             for _ in range(1, mlp_depth):
-                modules.append(nn.GELU())
-                modules.append(nn.Linear(cfg.n_embed // 2, cfg.n_embed // 2))
-            modules = nn.Sequential(*modules)
-            self.high_layers = nn.Sequential(*modules)
-            self.low_layers = copy.deepcopy(modules)
+                modules_list_high.append(nn.GELU())
+                modules_list_high.append(nn.Linear(cfg.n_embed // 2, cfg.n_embed // 2))
+            
+            modules_list_low: List[nn.Module] = []
+            for _ in range(1, mlp_depth):
+                modules_list_low.append(nn.GELU())
+                modules_list_low.append(nn.Linear(cfg.n_embed // 2, cfg.n_embed // 2))
+                
+            self.high_layers = nn.Sequential(*modules_list_high)
+            self.low_layers = nn.Sequential(*modules_list_low)
+            # 对于这种类型，不需要设置self.layers
 
         else:
-            raise ValueError(f"Unknown projector type: {cfg.projector_type}")
+            raise ValueError(f"未知的投影器类型: {cfg.projector_type}")
 
-        if cfg.get("token_pooling", False):
-            self.token_pooling_layer = nn.Linear(cfg.input_dim * 4, cfg.input_dim)
+        # 只有在需要时才设置self.layers
+        if cfg.projector_type != "low_high_split_mlp_gelu":
+            if cfg.get("token_pooling", False):
+                self.token_pooling_layer = nn.Linear(cfg.input_dim * 4, cfg.input_dim)
 
-        if cfg.get("conv_fusion_high_low_features", False):
-            self.fusion_layer = nn.Linear(cfg.input_dim, cfg.input_dim)
-        self.layers = modules
+            if cfg.get("conv_fusion_high_low_features", False):
+                self.fusion_layer = nn.Linear(cfg.input_dim, cfg.input_dim)
+            self.layers = modules
 
     def forward(self, x):
+        """
+        前向传播函数
+        
+        Args:
+            x: 输入张量
+            
+        Returns:
+            处理后的张量
+        """
         if self.cfg.get("token_pooling", False):
             batch_size, wxh, channels = x.shape
             w = h = int(wxh**0.5)
@@ -139,7 +174,7 @@ class MlpProjector(nn.Module):
             bs, hw, input_dim = x.shape
             h = w = int((hw) ** 0.5)
 
-            """compute padding"""
+            """计算填充"""
             if h % self.cfg.downsample_ratio:
                 pad = self.cfg.downsample_ratio - h % self.cfg.downsample_ratio
             else:
@@ -148,7 +183,7 @@ class MlpProjector(nn.Module):
             if pad > 0:
                 x = F.pad(x, (0, 0, 0, pad, 0, pad), "constant", 0)
 
-            """4 to 1 concat"""
+            """4合1拼接"""
             x = x.permute(0, 3, 1, 2)  # B, C, H, W
             x = F.unfold(x, kernel_size=self.cfg.downsample_ratio, stride=self.cfg.downsample_ratio, padding=0) # B, C*4, HW // 4
             x = x.permute(0, 2, 1)
@@ -157,6 +192,15 @@ class MlpProjector(nn.Module):
 
     @staticmethod
     def get_flops_per_sample(cfg):
+        """
+        计算每个样本的浮点运算次数
+        
+        Args:
+            cfg: 配置对象
+            
+        Returns:
+            每个样本的浮点运算次数
+        """
         if cfg.projector_type == "linear":
             fwd = 2 * cfg.input_dim * cfg.n_embed
 
@@ -170,5 +214,3 @@ class MlpProjector(nn.Module):
             fwd = 0
 
         return fwd * 3
-
-

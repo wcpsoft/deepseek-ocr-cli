@@ -1,3 +1,3 @@
 """
-DeepSeek OCR API 服务模块
+DeepSeek OCR API 模块入口
 """

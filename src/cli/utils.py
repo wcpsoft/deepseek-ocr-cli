@@ -21,7 +21,7 @@ def check_model_availability(project_root: Path) -> tuple[bool, Optional[str]]:
         tuple[bool, Optional[str]]: (模型是否可用, 模型路径)
     """
     try:
-        from cli.model_manager import ModelManager
+        from src.cli.model_manager import ModelManager
         
         # 创建模型管理器实例
         model_manager = ModelManager(str(project_root / "models"))

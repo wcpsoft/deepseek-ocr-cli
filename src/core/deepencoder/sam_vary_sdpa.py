@@ -10,7 +10,13 @@ import torch.nn.functional as F
 
 from typing import Optional, Tuple, Type
 from functools import partial
-from flash_attn import flash_attn_qkvpacked_func
+# 延迟导入flash_attn，避免在不支持的平台上报错
+try:
+    from flash_attn import flash_attn_qkvpacked_func
+    FLASH_ATTN_AVAILABLE = True
+except ImportError:
+    flash_attn_qkvpacked_func = None
+    FLASH_ATTN_AVAILABLE = False
 # from .common import LayerNorm2d, MLPBlock
 
 # from mmgpt.model.vision_encoder.flash_4 import _attention_rel_h_rel_w
@@ -312,7 +318,8 @@ class Attention(nn.Module):
         else:
             x = torch.nn.functional.scaled_dot_product_attention(q, k, v)
             # qkv = torch.stack([q, k, v], dim=1).transpose(1, 3).reshape(B, H * W, 3, self.num_heads, -1)
-            # x = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False).transpose(1, 2)
+            # if FLASH_ATTN_AVAILABLE:
+            #     x = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False).transpose(1, 2)
 
         
 

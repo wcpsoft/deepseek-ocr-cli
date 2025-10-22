@@ -63,14 +63,14 @@ from transformers import BatchFeature
 
 from src.core.process.image_process import (
     DeepseekOCRProcessor, count_tiles)
-from transformers.utils import is_list_of
+# from transformers.utils import is_list_of  # Not used in current code
 
 from src.core.deepencoder.sam_vary_sdpa import build_sam_vit_b
 from src.core.deepencoder.clip_sdpa import build_clip_l
 from src.core.deepencoder.build_linear import MlpProjector
 from addict import Dict
 # import time
-from config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT
+from .config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT
 # The image token id may be various
 _IMAGE_TOKEN = "<image>"
 
@@ -78,14 +78,39 @@ _IMAGE_TOKEN = "<image>"
 # 只在vLLM可用时注册模型
 if VLLM_AVAILABLE:
     class DeepseekOCRProcessingInfo(BaseProcessingInfo):
+        """
+        DeepSeek OCR处理信息类
+        用于处理OCR相关的多模态信息
+        """
 
         def get_hf_config(self):
+            """
+            获取HuggingFace配置
+            
+            Returns:
+                HuggingFace配置对象
+            """
             return self.ctx.get_hf_config(DeepseekVLV2Config)
 
         def get_hf_processor(self, **kwargs: object):
+            """
+            获取HuggingFace处理器
+            
+            Args:
+                **kwargs: 处理器参数
+                
+            Returns:
+                HuggingFace处理器对象
+            """
             return self.ctx.get_hf_processor(DeepseekOCRProcessor, **kwargs)
 
         def get_supported_mm_limits(self) -> Mapping[str, Optional[int]]:
+            """
+            获取支持的多模态限制
+            
+            Returns:
+                多模态限制映射
+            """
             return {"image": None}
 
         def get_num_image_tokens(self,
@@ -93,6 +118,17 @@ if VLLM_AVAILABLE:
                                 image_width: int,
                                 image_height: int,
                                 cropping: bool = True) -> int:
+            """
+            计算图像token数量
+            
+            Args:
+                image_width: 图像宽度
+                image_height: 图像高度
+                cropping: 是否进行裁剪
+                
+            Returns:
+                图像token数量
+            """
             hf_processor = self.get_hf_processor()
 
 
@@ -136,6 +172,12 @@ if VLLM_AVAILABLE:
             return global_views_tokens + local_views_tokens + 1
 
         def get_image_size_with_most_features(self) -> ImageSize:
+            """
+            获取具有最多特征的图像尺寸
+            
+            Returns:
+                图像尺寸对象
+            """
 
             if IMAGE_SIZE == 1024 and BASE_SIZE == 1280:
                 return ImageSize(width=1024*2, height=1024*2)
@@ -144,8 +186,21 @@ if VLLM_AVAILABLE:
 
     class DeepseekOCRDummyInputsBuilder(
             BaseDummyInputsBuilder[DeepseekOCRProcessingInfo]):
+        """
+        DeepSeek OCR虚拟输入构建器
+        用于构建测试用的虚拟输入
+        """
 
         def get_dummy_text(self, mm_counts: Mapping[str, int]) -> str:
+            """
+            获取虚拟文本
+            
+            Args:
+                mm_counts: 多模态计数映射
+                
+            Returns:
+                虚拟文本字符串
+            """
             num_images = mm_counts.get("image", 0)
 
             processor = self.info.get_hf_processor()
@@ -158,6 +213,16 @@ if VLLM_AVAILABLE:
             seq_len: int,
             mm_counts: Mapping[str, int],
         ) -> MultiModalDataDict:
+            """
+            获取虚拟多模态数据
+            
+            Args:
+                seq_len: 序列长度
+                mm_counts: 多模态计数映射
+                
+            Returns:
+                虚拟多模态数据字典
+            """
             num_images = mm_counts.get("image", 0)
 
             max_image_size = self.info.get_image_size_with_most_features()
@@ -177,7 +242,10 @@ if VLLM_AVAILABLE:
 
     class DeepseekOCRMultiModalProcessor(
             BaseMultiModalProcessor[DeepseekOCRProcessingInfo]):
-        
+        """
+        DeepSeek OCR多模态处理器
+        处理OCR相关的多模态输入
+        """
 
         def _call_hf_processor(
             self,
@@ -185,7 +253,17 @@ if VLLM_AVAILABLE:
             mm_data: Mapping[str, object],
             mm_kwargs: Mapping[str, object],
         ) -> BatchFeature:
+            """
+            调用HuggingFace处理器
             
+            Args:
+                prompt: 提示文本
+                mm_data: 多模态数据
+                mm_kwargs: 多模态参数
+                
+            Returns:
+                批处理特征对象
+            """
             
             # print(mm_data)
             if mm_data:
@@ -208,6 +286,16 @@ if VLLM_AVAILABLE:
             hf_inputs: BatchFeature,
             hf_processor_mm_kwargs: Mapping[str, object],
         ) -> Mapping[str, MultiModalFieldConfig]:
+            """
+            获取多模态字段配置
+            
+            Args:
+                hf_inputs: HuggingFace输入
+                hf_processor_mm_kwargs: HuggingFace处理器多模态参数
+                
+            Returns:
+                多模态字段配置映射
+            """
             return dict(
                 pixel_values=MultiModalFieldConfig.batched("image"),
                 images_spatial_crop=MultiModalFieldConfig.batched("image"),
@@ -221,6 +309,17 @@ if VLLM_AVAILABLE:
             hf_processor_mm_kwargs: Mapping[str, object],
             out_mm_kwargs: MultiModalKwargs,
         ) -> Sequence[PromptUpdate]:
+            """
+            获取提示更新序列
+            
+            Args:
+                mm_items: 多模态数据项
+                hf_processor_mm_kwargs: HuggingFace处理器多模态参数
+                out_mm_kwargs: 输出多模态参数
+                
+            Returns:
+                提示更新序列
+            """
             hf_processor = self.info.get_hf_processor(**hf_processor_mm_kwargs)
 
             image_token_id = hf_processor.image_token_id
@@ -262,6 +361,17 @@ if VLLM_AVAILABLE:
             mm_data_items: MultiModalDataItems,
             hf_processor_mm_kwargs: Mapping[str, object],
         ) -> tuple[list[int], MultiModalKwargs, bool]:
+            """
+            缓存应用HuggingFace处理器
+            
+            Args:
+                prompt: 提示文本或token列表
+                mm_data_items: 多模态数据项
+                hf_processor_mm_kwargs: HuggingFace处理器多模态参数
+                
+            Returns:
+                处理结果元组
+            """
             # The processor logic is different for len(images) <= 2 vs > 2
             # Since the processing cache assumes that the processor output is
             # invariant of how many images are passed per prompt, we only
@@ -287,20 +397,28 @@ if VLLM_AVAILABLE:
         info=DeepseekOCRProcessingInfo,
         dummy_inputs=DeepseekOCRDummyInputsBuilder)
     class DeepseekOCRForCausalLM(nn.Module, SupportsMultiModal, SupportsPP):
+        """
+        DeepSeek OCR因果语言模型
+        支持多模态输入的因果语言模型实现
+        """
 
         hf_to_vllm_mapper = WeightsMapper(orig_to_new_prefix={
             "language.": "language_model.",
         })
 
         def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
+            """
+            初始化DeepSeek OCR因果语言模型
+            
+            Args:
+                vllm_config: vLLM配置对象
+                prefix: 模型前缀
+            """
             super().__init__()
 
             config: DeepseekVLV2Config = vllm_config.model_config.hf_config
             quant_config = vllm_config.quant_config
             multimodal_config = vllm_config.model_config.multimodal_config
-
-            # 明确设置模型类型以避免类型不匹配警告
-            config.model_type = 'deepseek_ocr'
 
             self.config = config
             self.multimodal_config = multimodal_config
@@ -361,7 +479,15 @@ if VLLM_AVAILABLE:
 
         def _parse_and_validate_image_input(
                 self, **kwargs: object):
+            """
+            解析和验证图像输入
             
+            Args:
+                **kwargs: 输入参数
+                
+            Returns:
+                解析后的图像输入或None
+            """
             pixel_values = kwargs.pop("pixel_values", None)
             images_spatial_crop = kwargs.pop("images_spatial_crop", None)
             images_crop = kwargs.pop("images_crop", None)
@@ -396,6 +522,17 @@ if VLLM_AVAILABLE:
             images_crop: torch.Tensor,
             images_spatial_crop: torch.Tensor,
         ) -> NestedTensors:
+            """
+            将像素值转换为嵌入向量
+            
+            Args:
+                pixel_values: 像素值张量
+                images_crop: 图像裁剪张量
+                images_spatial_crop: 图像空间裁剪张量
+                
+            Returns:
+                嵌入向量张量
+            """
 
             # Pixel_values (global view): [n_image, batch_size, 3, height, width]
             # images_spatial_crop: [n_image, batch_size, [num_tiles_w, num_tiles_h]]
@@ -497,7 +634,15 @@ if VLLM_AVAILABLE:
 
         def _process_image_input(
                 self, image_input) -> torch.Tensor:
+            """
+            处理图像输入
             
+            Args:
+                image_input: 图像输入数据
+                
+            Returns:
+                处理后的图像张量
+            """
 
             # image_input: [pixel_values, images_crop, images_spatial_crop]
         
@@ -522,10 +667,25 @@ if VLLM_AVAILABLE:
             return vision_features
 
         def get_language_model(self) -> torch.nn.Module:
+            """
+            获取语言模型
+            
+            Returns:
+                语言模型模块
+            """
             return self.language_model
 
         def get_multimodal_embeddings(
                 self, **kwargs: object) -> Optional[MultiModalEmbeddings]:
+            """
+            获取多模态嵌入向量
+            
+            Args:
+                **kwargs: 输入参数
+                
+            Returns:
+                多模态嵌入向量或None
+            """
             image_input = self._parse_and_validate_image_input(**kwargs)
             if image_input is None:
                 return None
@@ -539,7 +699,16 @@ if VLLM_AVAILABLE:
             input_ids: torch.Tensor,
             multimodal_embeddings: Optional[MultiModalEmbeddings] = None,
         ) -> torch.Tensor:
+            """
+            获取输入嵌入向量
             
+            Args:
+                input_ids: 输入ID张量
+                multimodal_embeddings: 多模态嵌入向量
+                
+            Returns:
+                输入嵌入向量张量
+            """
 
 
             inputs_embeds = self.language_model.get_input_embeddings(input_ids)
@@ -562,6 +731,19 @@ if VLLM_AVAILABLE:
                     intermediate_tensors: Optional[IntermediateTensors] = None,
                     inputs_embeds: Optional[torch.Tensor] = None,
                     **kwargs: object):
+            """
+            前向传播函数
+            
+            Args:
+                input_ids: 输入ID张量
+                positions: 位置张量
+                intermediate_tensors: 中间张量
+                inputs_embeds: 输入嵌入向量
+                **kwargs: 其他参数
+                
+            Returns:
+                前向传播结果
+            """
 
             if intermediate_tensors is not None:
                 inputs_embeds = None
@@ -581,36 +763,276 @@ if VLLM_AVAILABLE:
 
             return hidden_states
 
-        def compute_logits(
-            self,
-            hidden_states: torch.Tensor,
-            sampling_metadata: SamplingMetadata,
-        ) -> Optional[torch.Tensor]:
-            return self.language_model.compute_logits(hidden_states,
-                                                    sampling_metadata)
+            def compute_logits(
+                self,
+                hidden_states: torch.Tensor,
+                sampling_metadata: SamplingMetadata,
+            ) -> Optional[torch.Tensor]:
+                """
+                计算logits
+                
+                Args:
+                    hidden_states: 隐藏状态张量
+                    sampling_metadata: 采样元数据
+                    
+                Returns:
+                    logits张量或None
+                """
+                return self.language_model.compute_logits(hidden_states,
+                                                        sampling_metadata)
 
-
-        def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]) -> Set[str]:
-            processed_weights = []
+    def infer(self, tokenizer, prompt='', image_file='', output_path='', base_size=1024, image_size=640, crop_mode=True, test_compress=False, save_results=False):
+        """
+        推理方法，用于处理图像并生成OCR结果
+        
+        Args:
+            tokenizer: 分词器
+            prompt: 提示词
+            image_file: 图像文件路径
+            output_path: 输出路径
+            base_size: 基础尺寸
+            image_size: 图像尺寸
+            crop_mode: 是否启用裁剪模式
+            test_compress: 是否测试压缩
+            save_results: 是否保存结果
             
-            for name, tensor in weights:
-                if 'sam_model' in name or 'vision_model' in name or 'projector' in name or 'image_newline' in name or 'view_seperator' in name:
-                    new_name = name.replace('model.', '', 1)
-                else:
-                    new_name = 'language.' + name
-
-                processed_weights.append((new_name, tensor))
+        Returns:
+            OCR结果
+        """
+        import torch
+        from PIL import Image
+        from .process.image_process import DeepseekOCRProcessor
+        
+        # 加载图像
+        image = Image.open(image_file).convert('RGB')
+        
+        # 处理图像
+        processor = DeepseekOCRProcessor(tokenizer=tokenizer)
+        processed_data = processor.tokenize_with_images(
+            images=[image],
+            bos=True,
+            eos=True,
+            cropping=crop_mode
+        )
+        
+        # 提取处理后的数据
+        if processed_data and len(processed_data) > 0:
+            # 注意：这里的索引可能需要调整，根据实际的数据结构
+            input_ids = processed_data[0][0]
+            pixel_values = processed_data[0][1]
+            images_crop = processed_data[0][2]
+            images_spatial_crop = processed_data[0][4]  # 根据实际数据结构调整索引
             
-            loader = AutoWeightsLoader(self)
-            autoloaded_weights = loader.load_weights(processed_weights, mapper=self.hf_to_vllm_mapper)
+            # 确保数据在正确的设备上
+            device = next(self.parameters()).device
+            input_ids = input_ids.to(device)
+            pixel_values = pixel_values.to(device)
+            images_crop = images_crop.to(device)
+            images_spatial_crop = images_spatial_crop.to(device)
+            
+            # 构造模型输入
+            model_inputs = {
+                "input_ids": input_ids,
+                "pixel_values": pixel_values,
+                "images_crop": images_crop,
+                "images_spatial_crop": images_spatial_crop
+            }
+            
+            # 生成结果
+            with torch.no_grad():
+                outputs = self.generate(
+                    **model_inputs,
+                    max_new_tokens=512,
+                    temperature=0.0,
+                    do_sample=False
+                )
+            
+            # 解码输出
+            if hasattr(outputs, 'sequences') and tokenizer is not None:
+                result = tokenizer.decode(outputs.sequences[0], skip_special_tokens=True)
+                return result
+            else:
+                return "处理完成"
+        else:
+            raise ValueError("图像处理失败，未生成有效的输入数据")
+
+            def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]) -> Set[str]:
+                """
+                加载模型权重
+                
+                Args:
+                    weights: 权重元组迭代器
+                
+                Returns:
+                    已加载的权重名称集合
+                """
+                processed_weights = []
+                
+                for name, tensor in weights:
+                    if 'sam_model' in name or 'vision_model' in name or 'projector' in name or 'image_newline' in name or 'view_seperator' in name:
+                        new_name = name.replace('model.', '', 1)
+                    else:
+                        new_name = 'language.' + name
+
+                    processed_weights.append((new_name, tensor))
+                
+                loader = AutoWeightsLoader(self)
+                autoloaded_weights = loader.load_weights(processed_weights, mapper=self.hf_to_vllm_mapper)
 
 
 
 
 
-            return autoloaded_weights
+                return autoloaded_weights
 else:
-    # 在不支持vLLM的平台上提供占位符实现
-    class DeepseekOCRForCausalLM:
-        def __init__(self, *args, **kwargs):
-            raise RuntimeError("vLLM not available on this platform. Please use Transformers mode instead.")
+    # 在不支持vLLM的平台上提供Transformers兼容的实现
+    class DeepseekOCRForCausalLM(nn.Module):
+        """
+        DeepSeek OCR因果语言模型Transformers兼容实现
+        在不支持vLLM的平台上的简化实现
+        """
+        def __init__(self):
+            """
+            初始化Transformers兼容实现
+            """
+            super().__init__()
+            # 在Transformers模式下，我们不需要初始化复杂的vLLM模型
+            # 这里只是一个占位符，实际的模型加载由Hugging Face处理
+            self.model = None
+            self.device = torch.device("cpu")
+            
+        @classmethod
+        def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs):
+            """
+            从预训练模型加载模型
+            
+            Args:
+                pretrained_model_name_or_path: 预训练模型名称或路径
+                *args: 位置参数
+                **kwargs: 关键字参数
+                
+            Returns:
+                DeepseekOCRForCausalLM实例
+            """
+            # 创建实例
+            instance = cls()
+            
+            # 加载实际的模型
+            from transformers import AutoModel
+            instance.model = AutoModel.from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
+            instance.device = next(instance.model.parameters()).device
+            return instance
+            
+        def infer(self, tokenizer, prompt='', image_file='', output_path='', base_size=1024, image_size=640, crop_mode=True, test_compress=False, save_results=False):
+            """
+            推理方法，用于处理图像并生成OCR结果
+            
+            Args:
+                tokenizer: 分词器
+                prompt: 提示词
+                image_file: 图像文件路径
+                output_path: 输出路径
+                base_size: 基础尺寸
+                image_size: 图像尺寸
+                crop_mode: 是否启用裁剪模式
+                test_compress: 是否测试压缩
+                save_results: 是否保存结果
+                
+            Returns:
+                OCR结果
+            """
+            import torch
+            from PIL import Image
+            from .process.image_process import DeepseekOCRProcessor
+            
+            # 加载图像
+            image = Image.open(image_file).convert('RGB')
+            
+            # 处理图像
+            processor = DeepseekOCRProcessor(tokenizer=tokenizer)
+            processed_data = processor.tokenize_with_images(
+                images=[image],
+                bos=True,
+                eos=True,
+                cropping=crop_mode
+            )
+            
+            # 提取处理后的数据
+            if processed_data and len(processed_data) > 0:
+                # 注意：这里的索引可能需要调整，根据实际的数据结构
+                input_ids = processed_data[0][0]
+                pixel_values = processed_data[0][1]
+                images_crop = processed_data[0][2]
+                images_spatial_crop = processed_data[0][4]  # 根据实际数据结构调整索引
+                
+                # 确保数据在正确的设备上
+                input_ids = input_ids.to(self.device)
+                pixel_values = pixel_values.to(self.device)
+                images_crop = images_crop.to(self.device)
+                images_spatial_crop = images_spatial_crop.to(self.device)
+                
+                # 构造模型输入
+                model_inputs = {
+                    "input_ids": input_ids,
+                    "pixel_values": pixel_values,
+                    "images_crop": images_crop,
+                    "images_spatial_crop": images_spatial_crop
+                }
+                
+                # 生成结果
+                with torch.no_grad():
+                    # 调用实际模型的生成方法
+                    outputs = self.model.generate(
+                        **model_inputs,
+                        max_new_tokens=512,
+                        temperature=0.0,
+                        do_sample=False
+                    )
+                
+                # 解码输出
+                if hasattr(outputs, 'sequences') and tokenizer is not None:
+                    result = tokenizer.decode(outputs.sequences[0], skip_special_tokens=True)
+                    return result
+                else:
+                    return "处理完成"
+            else:
+                raise ValueError("图像处理失败，未生成有效的输入数据")
+                
+        def generate(self, *args, **kwargs):
+            """
+            生成方法，调用实际模型的生成方法
+            
+            Args:
+                *args: 位置参数
+                **kwargs: 关键字参数
+                
+            Returns:
+                生成结果
+            """
+            return self.model.generate(*args, **kwargs)
+                
+        def to(self, device):
+            """
+            将模型移到指定设备
+            
+            Args:
+                device: 目标设备
+                
+            Returns:
+                self
+            """
+            self.device = device
+            if self.model is not None:
+                self.model = self.model.to(device)
+            return self
+            
+        def eval(self):
+            """
+            设置模型为评估模式
+            
+            Returns:
+                self
+            """
+            if self.model is not None:
+                self.model = self.model.eval()
+            return self

@@ -1,42 +1,38 @@
 """
-DeepSeek OCR API 服务主入口
+DeepSeek OCR API 主应用
 支持transformers和vllm两种推理模式
 """
-import os
-import shutil
-import uuid
-import asyncio
-import zipfile
-import io
 from pathlib import Path
-from typing import Dict, Optional
-from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
-# 添加项目根目录到Python路径
-import sys
-project_root = Path(__file__).resolve().parent.parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.append(str(project_root))
+from src.core.api.controller.ocr_controller import OCRController
 
-from src.core.api.server import app as api_app
 
-# 主应用实例
-app = FastAPI(title="DeepSeek-OCR Service")
-
-# 挂载API路由
-app.mount("/api", api_app)
-
-# 静态文件目录
-static_dir = project_root / 'server' / 'static'
-static_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    """主页面"""
-    return """
+def create_app():
+    """创建FastAPI应用"""
+    # 获取项目根目录
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    
+    app = FastAPI(title="DeepSeek-OCR Service")
+    
+    # 创建OCR控制器
+    ocr_controller = OCRController(project_root)
+    
+    # 挂载API路由
+    app.include_router(ocr_controller.router, prefix="/api")
+    
+    # 静态文件目录
+    static_dir = project_root / 'server' / 'static'
+    static_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    
+    # 主页
+    @app.get("/", response_class=HTMLResponse)
+    async def index():
+        """主页面"""
+        return """
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -424,6 +420,11 @@ async def index():
 </body>
 </html>
 """
+    
+    return app
+
+
+app = create_app()
 
 if __name__ == "__main__":
     import uvicorn

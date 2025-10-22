@@ -12,7 +12,7 @@ import argparse
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cli.model_manager import ModelManager
+from src.cli.model_manager import ModelManager
 
 def display_model_info(model_manager, model_name):
     """显示模型详细信息"""

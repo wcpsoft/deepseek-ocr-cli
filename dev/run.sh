@@ -74,7 +74,7 @@ install_all_deps
 # 检查是否需要下载模型
 if [ "$DOWNLOAD_MODELS" = true ]; then
     log_info "下载模型..."
-    python3 -m cli.download_models -m deepseek-ocr --force
+    python3 -m src.cli.download_models -m deepseek-ocr --force
     exit 0
 fi
 
@@ -82,7 +82,7 @@ fi
 log_info "检查模型..."
 if [ ! -d "models/deepseek-ocr" ]; then
     log_info "默认模型不存在，正在下载..."
-    python3 -m cli.download_models -m deepseek-ocr
+    python3 -m src.cli.download_models -m deepseek-ocr
 else
     log_info "默认模型已存在"
 fi
@@ -124,7 +124,7 @@ log_info "处理文件: $INPUT_FILE"
 log_info "输出目录: $OUTPUT_DIR"
 log_info "推理模式: $FINAL_MODE"
 
-python3 -m cli.main "$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE"
+python3 -m src.cli.main "$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE"
 
 echo "========================================="
 echo "  处理完成"
