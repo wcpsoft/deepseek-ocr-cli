@@ -2,7 +2,7 @@
 PyMuPDF
 img2pdf
 torch==2.5.1
-torchvision==0.20
+torchvision>=0.20,<0.21
 torchaudio==2.5.1
 transformers==4.47.1
 tokenizers
