@@ -65,10 +65,7 @@ uv pip install -r requirements/requirements-cpu.txt
 python -c "import fitz; import img2pdf; print('核心依赖验证成功')"
 
 # 测试基本功能
-./dev/debug_ocr.py
-
-# 使用修复CUDA警告的版本测试（推荐）
-./dev/fix_cuda_warnings.py debug
+./dev/debug.py
 ```
 
 ## 重要依赖说明
@@ -156,7 +153,7 @@ DeepSeek-OCR/
 │       └── deepencoder/       # 编码器模块
 ├── dev/                   # 开发工具
 │   ├── run_tests.sh       # 自动化测试脚本
-│   ├── debug_ocr.py       # 用户调试脚本
+│   ├── debug.py           # 统一调试脚本
 │   ├── detect_gpu.py      # GPU检测工具
 │   ├── run.sh             # 运行脚本
 │   └── setup.sh           # 安装脚本
@@ -252,11 +249,11 @@ deepseek-ocr document.docx -o output_dir --mode auto
 # 自定义提示词
 deepseek-ocr image.jpg -o output_dir --prompt "<image>\nOCR this image."
 
-# 使用修复CUDA警告的调试脚本
-deepseek-ocr-debug-fixed debug
+# 使用统一调试脚本
+deepseek-ocr-debug
 
 # 或者直接运行脚本
-./dev/fix_cuda_warnings.py debug
+./dev/debug.py
 ```
 
 ### Python API
@@ -283,7 +280,7 @@ processor.process("input.docx", "output_dir")
 ./dev/run.sh input.pdf output_dir
 
 # 调试OCR处理
-./dev/debug_ocr.py
+./dev/debug.py
 ```
 
 ### 下载模型
@@ -298,17 +295,11 @@ deepseek-ocr-download
 项目提供了便捷的调试脚本：
 
 ```bash
-# 使用调试脚本快速测试OCR功能（可能会显示CUDA警告）
-python dev/debug_ocr.py
-
-# 使用修复CUDA警告的版本（推荐）
-python dev/fix_cuda_warnings.py debug
+# 使用统一调试脚本进行OCR测试
+python dev/debug.py
 
 # 或者使用安装后的命令
 deepseek-ocr-debug
-
-# 使用修复CUDA警告的版本
-deepseek-ocr-debug-fixed debug
 ```
 
 ## 分辨率模式

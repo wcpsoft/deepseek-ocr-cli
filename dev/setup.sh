@@ -36,7 +36,7 @@ install_all_deps
 if verify_core_deps; then
     log_success "依赖安装完成!"
     echo "安装完成! 可以运行以下命令测试:"
-    echo "  ./dev/debug_ocr.py"
+    echo "  ./dev/debug.py"
 else
     log_error "依赖安装验证失败"
     exit 1
