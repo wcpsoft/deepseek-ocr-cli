@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 引入公共函数
+source "$(dirname "$0")/common.sh"
+
 # DeepSeek OCR CLI 运行脚本
 # 用于快速运行OCR处理任务
 
@@ -26,7 +29,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -*)
-            echo "未知选项: $1"
+            log_error "未知选项: $1"
             echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [输入文件] [输出目录]"
             exit 1
             ;;
@@ -41,92 +44,47 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# 检查是否在项目根目录
-if [ ! -f "pyproject.toml" ]; then
-    echo "错误: 请在项目根目录运行此脚本"
-    exit 1
-fi
+# 检查项目根目录
+check_project_root
 
 # 检查Python环境
-if ! command -v python3 &> /dev/null; then
-    echo "错误: 未找到Python3"
-    exit 1
-fi
+check_python
 
 # 检查uv是否已安装
-if ! command -v uv &> /dev/null; then
-    echo "警告: 未找到uv命令，将使用pip安装"
-    python3 -m pip install uv
+if ! check_uv; then
+    install_uv
 fi
 
 # 创建虚拟环境（如果不存在）
-if [ ! -d ".venv" ]; then
-    echo "创建虚拟环境..."
-    uv venv
-fi
+create_venv
 
 # 激活虚拟环境
-source .venv/bin/activate
+activate_venv
 
 # 自动检测GPU类型并安装相应依赖
-echo "检测GPU环境..."
-GPU_TYPE=$(python3 dev/detect_gpu.py | grep "GPU_TYPE=" | cut -d'=' -f2)
-EXTRA_SUFFIX=$(python3 dev/detect_gpu.py | grep "EXTRA_SUFFIX=" | cut -d'=' -f2)
+log_info "检测GPU环境..."
+GPU_TYPE=$(detect_gpu)
+EXTRA_SUFFIX=$(get_extra_suffix)
 RECOMMENDED_MODE=$(python3 dev/detect_gpu.py | grep "推荐的推理模式:" | cut -d' ' -f3)
 
-echo "安装项目依赖..."
-if [ -n "$EXTRA_SUFFIX" ]; then
-    echo "检测到 $GPU_TYPE GPU，安装相应版本的PyTorch..."
-    # 使用更精确的依赖安装方式，避免跨平台依赖冲突
-    # 首先安装基础依赖
-    uv pip install -e .
-    
-    # 然后安装硬件特定依赖
-    case $GPU_TYPE in
-        "nvidia")
-            echo "安装NVIDIA GPU特定依赖..."
-            uv pip install -r requirements/requirements-nvidia.txt
-            ;;
-        "amd")
-            echo "安装AMD GPU特定依赖..."
-            uv pip install -r requirements/requirements-amd.txt
-            ;;
-        "mps")
-            echo "安装Apple Silicon MPS特定依赖..."
-            uv pip install -r requirements/requirements-mps.txt
-            ;;
-        "dcu")
-            echo "安装DCU特定依赖..."
-            uv pip install -r requirements/requirements-dcu.txt
-            ;;
-        "cpu")
-            echo "安装CPU特定依赖..."
-            uv pip install -r requirements/requirements-cpu.txt
-            ;;
-        *)
-            echo "未知GPU类型，安装CPU特定依赖..."
-            uv pip install -r requirements/requirements-cpu.txt
-            ;;
-    esac
-else
-    echo "未检测到专用GPU，安装CPU版本的PyTorch..."
-    uv pip install -e .
-fi
+log_info "安装项目依赖..."
+# 使用更精确的依赖安装方式，避免跨平台依赖冲突
+install_all_deps
 
 # 检查是否需要下载模型
 if [ "$DOWNLOAD_MODELS" = true ]; then
-    echo "下载模型..."
+    log_info "下载模型..."
     python3 -m cli.download_models -m deepseek-ocr --force
     exit 0
 fi
 
 # 检查模型是否存在，如果不存在则下载默认模型
-echo "检查模型..."
+log_info "检查模型..."
 if [ ! -d "models/deepseek-ocr" ]; then
-    echo "默认模型不存在，正在下载..."
+    log_info "默认模型不存在，正在下载..."
     python3 -m cli.download_models -m deepseek-ocr
 else
-    echo "默认模型已存在"
+    log_info "默认模型已存在"
 fi
 
 # 如果没有提供输入文件，则退出
@@ -143,7 +101,7 @@ fi
 
 # 检查输入文件是否存在
 if [ ! -f "$INPUT_FILE" ]; then
-    echo "错误: 输入文件不存在: $INPUT_FILE"
+    log_error "输入文件不存在: $INPUT_FILE"
     exit 1
 fi
 
@@ -153,18 +111,18 @@ if [ -n "$RECOMMENDED_MODE" ] && [ "$RECOMMENDED_MODE" != "auto" ]; then
     # 如果有推荐模式且用户没有明确指定模式，则使用推荐模式
     if [ "$MODE" = "auto" ]; then
         FINAL_MODE="$RECOMMENDED_MODE"
-        echo "使用推荐的推理模式: $FINAL_MODE"
+        log_info "使用推荐的推理模式: $FINAL_MODE"
     elif [ "$MODE" != "$RECOMMENDED_MODE" ]; then
-        echo "警告: 当前模式 ($MODE) 与系统推荐模式 ($RECOMMENDED_MODE) 不一致"
+        log_warn "当前模式 ($MODE) 与系统推荐模式 ($RECOMMENDED_MODE) 不一致"
     fi
 else
     FINAL_MODE="$MODE"
 fi
 
 # 运行OCR处理
-echo "处理文件: $INPUT_FILE"
-echo "输出目录: $OUTPUT_DIR"
-echo "推理模式: $FINAL_MODE"
+log_info "处理文件: $INPUT_FILE"
+log_info "输出目录: $OUTPUT_DIR"
+log_info "推理模式: $FINAL_MODE"
 
 python3 -m cli.main "$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE"
 

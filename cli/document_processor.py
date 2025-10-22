@@ -189,10 +189,13 @@ class TransformersOCRProcessor(OCRProcessor):
             # 检查可用的设备
             if torch.cuda.is_available():
                 device = torch.device("cuda")
+                print("使用CUDA设备进行推理")
             elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
                 device = torch.device("mps")
+                print("使用MPS设备进行推理")
             else:
                 device = torch.device("cpu")
+                print("使用CPU设备进行推理")
             
             model = model.eval().to(device).to(torch.bfloat16)
             

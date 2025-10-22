@@ -48,16 +48,12 @@ dev = [
     "isort>=5.10.1",
     "pre-commit>=2.17.0",
 ]
-nvidia = [
-]
-amd = [
-]
-cpu = [
-]
-mps = [
-]
-dcu = [
-]
+# 保留空的平台特定依赖组以保持API兼容性
+nvidia = []
+amd = []
+cpu = []
+mps = []
+dcu = []
 
 [project.scripts]
 deepseek-ocr = "cli.main:main"

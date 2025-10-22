@@ -1,9 +1,9 @@
 # AMD GPU PyTorch, Transformers and vLLM requirements (ROCm)
-torch
-torchvision
-torchaudio
-transformers==4.47.1
-tokenizers
-vllm>=0.8.5,<=0.10.1
 PyMuPDF
 img2pdf
+torch=2.5.1
+torchvision=0.20
+torchaudio=2.5.1
+transformers==4.47.1
+tokenizers
+vllm==0.8.5.post1

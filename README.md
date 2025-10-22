@@ -1,3 +1,86 @@
+# DeepSeek-OCR-CLI
+
+基于视觉编码器与大语言模型的光学字符识别系统命令行工具
+
+## 系统要求
+
+- Python 3.10 或更高版本
+- 支持多种硬件平台:
+  - NVIDIA GPU (CUDA)
+  - AMD GPU (ROCm)
+  - Apple Silicon (MPS)
+  - DCU (Direct Compute Unit)
+  - CPU (通用处理器)
+
+## 安装
+
+### 1. 创建并激活虚拟环境
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# 或
+.venv\Scripts\activate     # Windows
+```
+
+### 2. 安装依赖
+
+项目使用 [uv](https://github.com/astral-sh/uv) 作为包管理器，提供更快的依赖安装速度。
+
+```bash
+# 安装uv (如果尚未安装)
+pip install uv
+
+# 自动检测硬件平台并安装相应依赖
+./dev/setup.sh
+```
+
+或者手动选择平台安装:
+
+```bash
+# 安装核心依赖
+uv pip install -e .
+
+# 根据硬件平台选择安装相应的依赖
+# NVIDIA GPU
+uv pip install -r requirements/requirements-nvidia.txt
+
+# AMD GPU
+uv pip install -r requirements/requirements-amd.txt
+
+# Apple Silicon
+uv pip install -r requirements/requirements-mps.txt
+
+# DCU
+uv pip install -r requirements/requirements-dcu.txt
+
+# CPU-only
+uv pip install -r requirements/requirements-cpu.txt
+```
+
+### 3. 验证安装
+
+```bash
+# 验证核心依赖
+python -c "import fitz; import img2pdf; print('核心依赖验证成功')"
+
+# 测试基本功能
+./dev/debug_ocr.py
+```
+
+## 重要依赖说明
+
+项目依赖于以下核心库:
+
+- **PyMuPDF (fitz)**: 用于PDF文档处理
+- **img2pdf**: 用于图像到PDF的转换
+- **PyTorch**: 深度学习框架，根据不同硬件平台有不同的版本要求
+- **Transformers**: HuggingFace的Transformer模型库
+- **vLLM**: 高性能推理引擎 (除MPS外的所有平台)
+
+不同硬件平台需要特定版本的依赖包以确保最佳性能和兼容性，因此我们为每个平台维护独立的requirements文件。
+
+```
 # DeepSeek-OCR-cli
 
 ## 项目介绍
@@ -115,15 +198,15 @@ uv pip install -e '.[dev]'
 
 # 根据硬件平台安装相应的依赖：
 # NVIDIA GPU:
-uv pip install -r requirements/requirements-nvidia.txt
+uv pip install -e '.[nvidia]'
 # AMD GPU:
-uv pip install -r requirements/requirements-amd.txt
+uv pip install -e '.[amd]'
 # Apple Silicon (MPS):
-uv pip install -r requirements/requirements-mps.txt
+uv pip install -e '.[mps]'
 # DCU:
-uv pip install -r requirements/requirements-dcu.txt
+uv pip install -e '.[dcu]'
 # CPU only:
-uv pip install -r requirements/requirements-cpu.txt
+uv pip install -e '.[cpu]'
 
 # 如果需要从ModelScope下载模型，安装额外依赖：
 uv pip install -e '.[modelscope]'
@@ -131,12 +214,12 @@ uv pip install -e '.[modelscope]'
 
 ### 重要依赖说明
 
-项目依赖 PyMuPDF (fitz) 和 img2pdf 库来处理 PDF 文档和图像转换。这些依赖已添加到所有平台的 requirements 文件中。如果遇到 `ModuleNotFoundError: No module named 'fitz'` 错误，请确保已正确安装依赖：
+项目依赖 PyMuPDF (fitz) 和 img2pdf 库来处理 PDF 文档和图像转换。这些依赖已添加到 [pyproject.toml](file:///Users/zhangruixiang/aiworkspace/DeepSeek-OCR/pyproject.toml) 中。如果遇到 `ModuleNotFoundError: No module named 'fitz'` 错误，请确保已正确安装依赖：
 
 ```bash
 # 重新安装所有依赖
 uv pip install -e .
-uv pip install -r requirements/requirements-<your-platform>.txt
+uv pip install -e '.[<your-platform>]'  # 替换 <your-platform> 为 nvidia、amd、mps、dcu 或 cpu
 ```
 
 ### 命令行工具
