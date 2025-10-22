@@ -42,7 +42,7 @@ uv pip install -e .
 
 # 安装开发依赖
 echo "安装开发依赖..."
-uv pip install -e '.[dev]'
+uv pip install -e '.[dev]' || echo "警告: 开发依赖安装失败"
 
 # 自动检测GPU类型并安装相应依赖
 echo "检测GPU环境..."

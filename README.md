@@ -129,6 +129,16 @@ uv pip install -r requirements/requirements-cpu.txt
 uv pip install -e '.[modelscope]'
 ```
 
+### 重要依赖说明
+
+项目依赖 PyMuPDF (fitz) 和 img2pdf 库来处理 PDF 文档和图像转换。这些依赖已添加到所有平台的 requirements 文件中。如果遇到 `ModuleNotFoundError: No module named 'fitz'` 错误，请确保已正确安装依赖：
+
+```bash
+# 重新安装所有依赖
+uv pip install -e .
+uv pip install -r requirements/requirements-<your-platform>.txt
+```
+
 ### 命令行工具
 
 ```bash

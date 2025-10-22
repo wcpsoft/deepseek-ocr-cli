@@ -28,6 +28,10 @@ project_config = pyproject_data["project"]
 # 使用pyproject.toml中定义的依赖
 install_requires = project_config.get("dependencies", [])
 
+# 添加平台特定的依赖
+# 注意：PyMuPDF 和 img2pdf 是核心依赖，必须安装
+# 它们已经在 pyproject.toml 中定义，这里不需要重复添加
+
 # 构建入口点
 entry_points = {}
 if "scripts" in project_config:

@@ -4,3 +4,5 @@ torchaudio
 transformers==4.47.1
 tokenizers
 vllm>=0.8.5,<=0.10.1
+PyMuPDF
+img2pdf
