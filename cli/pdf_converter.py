@@ -11,7 +11,6 @@ from PIL import Image
 from pathlib import Path
 from typing import List
 
-
 class PDFConverter:
     def __init__(self, dpi: int = 144):
         self.dpi = dpi

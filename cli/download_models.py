@@ -14,6 +14,44 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from cli.model_manager import ModelManager
 
+def display_model_info(model_manager, model_name):
+    """显示模型详细信息"""
+    info = model_manager.get_model_info(model_name)
+    if info:
+        repo_id = info.get('repo_id', 'N/A')
+        source = info.get('source', 'N/A')
+        path = info.get('path', 'N/A')
+        print(f"    仓库ID: {repo_id}")
+        print(f"    来源: {source}")
+        print(f"    路径: {path}")
+
+def display_custom_models(model_manager):
+    """显示自定义模型列表"""
+    custom_models = model_manager.list_custom_models()
+    if custom_models:
+        print("\n自定义模型:")
+        for name, info in custom_models.items():
+            if isinstance(info, dict):
+                repo_id = info.get("repo_id", "N/A")
+                source = info.get("source", "huggingface")
+                print(f"  {name}: {repo_id} (来源: {source}")
+            else:
+                print(f"  {name}: {info} (来源: huggingface)")
+    else:
+        print("\n暂无自定义模型")
+
+def display_downloaded_models(model_manager):
+    """显示已下载模型列表"""
+    downloaded_models = model_manager.list_downloaded_models()
+    if downloaded_models:
+        print(f"\n已下载的模型 (存储在 {model_manager.get_model_dir()}):")
+        for model in downloaded_models:
+            print(f"  - {model}")
+            # 显示模型详细信息
+            display_model_info(model_manager, model)
+    else:
+        print(f"\n在 {model_manager.get_model_dir()} 目录中暂无已下载的模型")
+
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="DeepSeek OCR 模型下载工具")
@@ -26,6 +64,8 @@ def main():
     parser.add_argument("--list-downloaded", action="store_true", help="列出已下载的模型")
     parser.add_argument("--full-download", action="store_true", 
                        help="下载完整模型（包括文档、示例等文件），默认只下载运行必需的文件")
+    parser.add_argument("--source", choices=["huggingface", "modelscope"], default="huggingface",
+                       help="模型来源 (默认: huggingface)")
     
     args = parser.parse_args()
     
@@ -46,38 +86,12 @@ def main():
     
     # 列出自定义模型
     if args.list_custom:
-        custom_models = model_manager.list_custom_models()
-        if custom_models:
-            print("\n自定义模型:")
-            for name, info in custom_models.items():
-                if isinstance(info, dict):
-                    repo_id = info.get("repo_id", "N/A")
-                    source = info.get("source", "huggingface")
-                    print(f"  {name}: {repo_id} (来源: {source})")
-                else:
-                    print(f"  {name}: {info} (来源: huggingface)")
-        else:
-            print("\n暂无自定义模型")
+        display_custom_models(model_manager)
         return
     
     # 列出已下载模型
     if args.list_downloaded:
-        downloaded_models = model_manager.list_downloaded_models()
-        if downloaded_models:
-            print(f"\n已下载的模型 (存储在 {model_manager.get_model_dir()}):")
-            for model in downloaded_models:
-                print(f"  - {model}")
-                # 显示模型详细信息
-                info = model_manager.get_model_info(model)
-                if info:
-                    repo_id = info.get('repo_id', 'N/A')
-                    source = info.get('source', 'N/A')
-                    path = info.get('path', 'N/A')
-                    print(f"    仓库ID: {repo_id}")
-                    print(f"    来源: {source}")
-                    print(f"    路径: {path}")
-        else:
-            print(f"\n在 {model_manager.get_model_dir()} 目录中暂无已下载的模型")
+        display_downloaded_models(model_manager)
         return
     
     # 下载模型
@@ -88,7 +102,9 @@ def main():
         else:
             print("注意: 默认只下载运行必需的文件")
         
-        model_manager.download_models(args.model, args.force)
+        print(f"使用模型来源: {args.source}")
+        
+        model_manager.download_models(args.model, args.force, args.source)
         print(f"\n模型下载完成！存储在: {model_manager.get_model_dir()}")
         
         # 列出已下载的模型

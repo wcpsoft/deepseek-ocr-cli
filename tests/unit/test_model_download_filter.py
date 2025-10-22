@@ -28,7 +28,7 @@ def test_model_download_filter_configuration():
 
 def test_huggingface_download_patterns():
     """测试Hugging Face下载模式配置"""
-    from cli.model_manager import ModelManager
+    from cli.model_manager import ModelManager, IGNORE_PATTERNS
     
     # 检查Hugging Face下载方法中的过滤配置
     manager = ModelManager("./test_models")
@@ -38,9 +38,13 @@ def test_huggingface_download_patterns():
     # 检查是否包含过滤模式
     assert "ignore_patterns" in source_code
     assert "allow_patterns" in source_code
-    assert "*.md" in source_code
-    assert "assets/*" in source_code
-    assert "examples/*" in source_code
+    # 检查是否使用了IGNORE_PATTERNS常量
+    assert "IGNORE_PATTERNS" in source_code
+    
+    # 检查IGNORE_PATTERNS常量是否包含必要的模式
+    assert "*.md" in IGNORE_PATTERNS
+    assert "assets/*" in IGNORE_PATTERNS
+    assert "examples/*" in IGNORE_PATTERNS
 
 def test_model_verification_logic():
     """测试模型验证逻辑"""

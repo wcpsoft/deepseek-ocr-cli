@@ -57,12 +57,20 @@ def test_pdf_processing(samples_dir):
         output_dir = Path(temp_dir) / "output"
         
         # 处理第一个PDF文件
-        processor = DocumentProcessor(mode="transformers")  # 使用Transformers模式避免vLLM依赖
+        processor = DocumentProcessor(mode="transformers", prompt="<image>\n<|grounding|>Convert the document to markdown.")  # 添加prompt参数
         processor.process(str(pdf_files[0]), str(output_dir))
         
         # 检查输出文件是否存在
         result_file = output_dir / "result.mmd"
         assert result_file.exists(), "未生成结果文件"
+        
+        # 打印结果文件内容以便查看
+        if result_file.exists():
+            print(f"PDF处理结果已保存到: {result_file}")
+            with open(result_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                print("PDF处理结果内容:")
+                print(content[:500] + "..." if len(content) > 500 else content)
 
 def test_image_processing(samples_dir):
     """测试图像文件处理"""
@@ -78,12 +86,20 @@ def test_image_processing(samples_dir):
         output_dir = Path(temp_dir) / "output"
         
         # 处理第一张图像
-        processor = DocumentProcessor(mode="transformers")  # 使用Transformers模式避免vLLM依赖
+        processor = DocumentProcessor(mode="transformers", prompt="<image>\n<|grounding|>Convert the document to markdown.")  # 添加prompt参数
         processor.process(str(image_files[0]), str(output_dir))
         
         # 检查输出文件是否存在
         result_file = output_dir / "result.mmd"
         assert result_file.exists(), "未生成结果文件"
+        
+        # 打印结果文件内容以便查看
+        if result_file.exists():
+            print(f"图像处理结果已保存到: {result_file}")
+            with open(result_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                print("图像处理结果内容:")
+                print(content[:500] + "..." if len(content) > 500 else content)
 
 @pytest.mark.skipif(not shutil.which("libreoffice"), reason="LibreOffice not installed")
 def test_document_conversion(samples_dir):
@@ -100,9 +116,17 @@ def test_document_conversion(samples_dir):
         output_dir = Path(temp_dir) / "output"
         
         # 处理第一个文档文件
-        processor = DocumentProcessor(mode="transformers")  # 使用Transformers模式避免vLLM依赖
+        processor = DocumentProcessor(mode="transformers", prompt="<image>\n<|grounding|>Convert the document to markdown.")  # 添加prompt参数
         processor.process(str(doc_files[0]), str(output_dir))
         
         # 检查输出文件是否存在
         result_file = output_dir / "result.mmd"
         assert result_file.exists(), "未生成结果文件"
+        
+        # 打印结果文件内容以便查看
+        if result_file.exists():
+            print(f"文档转换结果已保存到: {result_file}")
+            with open(result_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                print("文档转换结果内容:")
+                print(content[:500] + "..." if len(content) > 500 else content)

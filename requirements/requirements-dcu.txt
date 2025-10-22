@@ -1,0 +1,6 @@
+torch==2.4.1
+torchvision=0.19
+torchaudio==1.4.1
+transformers==4.47.1
+tokenizers
+vllm==0.8.5.post1

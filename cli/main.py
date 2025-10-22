@@ -12,6 +12,14 @@ import os
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+def detect_mps_environment():
+    """检测是否在MPS环境下"""
+    try:
+        import torch
+        return torch.backends.mps.is_available() and torch.backends.mps.is_built()
+    except ImportError:
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description="DeepSeek OCR CLI工具")
     parser.add_argument("input", help="输入文件路径")
@@ -31,6 +39,11 @@ def main():
                        help="是否启用裁剪模式")
     
     args = parser.parse_args()
+    
+    # 如果在MPS环境下且模式设置为vLLM，则提示用户并自动切换到transformers
+    if detect_mps_environment() and args.mode == "vllm":
+        print("警告: MPS环境不支持vLLM引擎，自动切换到Transformers引擎")
+        args.mode = "transformers"
     
     # 如果需要下载模型
     if args.download_models:

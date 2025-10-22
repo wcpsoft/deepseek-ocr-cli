@@ -11,16 +11,38 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
 
+# 定义需要忽略的文件和文件夹模式
+# 这些文件通常与模型运行无关，仅用于开发、测试或文档目的
+IGNORE_PATTERNS = [
+    "*.md",                    # 忽略Markdown文档
+    "README*",                 # 忽略README文件
+    "LICENSE*",                # 忽略许可证文件
+    "assets/*",                # 忽略assets文件夹（通常包含示例图片等）
+    "examples/*",              # 忽略examples文件夹
+    "scripts/*",               # 忽略scripts文件夹
+    "tests/*",                 # 忽略测试文件夹
+    ".git*",                   # 忽略Git相关文件
+    "*.ipynb_checkpoints",     # 忽略Jupyter Notebook检查点
+    ".ipynb_checkpoints/*",    # 忽略Jupyter Notebook检查点文件夹
+    ".msc",                    # 忽略.msc文件
+    ".mv",                     # 忽略.mv文件
+    "._____temp",              # 忽略临时文件
+]
+
 class ModelManager:
     def __init__(self, model_dir: str = "./models"):
         self.model_dir = Path(model_dir).resolve()
         self.model_dir.mkdir(parents=True, exist_ok=True)
         
-        # 默认模型信息
+        # 默认模型信息 - 支持多个源
         self.default_models = {
             "deepseek-ocr": {
                 "repo_id": "deepseek-ai/DeepSeek-OCR",
-                "source": "huggingface"
+                "source": "huggingface",  # 添加缺失的source字段
+                "sources": {
+                    "huggingface": "deepseek-ai/DeepSeek-OCR",
+                    "modelscope": "deepseek-ai/DeepSeek-OCR"  # 如果ModelScope上有相同的模型ID
+                }
             }
         }
         
@@ -57,7 +79,7 @@ class ModelManager:
         """获取当前模型目录"""
         return str(self.model_dir)
     
-    def download_models(self, model_names: Optional[List[str]] = None, force_redownload: bool = False):
+    def download_models(self, model_names: Optional[List[str]] = None, force_redownload: bool = False, source: str = "huggingface"):
         """下载指定的模型或所有默认模型"""
         if model_names is None:
             model_names = list(self.default_models.keys())
@@ -65,12 +87,12 @@ class ModelManager:
         for model_name in model_names:
             if model_name in self.default_models:
                 model_info = self.default_models[model_name]
-                if isinstance(model_info, dict):
-                    repo_id = model_info["repo_id"]
-                    source = model_info.get("source", "huggingface")
-                else:
-                    repo_id = model_info
-                    source = "huggingface"
+                repo_id = model_info["repo_id"]  # 默认使用repo_id
+                # 如果指定了源且该模型支持该源，则使用对应源的repo_id
+                if isinstance(model_info, dict) and "sources" in model_info:
+                    sources = model_info["sources"]
+                    if source in sources:
+                        repo_id = sources[source]
                 self._download_model(model_name, repo_id, source, force_redownload)
             else:
                 # 检查是否是自定义模型
@@ -134,54 +156,47 @@ class ModelManager:
         try:
             from huggingface_hub import snapshot_download
             
-            # 定义需要忽略的文件和文件夹模式
-            ignore_patterns = [
-                "*.md",           # 忽略Markdown文档
-                "README*",        # 忽略README文件
-                "LICENSE*",       # 忽略许可证文件
-                "*.txt",          # 忽略文本文件
-                "assets/*",       # 忽略assets文件夹（通常包含示例图片等）
-                "examples/*",     # 忽略examples文件夹
-                "scripts/*",      # 忽略scripts文件夹
-                "tests/*",        # 忽略测试文件夹
-                ".git*",          # 忽略Git相关文件
-                "*.py",           # 忽略Python脚本文件（除了模型相关的）
-            ]
-            
-            # 定义需要下载的文件模式
+            # 添加允许模式以提高下载效率
             allow_patterns = [
-                "*.bin",          # PyTorch模型文件
-                "*.safetensors",  # Safetensors模型文件
-                "*.json",         # 配置文件
-                "*.txt",          # 分词器相关文件
-                "*.model",        # 模型文件
-                "*.py",           # 必需的Python文件（通过排除法处理）
+                "*",              # 允许所有文件
+                "**/*",           # 允许所有子目录文件
             ]
             
-            # 对于DeepSeek-OCR模型，我们只下载必需的文件
-            # 先下载所有文件，然后根据需要过滤
+            print(f"正在从Hugging Face下载模型 {repo_id} 到 {model_path}")
+            
+            # 下载模型文件
             snapshot_download(
                 repo_id=repo_id,
                 local_dir=str(model_path),
-                ignore_patterns=ignore_patterns,
-                allow_patterns=allow_patterns
+                ignore_patterns=IGNORE_PATTERNS,
+                allow_patterns=allow_patterns,  # 添加allow_patterns参数
+                resume_download=True  # 允许断点续传
             )
         except ImportError:
             raise RuntimeError("huggingface_hub 包未安装，请先安装: pip install huggingface_hub")
+        except Exception as e:
+            raise RuntimeError(f"从Hugging Face下载模型失败: {str(e)}")
     
     def _download_from_modelscope(self, model_id: str, model_path: Path):
         """从ModelScope下载模型（仅下载运行必需的文件）"""
         try:
-            from modelscope import snapshot_download as ms_snapshot_download
+            # 动态导入，避免在不使用ModelScope时出错
+            import importlib
+            modelscope_module = importlib.import_module("modelscope")
+            ms_snapshot_download = getattr(modelscope_module, "snapshot_download")
             
-            # ModelScope的下载函数可能有不同的参数，这里保持基础实现
-            # 如果需要更精细的控制，可以根据ModelScope的文档进行调整
+            print(f"正在从ModelScope下载模型 {model_id} 到 {model_path}")
+            
+            # ModelScope的下载函数
             ms_snapshot_download(
                 model_id=model_id,
-                local_dir=str(model_path)
+                local_dir=str(model_path),
+                ignore_patterns=IGNORE_PATTERNS
             )
         except ImportError:
             raise RuntimeError("modelscope 包未安装，请先安装: pip install modelscope")
+        except Exception as e:
+            raise RuntimeError(f"从ModelScope下载模型失败: {str(e)}")
     
     def add_custom_model(self, model_name: str, repo_id: str, source: str = "huggingface"):
         """添加自定义模型"""
@@ -242,12 +257,37 @@ class ModelManager:
         # 检查是否存在模型文件（支持多种格式）
         model_files = list(model_path.glob("pytorch_model*.bin")) + list(model_path.glob("*.safetensors"))
         
+        # 如果没有找到标准模型文件，检查是否存在model.safetensors.index.json
+        # 这个文件包含了模型权重文件的索引信息
+        if not model_files:
+            index_file = model_path / "model.safetensors.index.json"
+            if index_file.exists():
+                try:
+                    import json
+                    with open(index_file, 'r') as f:
+                        index_data = json.load(f)
+                        if "weight_map" in index_data:
+                            # 从索引文件中获取权重文件名
+                            weight_files = set()
+                            for weight_file in index_data["weight_map"].values():
+                                weight_files.add(weight_file)
+                            
+                            # 检查这些权重文件是否存在
+                            for weight_file in weight_files:
+                                if (model_path / weight_file).exists():
+                                    model_files.append(model_path / weight_file)
+                except Exception:
+                    pass
+        
         for file in required_files:
             if not (model_path / file).exists():
                 return False
         
         # 检查是否存在模型权重文件
         if not model_files:
-            return False
+            # 如果没有找到模型权重文件，但存在索引文件，也认为模型有效
+            index_files = list(model_path.glob("*.index.json"))
+            if not index_files:
+                return False
         
         return True

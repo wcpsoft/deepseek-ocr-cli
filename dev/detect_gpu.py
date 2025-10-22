@@ -142,6 +142,15 @@ def get_extra_require_suffix(gpu_type):
         return ""
 
 
+def get_recommended_mode(gpu_type):
+    """根据GPU类型获取推荐的推理模式"""
+    # MPS环境不支持vLLM，推荐使用Transformers模式
+    if gpu_type == "mps":
+        return "transformers"
+    else:
+        return "auto"  # 其他环境使用自动模式
+
+
 def main():
     """主函数，检测GPU类型并输出相应信息"""
     print("正在检测系统GPU环境...")
@@ -169,6 +178,11 @@ def main():
     # 输出推荐的PyTorch安装命令
     print("\n推荐的PyTorch安装命令:")
     print(f"  {get_pytorch_install_cmd(gpu_type)}")
+    
+    # 输出推荐的推理模式
+    recommended_mode = get_recommended_mode(gpu_type)
+    if recommended_mode != "auto":
+        print(f"\n推荐的推理模式: {recommended_mode}")
     
     # 输出GPU类型供其他脚本使用
     print(f"\nGPU_TYPE={gpu_type}")

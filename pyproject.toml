@@ -32,68 +32,38 @@ dependencies = [
     "addict",
     "Pillow",
     "numpy",
-    "huggingface-hub>=0.20.0",
-    "fsspec>=2023.1.0,<=2025.3.0",
+    "huggingface-hub",
+    "fsspec",
+    "modelscope",
     "matplotlib",
-    "toml>=0.10.2",
+    "toml",
 ]
 
 [project.optional-dependencies]
-cli = [
-    "huggingface-hub>=0.20.0",
-]
 dev = [
     "pytest>=7.0.0",
     "black>=22.0.0",
     "flake8>=4.0.0",
-]
-modelscope = [
-    "modelscope>=1.10.0",
+    "mypy>=0.950",
+    "isort>=5.10.1",
+    "pre-commit>=2.17.0",
 ]
 nvidia = [
-    "transformers<=4.51.1",
-    "tokenizers<=0.22",
-    "torch<2.6.1",
-    "torchvision>=0.21.0",
-    "torchaudio<2.6.1",
-    "vllm>=0.8.5,<=0.10.1",
 ]
 amd = [
-    "transformers<=4.51.1",
-    "tokenizers<=0.22",
-    "torch<2.6.1",
-    "torchvision>=0.21.0",
-    "torchaudio<2.6.1",
-    "vllm>=0.8.5,<=0.10.1",
 ]
 cpu = [
-    "transformers<=4.51.1",
-    "tokenizers<=0.22",
-    "torch<2.6.1",
-    "torchvision>=0.21.0",
-    "torchaudio<2.6.1",
-    "vllm>=0.8.5,<=0.10.1",
 ]
 mps = [
-    "transformers<=4.51.1",
-    "tokenizers<=0.22",
-    "torch<2.6.1",
-    "torchvision>=0.21.0",
-    "torchaudio<2.6.1",
 ]
 dcu = [
-    "transformers<=4.51.1",
-    "tokenizers<=0.22",
-    "torch<2.6.1",
-    "torchvision>=0.21.0",
-    "torchaudio<2.6.1",
-    "vllm>=0.8.5,<=0.10.1",
 ]
 
 [project.scripts]
 deepseek-ocr = "cli.main:main"
 deepseek-ocr-download = "cli.download_models:main"
 deepseek-ocr-detect-gpu = "dev.detect_gpu:main"
+deepseek-ocr-debug = "dev.debug_ocr:main"
 
 [project.urls]
 Homepage = "https://github.com/wcpsoft/deepseek-ocr-cli"
@@ -108,51 +78,23 @@ exclude = ["assets*", "tests*"]
 cli = ["*.py"]
 src = ["*.py"]
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:<frozen importlib._bootstrap>",
+    "ignore::DeprecationWarning:.*fitz.*",
+    "ignore::DeprecationWarning:.*builtin type.*has no __module__ attribute.*",
+    "ignore::DeprecationWarning",
+]
+testpaths = [
+    "tests",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=7.0.0",
     "black>=22.0.0",
     "flake8>=4.0.0",
+    "mypy>=0.950",
+    "isort>=5.10.1",
+    "pre-commit>=2.17.0",
 ]
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { index = "pytorch-cu118", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-]
-torchvision = [
-    { index = "pytorch", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { index = "pytorch-cu118", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-]
-torchaudio = [
-    { index = "pytorch", marker = "sys_platform == 'darwin' and platform_machine == 'arm64'" },
-    { index = "pytorch-cu118", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-]
-vllm = [
-    { index = "vllm-dcu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://mirrors.aliyun.com/pytorch-wheels/cpu"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cu118"
-url = "https://mirrors.aliyun.com/pytorch-wheels/cu118"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-rocm"
-url = "https://mirrors.aliyun.com/pytorch-wheels/rocm6.1"
-explicit = true
-
-[[tool.uv.index]]
-name = "vllm-dcu"
-url = "https://pypi.org/simple"
-explicit = true

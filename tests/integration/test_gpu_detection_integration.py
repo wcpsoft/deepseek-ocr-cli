@@ -123,18 +123,18 @@ def test_run_sh_integration():
     assert "-e ." in content, "run.sh中未正确使用依赖安装命令"
 
 def test_test_sh_integration():
-    """测试test.sh脚本中的GPU检测集成"""
+    """测试run_tests.sh脚本中的GPU检测集成"""
     project_root = Path(__file__).parent.parent.parent
-    test_sh_path = project_root / "dev" / "test.sh"
+    test_sh_path = project_root / "dev" / "run_tests.sh"
     
-    # 验证test.sh中正确使用了GPU检测
+    # 验证run_tests.sh中正确使用了GPU检测
     content = test_sh_path.read_text()
     
     # 检查是否调用GPU检测脚本
-    assert "detect_gpu.py" in content, "test.sh中未调用GPU检测脚本"
+    assert "detect_gpu.py" in content, "run_tests.sh中未调用GPU检测脚本"
     
     # 检查是否使用了EXTRA_SUFFIX
-    assert "EXTRA_SUFFIX" in content, "test.sh中未使用EXTRA_SUFFIX变量"
+    assert "EXTRA_SUFFIX" in content, "run_tests.sh中未使用EXTRA_SUFFIX变量"
     
     # 检查是否正确使用依赖安装命令
-    assert "-e .[dev" in content, "test.sh中未正确使用开发依赖安装命令"
+    assert "-e .[dev" in content, "run_tests.sh中未正确使用开发依赖安装命令"
