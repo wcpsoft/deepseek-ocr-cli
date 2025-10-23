@@ -1,9 +1,36 @@
-"""Inference-only Deepseek-OCR model compatible with HuggingFace weights."""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Inference-only Deepseek-OCR model compatible with HuggingFace weights.
+"""
+
+# 标准库导入
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from typing import List, Literal, Optional, Set, Tuple, TypedDict, Union
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from einops import rearrange, repeat
 
-# 延迟导入vLLM相关模块，避免在不支持的平台上报错
+# 第三方库导入
+from transformers import BatchFeature
+
+# 项目内部导入
+from src.core.process.image_process import (
+    DeepseekOCRProcessor, count_tiles)
+from src.core.deepencoder.sam_vary_sdpa import build_sam_vit_b
+from src.core.deepencoder.clip_sdpa import build_clip_l
+from src.core.deepencoder.build_linear import MlpProjector
+from addict import Dict
+
+# 配置导入
+from .config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT
+
+# 常量定义
+_IMAGE_TOKEN = "<image>"
+
+# vLLM相关导入（延迟导入，避免在不支持的平台上报错）
 try:
     from vllm.config import VllmConfig
     from vllm.model_executor import SamplingMetadata
@@ -55,27 +82,7 @@ except ImportError:
     MULTIMODAL_REGISTRY = None
     VLLM_AVAILABLE = False
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from einops import rearrange, repeat
-from transformers import BatchFeature
-
-from src.core.process.image_process import (
-    DeepseekOCRProcessor, count_tiles)
-# from transformers.utils import is_list_of  # Not used in current code
-
-from src.core.deepencoder.sam_vary_sdpa import build_sam_vit_b
-from src.core.deepencoder.clip_sdpa import build_clip_l
-from src.core.deepencoder.build_linear import MlpProjector
-from addict import Dict
-# import time
-from .config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT
-# The image token id may be various
-_IMAGE_TOKEN = "<image>"
-
-
-# 只在vLLM可用时注册模型
+# 只在vLLM可用时定义相关类
 if VLLM_AVAILABLE:
     class DeepseekOCRProcessingInfo(BaseProcessingInfo):
         """
@@ -811,66 +818,82 @@ if VLLM_AVAILABLE:
             from PIL import Image
             from .process.image_process import DeepseekOCRProcessor
             
+            print(f"开始处理图像文件: {image_file}")  # 使用print以便在日志系统初始化前也能看到
             # 加载图像
             image = Image.open(image_file).convert('RGB')
+            print(f"图像已加载，尺寸: {image.size}")
             
             # 处理图像
             processor = DeepseekOCRProcessor(tokenizer=tokenizer)
+            print("开始图像预处理")
             processed_data = processor.tokenize_with_images(
                 images=[image],
                 bos=True,
                 eos=True,
                 cropping=crop_mode
             )
+            print("图像预处理完成")
             
             # 提取处理后的数据
             if processed_data and len(processed_data) > 0:
+                print("开始提取处理数据")
                 # 注意：这里的索引可能需要调整，根据实际的数据结构
                 input_ids = processed_data[0][0]
                 pixel_values = processed_data[0][1]
                 images_crop = processed_data[0][2]
                 images_spatial_crop = processed_data[0][4]  # 根据实际数据结构调整索引
+                print("处理数据提取完成")
                 
                 # 确保数据在正确的设备上
-                device = self.device
-                input_ids = input_ids.to(device)
-                pixel_values = pixel_values.to(device)
-                images_crop = images_crop.to(device)
-                images_spatial_crop = images_spatial_crop.to(device)
+                input_ids = input_ids.to(self.device)
+                pixel_values = pixel_values.to(self.device)
+                images_crop = images_crop.to(self.device)
+                images_spatial_crop = images_spatial_crop.to(self.device)
+                print(f"数据已移动到设备: {self.device}")
                 
-                # 在MPS设备上避免使用bfloat16
-                if device.type != "mps":
-                    pixel_values = pixel_values.to(torch.bfloat16)
-                    images_crop = images_crop.to(torch.bfloat16)
-                
-                # 构造模型输入
-                model_inputs = {
-                    "input_ids": input_ids,
-                    "pixel_values": pixel_values,
-                    "images_crop": images_crop,
-                    "images_spatial_crop": images_spatial_crop
-                }
+                # 在MPS设备上避免使用bfloat16，使用float32以确保兼容性
+                if self.device.type == "mps":
+                    # MPS设备上使用float32以确保兼容性
+                    pixel_values = pixel_values.to(torch.float32)
+                    images_crop = images_crop.to(torch.float32)
+                    print("MPS设备上使用float32数据类型")
+                else:
+                    # 其他设备上可以使用bfloat16（如果支持）
+                    if torch.cuda.is_bf16_supported():
+                        pixel_values = pixel_values.to(torch.bfloat16)
+                        images_crop = images_crop.to(torch.bfloat16)
+                        print("使用bfloat16数据类型")
                 
                 # 生成结果
+                print("开始生成OCR结果")
                 with torch.no_grad():
                     # 构造注意力掩码
                     attention_mask = torch.ones_like(input_ids)
+                    print("注意力掩码已创建")
                     
                     # 调用实际模型的生成方法
-                    outputs = self.model.generate(
-                        **model_inputs,
-                        max_new_tokens=512,
-                        temperature=0.0,
-                        do_sample=False,
-                        pad_token_id=tokenizer.eos_token_id,
-                        attention_mask=attention_mask
-                    )
+                    # 注意：这里需要检查模型的generate方法接受哪些参数
+                    # 移除不被模型接受的参数
+                    # 修复参数冲突：当do_sample=False时，不应设置temperature
+                    generate_kwargs = {
+                        "input_ids": input_ids,
+                        "max_new_tokens": 512,
+                        "do_sample": False,
+                        "pad_token_id": tokenizer.eos_token_id,
+                        "attention_mask": attention_mask
+                    }
+                    print("生成参数已设置")
+                    
+                    outputs = self.model.generate(**generate_kwargs)
+                    print("模型生成完成")
                 
                 # 解码输出
                 if hasattr(outputs, 'sequences') and tokenizer is not None:
                     result = tokenizer.decode(outputs.sequences[0], skip_special_tokens=True)
+                    print("结果解码完成")
                     return result
                 else:
+                    print("处理完成")
                     return "处理完成"
             else:
                 raise ValueError("图像处理失败，未生成有效的输入数据")
@@ -924,33 +947,32 @@ if VLLM_AVAILABLE:
             images_crop = images_crop.to(device)
             images_spatial_crop = images_spatial_crop.to(device)
             
-            # 在MPS设备上避免使用bfloat16
-            if device.type != "mps":
-                pixel_values = pixel_values.to(torch.bfloat16)
-                images_crop = images_crop.to(torch.bfloat16)
-            
-            # 构造模型输入
-            model_inputs = {
-                "input_ids": input_ids,
-                "pixel_values": pixel_values,
-                "images_crop": images_crop,
-                "images_spatial_crop": images_spatial_crop
-            }
+            # 在MPS设备上避免使用bfloat16，使用float32以确保兼容性
+            if device.type == "mps":
+                # MPS设备上使用float32以确保兼容性
+                pixel_values = pixel_values.to(torch.float32)
+                images_crop = images_crop.to(torch.float32)
+            else:
+                # 其他设备上可以使用bfloat16（如果支持）
+                if torch.cuda.is_bf16_supported():
+                    pixel_values = pixel_values.to(torch.bfloat16)
+                    images_crop = images_crop.to(torch.bfloat16)
             
             # 生成结果
             with torch.no_grad():
                 # 构造注意力掩码
                 attention_mask = torch.ones_like(input_ids)
                 
-                # 调用实际模型的生成方法
-                outputs = self.model.generate(
-                    **model_inputs,
-                    max_new_tokens=512,
-                    temperature=0.0,
-                    do_sample=False,
-                    pad_token_id=tokenizer.eos_token_id,
-                    attention_mask=attention_mask
-                )
+                # 修复参数冲突：当do_sample=False时，不应设置temperature
+                generate_kwargs = {
+                    "input_ids": input_ids,
+                    "max_new_tokens": 512,
+                    "do_sample": False,
+                    "pad_token_id": tokenizer.eos_token_id,
+                    "attention_mask": attention_mask
+                }
+                
+                outputs = self.model.generate(**generate_kwargs)
             
             # 解码输出
             if hasattr(outputs, 'sequences') and tokenizer is not None:
@@ -1019,9 +1041,10 @@ else:
             instance = cls()
             
             # 加载实际的模型
-            from transformers import AutoModel
-            instance.model = AutoModel.from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
-            instance.device = next(instance.model.parameters()).device
+            from transformers import AutoModelForCausalLM
+            instance.model = AutoModelForCausalLM.from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
+            
+            # 不要立即设置设备，让to()方法来处理
             return instance
             
         def infer(self, tokenizer, prompt='', image_file='', output_path='', base_size=1024, image_size=640, crop_mode=True, test_compress=False, save_results=False):
@@ -1044,7 +1067,8 @@ else:
             """
             import torch
             from PIL import Image
-            from .process.image_process import DeepseekOCRProcessor
+            # 使用项目中的图像处理模块
+            from src.core.process.image_process import DeepseekOCRProcessor
             
             # 加载图像
             image = Image.open(image_file).convert('RGB')
@@ -1072,13 +1096,16 @@ else:
                 images_crop = images_crop.to(self.device)
                 images_spatial_crop = images_spatial_crop.to(self.device)
                 
-                # 构造模型输入
-                model_inputs = {
-                    "input_ids": input_ids,
-                    "pixel_values": pixel_values,
-                    "images_crop": images_crop,
-                    "images_spatial_crop": images_spatial_crop
-                }
+                # 在MPS设备上避免使用bfloat16，使用float32以确保兼容性
+                if self.device.type == "mps":
+                    # MPS设备上使用float32以确保兼容性
+                    pixel_values = pixel_values.to(torch.float32)
+                    images_crop = images_crop.to(torch.float32)
+                else:
+                    # 其他设备上可以使用bfloat16（如果支持）
+                    if torch.cuda.is_bf16_supported():
+                        pixel_values = pixel_values.to(torch.bfloat16)
+                        images_crop = images_crop.to(torch.bfloat16)
                 
                 # 生成结果
                 with torch.no_grad():
@@ -1086,14 +1113,18 @@ else:
                     attention_mask = torch.ones_like(input_ids)
                     
                     # 调用实际模型的生成方法
-                    outputs = self.model.generate(
-                        **model_inputs,
-                        max_new_tokens=512,
-                        temperature=0.0,
-                        do_sample=False,
-                        pad_token_id=tokenizer.eos_token_id,
-                        attention_mask=attention_mask
-                    )
+                    # 注意：这里需要检查模型的generate方法接受哪些参数
+                    # 移除不被模型接受的参数
+                    # 修复参数冲突：当do_sample=False时，不应设置temperature
+                    generate_kwargs = {
+                        "input_ids": input_ids,
+                        "max_new_tokens": 512,
+                        "do_sample": False,
+                        "pad_token_id": tokenizer.eos_token_id,
+                        "attention_mask": attention_mask
+                    }
+                    
+                    outputs = self.model.generate(**generate_kwargs)
                 
                 # 解码输出
                 if hasattr(outputs, 'sequences') and tokenizer is not None:
@@ -1142,3 +1173,199 @@ else:
             if self.model is not None:
                 self.model = self.model.eval()
             return self
+            
+        def _clean_config_for_llama(self, config_dict):
+            """
+            清理配置字典，移除LlamaConfig不支持的字段
+            
+            Args:
+                config_dict: 配置字典
+                
+            Returns:
+                清理后的配置字典
+            """
+            # 创建配置字典的副本
+            clean_config = config_dict.copy()
+            
+            # 移除不兼容的字段
+            incompatible_fields = [
+                'kv_lora_rank', 'q_lora_rank', 'qk_nope_head_dim', 'qk_rope_head_dim', 
+                'rm_head', 'v_head_dim', 'auto_map', 'architectures', '_name_or_path',
+                'use_mla', 'topk_method', 'topk_group', 'n_group', 'n_shared_experts', 
+                'n_routed_experts', 'num_experts_per_tok', 'moe_intermediate_size', 
+                'lm_head'
+            ]
+            
+            for field in incompatible_fields:
+                clean_config.pop(field, None)
+                
+            return clean_config
+        
+        def _create_model_config(self, config_dict, model_path):
+            """
+            创建模型配置对象
+            
+            Args:
+                config_dict: 配置字典
+                model_path: 模型路径
+                
+            Returns:
+                配置对象
+            """
+            # 尝试直接使用AutoConfig.from_pretrained，但不信任远程代码
+            try:
+                from transformers import AutoConfig
+                config = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
+                return config
+            except Exception as e:
+                print(f"AutoConfig.from_pretrained失败: {e}")
+            
+            # 如果失败，尝试手动创建LlamaConfig（DeepSeek基于Llama架构）
+            try:
+                from transformers import LlamaConfig
+                # 清理配置字典
+                clean_config = self._clean_config_for_llama(config_dict)
+                config = LlamaConfig(**clean_config)
+                print("使用LlamaConfig创建配置成功")
+                return config
+            except Exception as e:
+                print(f"使用LlamaConfig创建配置也失败: {e}")
+            
+            # 最后的备选方案：使用PretrainedConfig
+            try:
+                from transformers import PretrainedConfig
+                # 清理配置字典
+                clean_config = self._clean_config_for_llama(config_dict)
+                config = PretrainedConfig(**clean_config)
+                return config
+            except Exception as e:
+                print(f"使用PretrainedConfig创建配置也失败: {e}")
+                raise RuntimeError(f"无法创建模型配置: {e}")
+        
+        def _find_model_files(self, model_path):
+            """
+            查找模型文件
+            
+            Args:
+                model_path: 模型路径
+                
+            Returns:
+                模型文件列表
+            """
+            import os
+            import json
+            from pathlib import Path
+            
+            model_files = []
+            model_path_obj = Path(model_path)
+            
+            # 检查是否存在索引文件
+            if (model_path_obj / "model.safetensors.index.json").exists():
+                # 处理分片模型文件
+                index_path = model_path_obj / "model.safetensors.index.json"
+                with open(index_path, 'r', encoding='utf-8') as f:
+                    index_data = json.load(f)
+                model_files = list(set(index_data["weight_map"].values()))
+            else:
+                # 查找模型文件
+                for file_name in os.listdir(model_path):
+                    if file_name.endswith((".bin", ".safetensors")) and file_name.startswith("model"):
+                        model_files.append(file_name)
+            
+            if not model_files:
+                # 尝试查找任何权重文件
+                for file_name in os.listdir(model_path):
+                    if file_name.endswith((".bin", ".safetensors")):
+                        model_files.append(file_name)
+            
+            if not model_files:
+                raise FileNotFoundError("未找到模型权重文件")
+                
+            return model_files
+        
+        def _load_model_weights(self, model_path, model_files):
+            """
+            加载模型权重
+            
+            Args:
+                model_path: 模型路径
+                model_files: 模型文件列表
+                
+            Returns:
+                权重字典
+            """
+            import os
+            import torch
+            from pathlib import Path
+            from safetensors.torch import load_file
+            
+            state_dict = {}
+            model_path_obj = Path(model_path)
+            
+            for file_name in model_files:
+                file_path = model_path_obj / file_name
+                if file_path.exists():
+                    if file_name.endswith(".safetensors"):
+                        state_dict.update(load_file(str(file_path)))
+                    else:
+                        state_dict.update(torch.load(str(file_path), map_location="cpu", weights_only=True))
+                        
+            return state_dict
+        
+        def load_weights_from_path(self, model_path: str):
+            """
+            从指定路径加载模型权重
+            
+            Args:
+                model_path: 模型路径
+            """
+            import json
+            from pathlib import Path
+            from transformers import AutoModelForCausalLM
+            
+            # 检查模型路径是否存在配置文件
+            config_path = Path(model_path) / "config.json"
+            if not config_path.exists():
+                raise FileNotFoundError(f"模型配置文件不存在: {config_path}")
+            
+            # 获取模型文件路径
+            model_files = self._find_model_files(model_path)
+            
+            # 加载权重
+            state_dict = self._load_model_weights(model_path, model_files)
+            
+            # 读取配置文件
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config_dict = json.load(f)
+            
+            # 使用language_config作为基础配置（如果存在）
+            if "language_config" in config_dict:
+                config_source = config_dict["language_config"]
+            else:
+                config_source = config_dict
+            
+            # 创建模型配置对象
+            config = self._create_model_config(config_source, model_path)
+            
+            # 创建模型实例
+            try:
+                self.model = AutoModelForCausalLM.from_config(config)
+                print("使用AutoModelForCausalLM.from_config创建模型成功")
+            except Exception as e:
+                print(f"AutoModelForCausalLM.from_config失败: {e}")
+                # 如果仍然失败，尝试使用from_pretrained
+                try:
+                    self.model = AutoModelForCausalLM.from_pretrained(model_path, config=config, trust_remote_code=False)
+                    print("使用AutoModelForCausalLM.from_pretrained创建模型成功")
+                except Exception as e2:
+                    print(f"AutoModelForCausalLM.from_pretrained也失败: {e2}")
+                    raise RuntimeError(f"无法创建模型实例: {e2}")
+            
+            # 加载权重到模型
+            if self.model is not None and state_dict:
+                try:
+                    self.model.load_state_dict(state_dict, strict=False)
+                    print("模型权重加载成功")
+                except Exception as e:
+                    print(f"加载权重失败: {e}")
+                    raise RuntimeError(f"无法加载模型权重: {e}")

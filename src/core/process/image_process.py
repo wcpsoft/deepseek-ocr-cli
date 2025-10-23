@@ -11,6 +11,12 @@ except ImportError:
 from PIL import Image, ImageOps
 from transformers import AutoProcessor, BatchFeature, LlamaTokenizerFast, ProcessorMixin
 
+# 导入日志模块
+from src.core.logging import get_logger
+
+# 获取日志记录器
+logger = get_logger()
+
 # 修复配置导入问题
 try:
     from src.core.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, MIN_CROPS, MAX_CROPS, PROMPT, get_tokenizer
@@ -40,7 +46,7 @@ def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_
         elif ratio_diff == best_ratio_diff:
             if area > 0.5 * image_size * image_size * ratio[0] * ratio[1]:
                 best_ratio = ratio
-    # print(f'width: {width}, height: {height}, best_ratio: {best_ratio}')
+    # logger.debug(f'width: {width}, height: {height}, best_ratio: {best_ratio}')
     return best_ratio
 
 
@@ -51,7 +57,7 @@ def count_tiles(orig_width, orig_height, min_num=MIN_CROPS, max_num=MAX_CROPS, i
     target_ratios = set(
         (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
         i * j <= max_num and i * j >= min_num)
-    # print(target_ratios)
+    # logger.debug(target_ratios)
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
     # find the closest aspect ratio to the target
@@ -69,14 +75,14 @@ def dynamic_preprocess(image, min_num=MIN_CROPS, max_num=MAX_CROPS, image_size=6
     target_ratios = set(
         (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
         i * j <= max_num and i * j >= min_num)
-    # print(target_ratios)
+    # logger.debug(target_ratios)
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
     # find the closest aspect ratio to the target
     target_aspect_ratio = find_closest_aspect_ratio(
         aspect_ratio, target_ratios, orig_width, orig_height, image_size)
 
-    # print(target_aspect_ratio)
+    # logger.debug(target_aspect_ratio)
     # calculate the target width and height
     target_width = image_size * target_aspect_ratio[0]
     target_height = image_size * target_aspect_ratio[1]
@@ -390,8 +396,6 @@ class DeepseekOCRProcessor(ProcessorMixin):
             else:
                 if cropping:
                     # print('image-size: ', image.size)
-                    # best_width, best_height = select_best_resolution(image.size, self.candidate_resolutions)
-                    # print('image ', image.size)
                     # print('open_size:', image.size)
                     images_crop_raw, crop_ratio = dynamic_preprocess(image, image_size=IMAGE_SIZE)
                     # print('crop_ratio: ', crop_ratio)

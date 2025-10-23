@@ -19,6 +19,10 @@ from src.core.base.ocr_engine import BaseOCREngine
 from src.core.config import MODEL_PATH, PROMPT
 from src.core.process.ngram_norepeat import NoRepeatNGramLogitsProcessor
 from src.core.process.image_process import DeepseekOCRProcessor
+from src.core.logging import get_logger
+
+# 获取日志记录器
+logger = get_logger()
 
 
 class VLLMEngine(BaseOCREngine):
@@ -80,6 +84,7 @@ class VLLMEngine(BaseOCREngine):
                 include_stop_str_in_output=True,
             )
         except Exception as e:
+            logger.error(f"vLLM引擎初始化失败: {str(e)}")
             raise RuntimeError(f"vLLM引擎初始化失败: {str(e)}")
     
     def process(self, images: List[Image.Image], output_dir: str) -> None:
@@ -132,6 +137,7 @@ class VLLMEngine(BaseOCREngine):
             self._save_results(outputs_list, Path(output_dir))
             
         except Exception as e:
+            logger.error(f"vLLM OCR执行失败: {str(e)}")
             raise RuntimeError(f"vLLM OCR执行失败: {str(e)}")
     
     def _save_results(self, outputs_list: list, output_dir: Path) -> None:
@@ -155,7 +161,7 @@ class VLLMEngine(BaseOCREngine):
         with open(result_file, 'w', encoding='utf-8') as f:
             f.write(contents)
         
-        print(f"OCR结果已保存到: {result_file}")
+        logger.info(f"OCR结果已保存到: {result_file}")
     
     def cleanup(self) -> None:
         """清理资源"""

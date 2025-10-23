@@ -33,7 +33,11 @@ from PIL import Image
 from src.cli.utils import get_compatible_device, get_appropriate_dtype, should_use_bfloat16
 # 导入新的引擎工厂
 from src.core.factory.engine_factory import get_engine
+# 导入日志模块
+from src.core.logging import get_logger
 
+# 获取日志记录器
+logger = get_logger()
 
 class DocumentProcessor:
     def __init__(self, mode="auto", model_path=None, prompt=None, 
@@ -79,7 +83,7 @@ class DocumentProcessor:
     
     def _process_document(self, input_path: str, output_dir: str):
         """处理文档文件（Word, PPT, Excel等）"""
-        print(f"正在将 {Path(input_path).name} 转换为PDF...")
+        logger.info(f"正在将 {Path(input_path).name} 转换为PDF...")
         
         # 使用LibreOffice将文档转换为PDF
         pdf_path = self._convert_to_pdf(Path(input_path), Path(output_dir))
@@ -89,7 +93,7 @@ class DocumentProcessor:
     
     def _process_pdf(self, input_path: str, output_dir: str):
         """处理PDF文件"""
-        print(f"正在处理PDF文件: {Path(input_path).name}")
+        logger.info(f"正在处理PDF文件: {Path(input_path).name}")
         
         # 将PDF转换为图像
         images = self._pdf_to_images(Path(input_path))
@@ -99,7 +103,7 @@ class DocumentProcessor:
     
     def _process_image(self, input_path: str, output_dir: str):
         """处理图像文件"""
-        print(f"正在处理图像文件: {Path(input_path).name}")
+        logger.info(f"正在处理图像文件: {Path(input_path).name}")
         
         # 打开图像
         image = Image.open(input_path)
@@ -153,26 +157,31 @@ class DocumentProcessor:
     
     def _pdf_to_images(self, pdf_path: Path) -> List[Image.Image]:
         """将PDF转换为图像列表"""
+        logger.info(f"开始将PDF转换为图像: {pdf_path}")
         images = []
         
         pdf_document = fitz.open(str(pdf_path))  # type: ignore
+        logger.info(f"PDF文档已打开，共 {pdf_document.page_count} 页")
         zoom = 144 / 72.0  # 144 DPI
         matrix = fitz.Matrix(zoom, zoom)  # type: ignore
         
         for page_num in range(pdf_document.page_count):
+            logger.info(f"正在处理第 {page_num + 1} 页")
             page = pdf_document[page_num]
             pixmap = page.get_pixmap(matrix=matrix, alpha=False)  # type: ignore
             
             # 转换为PIL图像
             image = Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples)
             images.append(image)
+            logger.info(f"第 {page_num + 1} 页处理完成，尺寸: {pixmap.width}x{pixmap.height}")
         
         pdf_document.close()  # type: ignore
+        logger.info(f"PDF转换完成，共生成 {len(images)} 张图像")
         return images
     
     def _perform_ocr(self, images: List[Image.Image], output_dir: Path):
         """执行OCR识别"""
-        print(f"正在对 {len(images)} 张图像进行OCR识别...")
+        logger.info(f"正在对 {len(images)} 张图像进行OCR识别...")
         
         # 智能模式选择
         actual_mode = self._determine_mode()
@@ -205,7 +214,7 @@ class DocumentProcessor:
             else:
                 return "transformers"
         elif self.mode == "vllm" and self._is_mps_environment():
-            print("警告: MPS环境不支持vLLM，自动回退到Transformers模式")
+            logger.warning("MPS环境不支持vLLM，自动回退到Transformers模式")
             return "transformers"
         else:
             # 使用指定的模式

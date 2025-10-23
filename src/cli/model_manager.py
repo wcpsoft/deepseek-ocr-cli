@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import json
 
+# 导入日志模块
+from src.core.logging import get_logger
+
+# 获取日志记录器
+logger = get_logger()
+
 # 定义需要忽略的文件和文件夹模式
 # 这些文件通常与模型运行无关，仅用于开发、测试或文档目的
 IGNORE_PATTERNS = [
@@ -27,6 +33,12 @@ IGNORE_PATTERNS = [
     ".msc",                    # 忽略.msc文件
     ".mv",                     # 忽略.mv文件
     "._____temp",              # 忽略临时文件
+    # 保留必要的模型实现文件，只忽略不需要的Python文件
+    # 注意：我们保留模型实现文件，因为它们是运行模型所必需的
+    "convert_*.py",            # 忽略转换脚本
+    "flax_*.py",               # 忽略Flax相关文件
+    "tf_*.py",                 # 忽略TensorFlow相关文件
+    "torch_*.py",              # 忽略PyTorch相关文件
 ]
 
 class ModelManager:
@@ -66,7 +78,7 @@ class ModelManager:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.model_configs, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"警告: 无法保存模型配置: {e}")
+            logger.warning(f"无法保存模型配置: {e}")
     
     def set_model_dir(self, model_dir: str):
         """设置模型目录"""
@@ -106,23 +118,23 @@ class ModelManager:
                         source = "huggingface"
                     self._download_model(model_name, repo_id, source, force_redownload)
                 else:
-                    print(f"未知模型: {model_name}")
+                    logger.error(f"未知模型: {model_name}")
     
     def _download_model(self, model_name: str, repo_id: str, source: str = "huggingface", force_redownload: bool = False):
         """下载单个模型"""
-        print(f"正在从 {source} 下载模型 {model_name} ({repo_id})...")
+        logger.info(f"正在从 {source} 下载模型 {model_name} ({repo_id})...")
         
         model_path = self.model_dir / model_name
         
         # 检查是否已存在且不强制重新下载
         if model_path.exists() and not force_redownload:
-            print(f"模型 {model_name} 已存在，跳过下载。如需重新下载请使用 --force 参数")
+            logger.info(f"模型 {model_name} 已存在，跳过下载。如需重新下载请使用 --force 参数")
             return
         
         try:
             # 如果目录存在且强制重新下载，则删除旧目录
             if model_path.exists() and force_redownload:
-                print(f"删除已存在的模型目录: {model_path}")
+                logger.info(f"删除已存在的模型目录: {model_path}")
                 shutil.rmtree(model_path)
             
             # 根据来源下载模型
@@ -131,10 +143,10 @@ class ModelManager:
             elif source == "modelscope":
                 self._download_from_modelscope(repo_id, model_path)
             else:
-                print(f"不支持的模型来源: {source}")
+                logger.error(f"不支持的模型来源: {source}")
                 return
             
-            print(f"模型 {model_name} 下载完成，保存至: {model_path}")
+            logger.info(f"模型 {model_name} 下载完成，保存至: {model_path}")
             
             # 更新模型配置
             if "downloaded_models" not in self.model_configs:
@@ -149,7 +161,7 @@ class ModelManager:
             
             self._save_model_configs()
         except Exception as e:
-            print(f"模型 {model_name} 下载失败: {str(e)}")
+            logger.error(f"模型 {model_name} 下载失败: {str(e)}")
     
     def _download_from_huggingface(self, repo_id: str, model_path: Path):
         """从Hugging Face下载模型（仅下载运行必需的文件）"""
@@ -162,7 +174,7 @@ class ModelManager:
                 "**/*",           # 允许所有子目录文件
             ]
             
-            print(f"正在从Hugging Face下载模型 {repo_id} 到 {model_path}")
+            logger.info(f"正在从Hugging Face下载模型 {repo_id} 到 {model_path}")
             
             # 下载模型文件
             snapshot_download(
@@ -185,7 +197,7 @@ class ModelManager:
             modelscope_module = importlib.import_module("modelscope")
             ms_snapshot_download = getattr(modelscope_module, "snapshot_download")
             
-            print(f"正在从ModelScope下载模型 {model_id} 到 {model_path}")
+            logger.info(f"正在从ModelScope下载模型 {model_id} 到 {model_path}")
             
             # ModelScope的下载函数
             ms_snapshot_download(
@@ -208,16 +220,16 @@ class ModelManager:
             "source": source
         }
         self._save_model_configs()
-        print(f"已添加自定义模型: {model_name} -> {repo_id} (来源: {source})")
+        logger.info(f"已添加自定义模型: {model_name} -> {repo_id} (来源: {source})")
     
     def remove_custom_model(self, model_name: str):
         """移除自定义模型"""
         if "custom_models" in self.model_configs and model_name in self.model_configs["custom_models"]:
             del self.model_configs["custom_models"][model_name]
             self._save_model_configs()
-            print(f"已移除自定义模型: {model_name}")
+            logger.info(f"已移除自定义模型: {model_name}")
         else:
-            print(f"未找到自定义模型: {model_name}")
+            logger.warning(f"未找到自定义模型: {model_name}")
     
     def list_downloaded_models(self) -> List[str]:
         """列出已下载的模型"""

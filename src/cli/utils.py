@@ -10,6 +10,12 @@ from typing import Optional, Tuple
 import sys
 import torch
 
+# 导入日志模块
+from src.core.logging import get_logger
+
+# 获取日志记录器
+logger = get_logger()
+
 
 def check_model_availability(project_root: Path) -> tuple[bool, Optional[str]]:
     """
@@ -36,7 +42,7 @@ def check_model_availability(project_root: Path) -> tuple[bool, Optional[str]]:
         else:
             return False, None
     except Exception as e:
-        print(f"检查模型时发生错误: {e}")
+        logger.error(f"检查模型时发生错误: {e}")
         return False, None
 
 
@@ -71,8 +77,8 @@ def ensure_model_available(project_root: Path) -> bool:
     model_available, _ = check_model_availability(project_root)
     
     if not model_available:
-        print("错误: 模型目录不存在或不完整，请先下载模型")
-        print("运行命令: deepseek-ocr --download-models")
+        logger.error("模型目录不存在或不完整，请先下载模型")
+        logger.info("运行命令: deepseek-ocr --download-models")
         return False
     
     return True
@@ -97,7 +103,7 @@ def get_compatible_device() -> torch.device:
             torch.cuda.empty_cache()
             return device
         except Exception as e:
-            print(f"警告: CUDA设备不可用 ({str(e)})，尝试其他设备...")
+            logger.warning(f"CUDA设备不可用 ({str(e)})，尝试其他设备...")
             # 如果CUDA不可用，继续检查其他设备
             pass
     
@@ -112,12 +118,12 @@ def get_compatible_device() -> torch.device:
             del test_tensor
             return device
         except Exception as e:
-            print(f"警告: MPS设备不可用 ({str(e)})，使用CPU...")
+            logger.warning(f"MPS设备不可用 ({str(e)})，使用CPU...")
             # 如果MPS不可用，继续使用CPU
             pass
     
     # 默认使用CPU
-    print("使用CPU设备进行推理")
+    logger.info("使用CPU设备进行推理")
     return torch.device("cpu")
 
 
@@ -133,19 +139,19 @@ def get_appropriate_dtype(device: torch.device) -> torch.dtype:
     """
     if device.type == "mps":
         # MPS上避免使用bfloat16和float16，使用float32以确保兼容性
-        print("在MPS设备上运行，使用float32数据类型以确保兼容性")
+        logger.info("在MPS设备上运行，使用float32数据类型以确保兼容性")
         return torch.float32
     elif device.type == "cuda":
         # 在CUDA设备上可以使用bfloat16（如果支持）
         if torch.cuda.is_bf16_supported():
-            print("在CUDA设备上运行，使用bfloat16数据类型")
+            logger.info("在CUDA设备上运行，使用bfloat16数据类型")
             return torch.bfloat16
         else:
-            print("在CUDA设备上运行，使用float32数据类型")
+            logger.info("在CUDA设备上运行，使用float32数据类型")
             return torch.float32
     else:
         # 在CPU上使用float32
-        print("在CPU设备上运行，使用float32数据类型")
+        logger.info("在CPU设备上运行，使用float32数据类型")
         return torch.float32
 
 
