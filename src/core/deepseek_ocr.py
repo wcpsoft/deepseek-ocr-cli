@@ -885,15 +885,56 @@ if VLLM_AVAILABLE:
                     print("生成参数已设置")
                     
                     outputs = self.model.generate(**generate_kwargs)
-                    print("模型生成完成")
+                    print(f"模型生成完成，outputs类型: {type(outputs)}")
+                    print(f"outputs内容: {outputs}")
                 
                 # 解码输出
+                print(f"检查outputs是否有sequences属性: {hasattr(outputs, 'sequences')}")
+                print(f"tokenizer是否为空: {tokenizer is not None}")
                 if hasattr(outputs, 'sequences') and tokenizer is not None:
+                    print("使用sequences属性解码")
                     result = tokenizer.decode(outputs.sequences[0], skip_special_tokens=True)
-                    print("结果解码完成")
+                    print(f"解码结果: {result}")
                     return result
                 else:
-                    print("处理完成")
+                    # 检查outputs是否有其他属性可以使用
+                    print("Outputs没有sequences属性，检查其他属性")
+                    if hasattr(outputs, 'output_ids'):
+                        print("使用output_ids属性")
+                        result = tokenizer.decode(outputs.output_ids[0], skip_special_tokens=True)
+                        return result
+                    elif hasattr(outputs, '__getitem__'):
+                        print("尝试将outputs作为元组或列表处理")
+                        try:
+                            # 如果outputs是一个元组或列表，第一个元素可能是我们需要的
+                            if len(outputs) > 0:
+                                first_element = outputs[0]
+                                if hasattr(first_element, 'sequences'):
+                                    result = tokenizer.decode(first_element.sequences[0], skip_special_tokens=True)
+                                    return result
+                                else:
+                                    # 尝试直接解码first_element
+                                    result = tokenizer.decode(first_element, skip_special_tokens=True)
+                                    return result
+                        except Exception as e:
+                            print(f"处理outputs作为元组失败: {e}")
+                    
+                    # 如果outputs有text属性
+                    if hasattr(outputs, 'text'):
+                        print("使用text属性")
+                        return outputs.text
+                    
+                    # 如果outputs可以直接解码
+                    try:
+                        print("尝试直接解码outputs")
+                        result = tokenizer.decode(outputs, skip_special_tokens=True)
+                        return result
+                    except Exception as e:
+                        print(f"直接解码outputs失败: {e}")
+                    
+                    print("Outputs对象结构未知")
+                    # 打印outputs的详细信息
+                    print(f"Outputs内容: {outputs}")
                     return "处理完成"
             else:
                 raise ValueError("图像处理失败，未生成有效的输入数据")
