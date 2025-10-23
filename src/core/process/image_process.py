@@ -406,7 +406,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
             # if cropping
             if self.image_size <= 640 and not cropping:
                 # print('directly resize')
-                image = image.resize((self.image_size, self.image_size))
+                # 使用高质量的重采样方法
+                image = image.resize((self.image_size, self.image_size), resample=Image.Resampling.LANCZOS)
 
             global_view = ImageOps.pad(image, (self.base_size, self.base_size),
                                     color=tuple(int(x * 255) for x in self.image_transform.mean))

@@ -550,8 +550,16 @@ if VLLM_AVAILABLE:
             with torch.no_grad():
                 for jdx in range(images_spatial_crop.size(0)):
                     # with torch.set_grad_enabled(False):
-                    patches = images_crop[jdx][0].to(torch.bfloat16) # batch_size = 1
+                    # 根据设备类型决定是否使用bfloat16
+                    patches = images_crop[jdx][0]
                     image_ori = pixel_values[jdx]
+                    
+                    # 检查设备类型，MPS上避免使用bfloat16以确保兼容性
+                    if patches.device.type != "mps":
+                        patches = patches.to(torch.bfloat16)
+                    if image_ori.device.type != "mps":
+                        image_ori = image_ori.to(torch.bfloat16)
+
                     crop_shape = images_spatial_crop[jdx][0]
 
                     if torch.sum(patches).item() != 0:  # if all values = 0, no crop
@@ -646,15 +654,15 @@ if VLLM_AVAILABLE:
 
             # image_input: [pixel_values, images_crop, images_spatial_crop]
         
-            pixel_values = image_input[0].to(torch.bfloat16)
-            # print(image_input[1][0].shape)
-            # print(type(image_input[1]))
-            # exit()
-
-            # images_crop = image_input[1].to(torch.bfloat16)
+            pixel_values = image_input[0]
             images_crop = image_input[1]
-            # images_crop = image_input[1]
             images_spatial_crop = image_input[2].to(dtype=torch.long)
+
+            # 检查设备类型，MPS上避免使用bfloat16以确保兼容性
+            if pixel_values.device.type != "mps":
+                pixel_values = pixel_values.to(torch.bfloat16)
+            if images_crop.device.type != "mps":
+                images_crop = images_crop.to(torch.bfloat16)
 
             # local_start = time.time()
             vision_features = self._pixel_values_to_embedding(
@@ -763,23 +771,109 @@ if VLLM_AVAILABLE:
 
             return hidden_states
 
-            def compute_logits(
-                self,
-                hidden_states: torch.Tensor,
-                sampling_metadata: SamplingMetadata,
-            ) -> Optional[torch.Tensor]:
-                """
-                计算logits
+        def compute_logits(
+            self,
+            hidden_states: torch.Tensor,
+            sampling_metadata: SamplingMetadata,
+        ) -> Optional[torch.Tensor]:
+            """
+            计算logits
+            
+            Args:
+                hidden_states: 隐藏状态张量
+                sampling_metadata: 采样元数据
                 
-                Args:
-                    hidden_states: 隐藏状态张量
-                    sampling_metadata: 采样元数据
+            Returns:
+                logits张量或None
+            """
+            return self.language_model.compute_logits(hidden_states,
+                                                    sampling_metadata)
+
+        def infer(self, tokenizer, prompt='', image_file='', output_path='', base_size=1024, image_size=640, crop_mode=True, test_compress=False, save_results=False):
+            """
+            推理方法，用于处理图像并生成OCR结果
+            
+            Args:
+                tokenizer: 分词器
+                prompt: 提示词
+                image_file: 图像文件路径
+                output_path: 输出路径
+                base_size: 基础尺寸
+                image_size: 图像尺寸
+                crop_mode: 是否启用裁剪模式
+                test_compress: 是否测试压缩
+                save_results: 是否保存结果
+                
+            Returns:
+                OCR结果
+            """
+            import torch
+            from PIL import Image
+            from .process.image_process import DeepseekOCRProcessor
+            
+            # 加载图像
+            image = Image.open(image_file).convert('RGB')
+            
+            # 处理图像
+            processor = DeepseekOCRProcessor(tokenizer=tokenizer)
+            processed_data = processor.tokenize_with_images(
+                images=[image],
+                bos=True,
+                eos=True,
+                cropping=crop_mode
+            )
+            
+            # 提取处理后的数据
+            if processed_data and len(processed_data) > 0:
+                # 注意：这里的索引可能需要调整，根据实际的数据结构
+                input_ids = processed_data[0][0]
+                pixel_values = processed_data[0][1]
+                images_crop = processed_data[0][2]
+                images_spatial_crop = processed_data[0][4]  # 根据实际数据结构调整索引
+                
+                # 确保数据在正确的设备上
+                device = self.device
+                input_ids = input_ids.to(device)
+                pixel_values = pixel_values.to(device)
+                images_crop = images_crop.to(device)
+                images_spatial_crop = images_spatial_crop.to(device)
+                
+                # 在MPS设备上避免使用bfloat16
+                if device.type != "mps":
+                    pixel_values = pixel_values.to(torch.bfloat16)
+                    images_crop = images_crop.to(torch.bfloat16)
+                
+                # 构造模型输入
+                model_inputs = {
+                    "input_ids": input_ids,
+                    "pixel_values": pixel_values,
+                    "images_crop": images_crop,
+                    "images_spatial_crop": images_spatial_crop
+                }
+                
+                # 生成结果
+                with torch.no_grad():
+                    # 构造注意力掩码
+                    attention_mask = torch.ones_like(input_ids)
                     
-                Returns:
-                    logits张量或None
-                """
-                return self.language_model.compute_logits(hidden_states,
-                                                        sampling_metadata)
+                    # 调用实际模型的生成方法
+                    outputs = self.model.generate(
+                        **model_inputs,
+                        max_new_tokens=512,
+                        temperature=0.0,
+                        do_sample=False,
+                        pad_token_id=tokenizer.eos_token_id,
+                        attention_mask=attention_mask
+                    )
+                
+                # 解码输出
+                if hasattr(outputs, 'sequences') and tokenizer is not None:
+                    result = tokenizer.decode(outputs.sequences[0], skip_special_tokens=True)
+                    return result
+                else:
+                    return "处理完成"
+            else:
+                raise ValueError("图像处理失败，未生成有效的输入数据")
 
     def infer(self, tokenizer, prompt='', image_file='', output_path='', base_size=1024, image_size=640, crop_mode=True, test_compress=False, save_results=False):
         """
@@ -830,6 +924,11 @@ if VLLM_AVAILABLE:
             images_crop = images_crop.to(device)
             images_spatial_crop = images_spatial_crop.to(device)
             
+            # 在MPS设备上避免使用bfloat16
+            if device.type != "mps":
+                pixel_values = pixel_values.to(torch.bfloat16)
+                images_crop = images_crop.to(torch.bfloat16)
+            
             # 构造模型输入
             model_inputs = {
                 "input_ids": input_ids,
@@ -840,11 +939,17 @@ if VLLM_AVAILABLE:
             
             # 生成结果
             with torch.no_grad():
-                outputs = self.generate(
+                # 构造注意力掩码
+                attention_mask = torch.ones_like(input_ids)
+                
+                # 调用实际模型的生成方法
+                outputs = self.model.generate(
                     **model_inputs,
                     max_new_tokens=512,
                     temperature=0.0,
-                    do_sample=False
+                    do_sample=False,
+                    pad_token_id=tokenizer.eos_token_id,
+                    attention_mask=attention_mask
                 )
             
             # 解码输出
@@ -856,34 +961,30 @@ if VLLM_AVAILABLE:
         else:
             raise ValueError("图像处理失败，未生成有效的输入数据")
 
-            def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]) -> Set[str]:
-                """
-                加载模型权重
-                
-                Args:
-                    weights: 权重元组迭代器
-                
-                Returns:
-                    已加载的权重名称集合
-                """
-                processed_weights = []
-                
-                for name, tensor in weights:
-                    if 'sam_model' in name or 'vision_model' in name or 'projector' in name or 'image_newline' in name or 'view_seperator' in name:
-                        new_name = name.replace('model.', '', 1)
-                    else:
-                        new_name = 'language.' + name
+    def load_weights(self, weights: Iterable[Tuple[str, torch.Tensor]]) -> Set[str]:
+        """
+        加载模型权重
+        
+        Args:
+            weights: 权重元组迭代器
+        
+        Returns:
+            已加载的权重名称集合
+        """
+        processed_weights = []
+        
+        for name, tensor in weights:
+            if 'sam_model' in name or 'vision_model' in name or 'projector' in name or 'image_newline' in name or 'view_seperator' in name:
+                new_name = name.replace('model.', '', 1)
+            else:
+                new_name = 'language.' + name
 
-                    processed_weights.append((new_name, tensor))
-                
-                loader = AutoWeightsLoader(self)
-                autoloaded_weights = loader.load_weights(processed_weights, mapper=self.hf_to_vllm_mapper)
+            processed_weights.append((new_name, tensor))
+        
+        loader = AutoWeightsLoader(self)
+        autoloaded_weights = loader.load_weights(processed_weights, mapper=self.hf_to_vllm_mapper)
 
-
-
-
-
-                return autoloaded_weights
+        return autoloaded_weights
 else:
     # 在不支持vLLM的平台上提供Transformers兼容的实现
     class DeepseekOCRForCausalLM(nn.Module):
@@ -981,12 +1082,17 @@ else:
                 
                 # 生成结果
                 with torch.no_grad():
+                    # 构造注意力掩码
+                    attention_mask = torch.ones_like(input_ids)
+                    
                     # 调用实际模型的生成方法
                     outputs = self.model.generate(
                         **model_inputs,
                         max_new_tokens=512,
                         temperature=0.0,
-                        do_sample=False
+                        do_sample=False,
+                        pad_token_id=tokenizer.eos_token_id,
+                        attention_mask=attention_mask
                     )
                 
                 # 解码输出

@@ -1,17 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-DeepSeek OCR 核心模块
-包含基于视觉编码器与大语言模型的光学字符识别系统的核心算法实现
-
-本模块基于DeepSeek-OCR项目，提供了OCR核心算法的实现。
+DeepSeek OCR核心模块
 """
 
-__version__ = "1.0.0"
-__author__ = "Rxzhang"
-
-# 导出核心类和函数
-from .config import *
+# 保留原有的导入以确保向后兼容性
 from .deepseek_ocr import DeepseekOCRForCausalLM
+
+# 导入新的模块
+from .base import BaseOCREngine
+from .vllm import VLLMEngine
+from .transformers import TransformersEngine
+from .factory import EngineFactory, get_engine
 
 __all__ = [
     "DeepseekOCRForCausalLM",
+    "BaseOCREngine",
+    "VLLMEngine",
+    "TransformersEngine",
+    "EngineFactory",
+    "get_engine"
 ]

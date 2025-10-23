@@ -13,6 +13,7 @@ DeepSeek-OCR-CLI 是一个基于视觉编码器与大语言模型的光学字符
 - **智能模式切换**：自动检测硬件环境并选择最优推理引擎
 - **Web界面**：提供友好的Web操作界面
 - **高精度识别**：基于DeepSeek-OCR模型，支持复杂文档布局分析
+- **模块化架构**：采用工厂模式设计，vLLM和Transformers引擎解耦，易于扩展和维护
 
 ## 功能特性
 
@@ -29,6 +30,7 @@ DeepSeek-OCR-CLI 是一个基于视觉编码器与大语言模型的光学字符
 - 统一的命令行接口，简化使用流程
 - 支持vLLM和Transformers两种推理后端
 - 提供Web界面进行可视化操作
+- 模块化架构设计，易于扩展和维护
 
 ### 支持的文件格式
 - Microsoft Office: .doc, .docx, .ppt, .pptx, .xls, .xlsx
@@ -186,13 +188,22 @@ uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload
 ### Python API
 
 ```python
-from cli.document_processor import DocumentProcessor
+from src.core.factory.engine_factory import get_engine
 
-# 创建处理器
-processor = DocumentProcessor(mode="auto")  # 在MPS环境下会自动选择Transformers模式
+# 创建vLLM引擎
+vllm_engine = get_engine("vllm")
+
+# 创建Transformers引擎
+transformers_engine = get_engine("transformers")
+
+# 初始化引擎
+vllm_engine.initialize()
 
 # 处理文档
-processor.process("input.docx", "output_dir")
+vllm_engine.process([image], "output_dir")
+
+# 清理资源
+vllm_engine.cleanup()
 ```
 
 ## 分辨率模式
@@ -247,7 +258,6 @@ DeepSeek-OCR/
 │   ├── model_manager.py   # 模型管理
 │   ├── pdf_converter.py   # PDF转换器
 │   ├── download_models.py # 模型下载
-│   ├── example_usage.py   # 使用示例
 │   └── test_cli.py        # CLI测试
 ├── src/                   # 源代码目录
 │   ├── __init__.py
@@ -258,6 +268,10 @@ DeepSeek-OCR/
 │       ├── config.py          # 配置文件
 │       ├── deepseek_ocr.py    # vLLM模型实现
 │       ├── api/               # Web API服务
+│       ├── base/              # 基础抽象类
+│       ├── factory/           # 工厂模式
+│       ├── vllm/              # vLLM引擎实现
+│       ├── transformers/      # Transformers引擎实现
 │       ├── process/           # 处理模块
 │       └── deepencoder/       # 编码器模块
 ├── dev/                   # 开发工具
@@ -271,6 +285,23 @@ DeepSeek-OCR/
 ├── README.md              # 项目说明与使用指南
 └── pyproject.toml         # 项目配置
 ```
+
+## 架构设计
+
+### 工厂模式重构
+
+项目采用工厂模式重构了OCR引擎架构，实现了vLLM和Transformers引擎的解耦：
+
+1. **基础抽象类** (`src/core/base/ocr_engine.py`)：定义所有OCR引擎的通用接口
+2. **vLLM引擎实现** (`src/core/vllm/vllm_engine.py`)：vLLM引擎的具体实现
+3. **Transformers引擎实现** (`src/core/transformers/transformers_engine.py`)：Transformers引擎的具体实现
+4. **工厂类** (`src/core/factory/engine_factory.py`)：负责根据配置创建相应的OCR引擎实例
+
+这种设计具有以下优势：
+- **单一职责原则**：每个类只负责一个功能
+- **开闭原则**：易于扩展新的引擎类型，无需修改现有代码
+- **依赖倒置原则**：高层模块不依赖低层模块，都依赖抽象
+- **易于测试**：每个模块可以独立测试
 
 ## 测试
 
@@ -288,6 +319,23 @@ python -m pytest tests/test_e2e.py
 
 # 使用开发脚本运行测试
 ./dev/run_tests.sh
+```
+
+## 代码质量检查
+
+项目使用多种工具确保代码质量：
+
+```bash
+# 使用开发脚本格式化代码
+./dev/format.sh
+
+# 或者手动运行各个工具
+black src/ cli/ tests/ dev/
+isort src/ cli/ tests/ dev/
+ruff check src/ cli/ tests/ dev/ --fix
+
+# 运行类型检查
+mypy src/ cli/
 ```
 
 ## 许可证

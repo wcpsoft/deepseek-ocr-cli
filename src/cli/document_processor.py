@@ -29,265 +29,10 @@ except ImportError:
 import img2pdf  # type: ignore
 from PIL import Image
 
-class OCRProcessor(ABC):
-    """OCR处理器抽象基类"""
-    
-    def __init__(self, model_path: Optional[str] = None, prompt: Optional[str] = None,
-                 base_size: int = 1024, image_size: int = 640, crop_mode: bool = True):
-        self.model_path = model_path
-        self.prompt = prompt
-        self.base_size = base_size
-        self.image_size = image_size
-        self.crop_mode = crop_mode
-    
-    @abstractmethod
-    def process(self, images: List[Image.Image], output_dir: Path) -> None:
-        """处理图像列表并保存结果到输出目录"""
-        pass
-
-
-class VLLMOCRProcessor(OCRProcessor):
-    """使用vLLM执行OCR"""
-    
-    def process(self, images: List[Image.Image], output_dir: Path) -> None:
-        try:
-            # 添加项目根目录到路径
-            import sys
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if project_root not in sys.path:
-                sys.path.append(project_root)
-            
-            # 延迟导入，避免在不需要时加载依赖
-            from src.core.config import MODEL_PATH, PROMPT
-            from src.core.deepseek_ocr import DeepseekOCRForCausalLM
-            from vllm.model_executor.models.registry import ModelRegistry  # type: ignore
-            from vllm import LLM, SamplingParams  # type: ignore
-            from src.core.process.ngram_norepeat import NoRepeatNGramLogitsProcessor
-            from src.core.process.image_process import DeepseekOCRProcessor
-            
-            # 设置模型路径
-            model_path = self.model_path or MODEL_PATH
-            prompt = self.prompt or PROMPT
-            
-            ModelRegistry.register_model("DeepseekOCRForCausalLM", DeepseekOCRForCausalLM)
-            
-            llm = LLM(
-                model=model_path,
-                hf_overrides={"architectures": ["DeepseekOCRForCausalLM"]},
-                block_size=256,
-                enforce_eager=False,
-                trust_remote_code=True, 
-                max_model_len=8192,
-                swap_space=0,
-                max_num_seqs=100,
-                tensor_parallel_size=1,
-                gpu_memory_utilization=0.9,
-                disable_mm_preprocessor_cache=True
-            )
-            
-            logits_processors = [NoRepeatNGramLogitsProcessor(ngram_size=20, window_size=50, 
-                                                            whitelist_token_ids={128821, 128822})]
-            
-            sampling_params = SamplingParams(
-                temperature=0.0,
-                max_tokens=8192,
-                logits_processors=logits_processors,
-                skip_special_tokens=False,
-                include_stop_str_in_output=True,
-            )
-            
-            # 处理图像
-            batch_inputs = []
-            for image in images:
-                # 使用processor处理图像
-                from src.core.process.image_process import DeepseekOCRProcessor
-                processor = DeepseekOCRProcessor()
-                
-                # 处理图像和提示词
-                prompt = self.prompt or "<image>\n<|grounding|>Convert the document to markdown."
-                # 使用tokenize_with_images方法处理图像
-                processed_data = processor.tokenize_with_images(
-                    images=[image], 
-                    bos=True, 
-                    eos=True, 
-                    cropping=self.crop_mode
-                )
-                
-                # 构造输入数据
-                if processed_data and len(processed_data) > 0:
-                    cache_item = {
-                        "prompt": prompt,
-                        "multi_modal_data": {
-                            "image": processed_data
-                        },
-                    }
-                    batch_inputs.append(cache_item)
-                else:
-                    raise ValueError("图像处理失败，未生成有效的输入数据")
-            
-            # 生成结果
-            outputs_list = llm.generate(batch_inputs, sampling_params=sampling_params)
-            
-            # 保存结果
-            self._save_results(outputs_list, output_dir)
-            
-        except Exception as e:
-            raise RuntimeError(f"vLLM OCR执行失败: {str(e)}")
-    
-    def _save_results(self, outputs_list: list, output_dir: Path) -> None:
-        """保存OCR结果"""
-        # 保存原始结果
-        contents = ''
-        for output in outputs_list:
-            content = output.outputs[0].text
-            if '<｜end▁of▁sentence｜>' in content:
-                content = content.replace('<｜end▁of▁sentence｜>', '')
-            contents += content + '\n'
-        
-        # 写入文件
-        result_file = output_dir / "result.mmd"
-        with open(result_file, 'w', encoding='utf-8') as f:
-            f.write(contents)
-        
-        print(f"OCR结果已保存到: {result_file}")
-
-
-class TransformersOCRProcessor(OCRProcessor):
-    """使用Transformers执行OCR"""
-    
-    def process(self, images: List[Image.Image], output_dir: Path) -> None:
-        try:
-            # 添加项目根目录到路径
-            import sys
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            if project_root not in sys.path:
-                sys.path.append(project_root)
-            import torch
-            
-            # 设置模型路径，优先使用本地模型
-            model_name = self.model_path or 'deepseek-ai/DeepSeek-OCR'
-            local_model_path = "./models/deepseek-ocr"
-            
-            # 检查本地模型是否存在
-            if os.path.exists(local_model_path):
-                print(f"使用本地模型: {local_model_path}")
-                model_name = local_model_path
-            else:
-                print(f"本地模型不存在，将从远程下载: {model_name}")
-            
-            # 加载tokenizer
-            from transformers import AutoTokenizer
-            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-            
-            # 通过修改sys.modules来确保使用我们自己的模型类
-            import sys
-            # 将我们自己的模块添加到sys.modules中
-            import src.core.deepseek_ocr
-            sys.modules['modeling_deepseekocr'] = src.core.deepseek_ocr
-            
-            # 使用Hugging Face的AutoModel加载模型
-            from transformers import AutoModel
-            model = AutoModel.from_pretrained(model_name, trust_remote_code=True, use_safetensors=True)
-            
-            # 检查可用的设备
-            device = self._get_compatible_device()
-            print(f"使用 {device.type.upper()} 设备进行推理")
-            
-            # 将模型移到设备上并设置为评估模式
-            model = model.eval().to(device)
-            if device.type != "cpu":
-                model = model.to(torch.bfloat16)
-            
-            # 确保输出目录存在
-            output_dir.mkdir(parents=True, exist_ok=True)
-            
-            # 处理每张图像
-            results = []
-            for i, image in enumerate(images):
-                # 保存临时图像文件
-                temp_image_path = output_dir / f"temp_{i}.jpg"
-                image.save(temp_image_path, "JPEG")
-                
-                try:
-                    # 使用模型的infer方法处理图像
-                    prompt = self.prompt or "<image>\n<|grounding|>Convert the document to markdown."
-                    # 确保传递正确的image_file参数
-                    result = model.infer(
-                        tokenizer=tokenizer,
-                        prompt=prompt,
-                        image_file=str(temp_image_path),  # 确保传递正确的文件路径
-                        output_path=str(output_dir),      # 传递输出路径
-                        base_size=self.base_size,
-                        image_size=self.image_size,
-                        crop_mode=self.crop_mode
-                    )
-                    results.append(result)
-                except Exception as infer_error:
-                    print(f"警告: 图像 {i+1} 处理失败 ({str(infer_error)})")
-                    results.append(f"图像 {i+1} 处理失败: {str(infer_error)}")
-                finally:
-                    # 删除临时文件
-                    if temp_image_path.exists():
-                        temp_image_path.unlink()
-            
-            # 保存结果
-            self._save_results(results, output_dir)
-            
-        except Exception as e:
-            raise RuntimeError(f"Transformers OCR执行失败: {str(e)}")
-    
-    def _get_compatible_device(self):
-        """获取兼容的设备，避免CUDA相关警告"""
-        import torch
-        
-        # 首先检查CUDA
-        if torch.cuda.is_available():
-            try:
-                # 尝试创建CUDA设备以验证是否真正可用
-                device = torch.device("cuda")
-                # 尝试在设备上创建一个张量来验证
-                test_tensor = torch.zeros(1).to(device)
-                # 清理测试张量
-                del test_tensor
-                torch.cuda.empty_cache()
-                return device
-            except Exception as e:
-                print(f"警告: CUDA设备不可用 ({str(e)})，尝试其他设备...")
-                # 如果CUDA不可用，继续检查其他设备
-                pass
-        
-        # 检查MPS
-        if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available() and torch.backends.mps.is_built():
-            try:
-                # 尝试创建MPS设备以验证是否真正可用
-                device = torch.device("mps")
-                # 尝试在设备上创建一个张量来验证
-                test_tensor = torch.zeros(1).to(device)
-                # 清理测试张量
-                del test_tensor
-                return device
-            except Exception as e:
-                print(f"警告: MPS设备不可用 ({str(e)})，使用CPU...")
-                # 如果MPS不可用，继续使用CPU
-                pass
-        
-        # 默认使用CPU
-        print("使用CPU设备进行推理")
-        return torch.device("cpu")
-    
-    def _save_results(self, results: list, output_dir: Path) -> None:
-        """保存OCR结果"""
-        # 保存结果
-        contents = ''
-        for result in results:
-            contents += str(result) + '\n'
-        
-        # 写入文件
-        result_file = output_dir / "result.mmd"
-        with open(result_file, 'w', encoding='utf-8') as f:
-            f.write(contents)
-        
-        print(f"OCR结果已保存到: {result_file}")
+# 导入utils模块中的统一函数
+from src.cli.utils import get_compatible_device, get_appropriate_dtype, should_use_bfloat16
+# 导入新的引擎工厂
+from src.core.factory.engine_factory import get_engine
 
 
 class DocumentProcessor:
@@ -432,31 +177,24 @@ class DocumentProcessor:
         # 智能模式选择
         actual_mode = self._determine_mode()
         
-        # 创建相应的OCR处理器
-        ocr_processor: OCRProcessor
-        if actual_mode == "vllm":
-            print("使用 vLLM 引擎进行OCR识别...")
-            ocr_processor = VLLMOCRProcessor(
-                model_path=self.model_path,
-                prompt=self.prompt,
-                base_size=self.base_size,
-                image_size=self.image_size,
-                crop_mode=self.crop_mode
-            )
-        elif actual_mode == "transformers":
-            print("使用 Transformers 引擎进行OCR识别...")
-            ocr_processor = TransformersOCRProcessor(
-                model_path=self.model_path,
-                prompt=self.prompt,
-                base_size=self.base_size,
-                image_size=self.image_size,
-                crop_mode=self.crop_mode
-            )
-        else:
-            raise ValueError(f"不支持的模式: {actual_mode}")
+        # 使用工厂方法创建相应的OCR引擎
+        ocr_engine = get_engine(
+            engine_type=actual_mode,
+            model_path=self.model_path,
+            prompt=self.prompt,
+            base_size=self.base_size,
+            image_size=self.image_size,
+            crop_mode=self.crop_mode
+        )
+        
+        # 初始化引擎
+        ocr_engine.initialize()
         
         # 执行OCR处理
-        ocr_processor.process(images, output_dir)
+        ocr_engine.process(images, str(output_dir))
+        
+        # 清理资源
+        ocr_engine.cleanup()
     
     def _determine_mode(self):
         """确定实际使用的模式"""
