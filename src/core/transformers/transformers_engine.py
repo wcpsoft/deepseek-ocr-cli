@@ -16,6 +16,19 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.append(project_root)
 
+# 在导入其他模块之前注册配置类
+try:
+    from transformers import CONFIG_MAPPING
+    from src.core.deepseek_ocr_config import DeepseekVLV2Config, DeepseekV2Config
+    
+    # 立即注册配置类（如果尚未注册）
+    if "deepseek_vl_v2" not in CONFIG_MAPPING:
+        CONFIG_MAPPING["deepseek_vl_v2"] = DeepseekVLV2Config
+    if "deepseek_v2" not in CONFIG_MAPPING:
+        CONFIG_MAPPING["deepseek_v2"] = DeepseekV2Config
+except Exception as e:
+    pass  # 在模块加载时忽略错误
+
 from src.core.base.ocr_engine import BaseOCREngine
 from src.cli.utils import get_compatible_device, should_use_bfloat16
 from src.core.logging import get_logger, debug_trace, debug_wrapper
@@ -60,34 +73,34 @@ class TransformersEngine(BaseOCREngine):
             else:
                 logger.info(f"本地模型不存在，将从远程下载: {model_name}")
             
-            # 加载tokenizer
-            from transformers import AutoTokenizer
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-            
-            # 使用我们自己的模型实现，而不是依赖models目录中的Python文件
-            from src.core.deepseek_ocr import DeepseekOCRForCausalLM
-            self.model = DeepseekOCRForCausalLM()
-            
-            # 如果是本地模型，手动加载权重
-            if os.path.exists(local_model_path):
-                self.model.load_weights_from_path(local_model_path)
+            # 使用统一的模型初始化器
+            from src.core.model_initializer import ModelInitializer
+            self.model, self.tokenizer = ModelInitializer.initialize_transformers_model_and_tokenizer(model_name, trust_remote_code=True)
             
             # 检查可用的设备
             self.device = get_compatible_device()
             logger.info(f"使用 {self.device.type.upper()} 设备进行推理")
             
             # 将模型移到设备上并设置为评估模式
-            self.model = self.model.to(self.device).eval()
+            from src.core.model_initializer import ModelInitializer
+            self.model = ModelInitializer.move_model_to_device(self.model, self.device)
             
             # 根据设备类型选择合适的数据类型
             use_bfloat16 = should_use_bfloat16(self.device)
             if use_bfloat16 and self.device.type != "mps":
                 # MPS设备上不使用bfloat16，保持默认的float32以确保兼容性
-                self.model = self.model.to(torch.bfloat16)
+                # 检查模型是否有to方法
+                if hasattr(self.model, 'to') and callable(getattr(self.model, 'to', None)):
+                    self.model = self.model.to(torch.bfloat16)
             # MPS设备上不使用特殊的数据类型转换，保持默认的float32
+            
+            # 添加调试信息
+            logger.debug(f"模型初始化完成，设备: {self.device}, 模型类型: {type(self.model)}")
             debug_trace()
         except Exception as e:
             logger.error(f"Transformers引擎初始化失败: {str(e)}")
+            import traceback
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
             raise RuntimeError(f"Transformers引擎初始化失败: {str(e)}")
     
     @debug_wrapper
@@ -100,8 +113,11 @@ class TransformersEngine(BaseOCREngine):
             output_dir: 输出目录路径
         """
         debug_trace()
+        logger.debug(f"开始process方法，图像数量: {len(images) if images else 0}, 输出目录: {output_dir}")
         if self.model is None or self.tokenizer is None:
+            logger.debug("模型或tokenizer未初始化，开始初始化")
             self.initialize()
+            logger.debug("初始化完成")
         
         try:
             output_dir_path = Path(output_dir)
@@ -129,19 +145,29 @@ class TransformersEngine(BaseOCREngine):
                     logger.info(f"开始OCR识别第 {i+1} 张图像")
                     # 确保传递正确的image_file参数
                     if self.model is not None:
-                        result = self.model.infer(
-                            tokenizer=self.tokenizer,
-                            prompt=prompt,
-                            image_file=str(temp_image_path),  # 确保传递正确的文件路径
-                            output_path=str(output_dir_path),      # 传递输出路径
-                            base_size=self.base_size,
-                            image_size=self.image_size,
-                            crop_mode=self.crop_mode
-                        )
+                        logger.debug("调用模型的infer方法")
+                        # 检查模型是否有infer方法
+                        if hasattr(self.model, 'infer') and callable(getattr(self.model, 'infer', None)):
+                            result = self.model.infer(
+                                tokenizer=self.tokenizer,
+                                prompt=prompt,
+                                image_file=str(temp_image_path),  # 确保传递正确的文件路径
+                                output_path=str(output_dir_path),      # 传递输出路径
+                                base_size=self.base_size,
+                                image_size=self.image_size,
+                                crop_mode=self.crop_mode
+                            )
+                        else:
+                            raise RuntimeError("模型没有实现infer方法")
                         logger.info(f"第 {i+1} 张图像OCR识别完成")
+                        # 检查结果是否有效
+                        if result and isinstance(result, str) and len(result.strip()) > 0:
+                            results.append(result.strip())
+                        else:
+                            logger.warning(f"第 {i+1} 张图像OCR识别返回空结果或默认结果")
+                            results.append(f"图像 {i+1} OCR识别未返回有效结果")
                     else:
                         raise RuntimeError("模型未正确初始化")
-                    results.append(result)
                 except Exception as infer_error:
                     logger.warning(f"图像 {i+1} 处理失败 ({str(infer_error)})")
                     results.append(f"图像 {i+1} 处理失败: {str(infer_error)}")
@@ -157,6 +183,8 @@ class TransformersEngine(BaseOCREngine):
             logger.info("OCR处理完成")
         except Exception as e:
             logger.error(f"Transformers OCR执行失败: {str(e)}")
+            import traceback
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
             raise RuntimeError(f"Transformers OCR执行失败: {str(e)}")
     
     @debug_wrapper
@@ -169,10 +197,25 @@ class TransformersEngine(BaseOCREngine):
             output_dir: 输出目录路径
         """
         debug_trace()
-        # 保存结果
+        # 保存结果，只保存纯净的识别文本
         contents = ''
+        successful_results = []
         for result in results:
-            contents += str(result) + '\n'
+            # 只添加成功处理的结果，过滤掉失败的提示和日志信息
+            if result and isinstance(result, str):
+                # 过滤掉错误信息和日志
+                if not (result.startswith("图像") and "处理失败" in result) and \
+                   result != "处理完成" and \
+                   not result.startswith("2025-") and \
+                   len(result.strip()) > 0:
+                    if contents:  # 如果已有内容，添加换行符分隔
+                        contents += '\n'
+                    contents += result.strip()
+                    successful_results.append(result.strip())
+                else:
+                    logger.debug(f"过滤掉无效结果: {result[:50]}...")
+            else:
+                logger.debug(f"跳过非字符串结果: {type(result)}")
         
         # 写入文件
         result_file = output_dir / "result.mmd"
@@ -180,11 +223,20 @@ class TransformersEngine(BaseOCREngine):
             f.write(contents)
         
         logger.info(f"OCR结果已保存到: {result_file}")
+        logger.info(f"成功处理 {len(successful_results)} 张图像")
+        debug_trace()
     
-    @debug_wrapper
     def cleanup(self) -> None:
         """清理资源"""
-        debug_trace()
         # Transformers引擎不需要特殊清理
         pass
+
+
+
+
+
+
+
+
+
 

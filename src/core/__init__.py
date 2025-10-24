@@ -4,20 +4,23 @@
 DeepSeek OCR核心模块
 """
 
-# 保留原有的导入以确保向后兼容性
-from .deepseek_ocr import DeepseekOCRForCausalLM
-
-# 导入新的模块
-from .base import BaseOCREngine
-from .vllm import VLLMEngine
-from .transformers import TransformersEngine
-from .factory import EngineFactory, get_engine
+# 导入主要组件
+from .deepseek_ocr import (
+    DeepseekOCRVisionEncoder,
+    IMAGE_SIZE,
+    BASE_SIZE,
+    CROP_MODE,
+    PRINT_NUM_VIS_TOKENS
+)
+from .inference.deepseek_ocr_inference import DeepseekOCRInference
+from .process.image_process import DeepseekOCRProcessor
 
 __all__ = [
-    "DeepseekOCRForCausalLM",
-    "BaseOCREngine",
-    "VLLMEngine",
-    "TransformersEngine",
-    "EngineFactory",
-    "get_engine"
+    "DeepseekOCRVisionEncoder",
+    "DeepseekOCRInference",
+    "DeepseekOCRProcessor",
+    "IMAGE_SIZE",
+    "BASE_SIZE",
+    "CROP_MODE",
+    "PRINT_NUM_VIS_TOKENS"
 ]

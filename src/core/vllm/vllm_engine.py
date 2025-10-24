@@ -16,7 +16,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 from src.core.base.ocr_engine import BaseOCREngine
-from src.core.config import MODEL_PATH, PROMPT
+from src.core.config.config import MODEL_PATH, PROMPT
 from src.core.process.ngram_norepeat import NoRepeatNGramLogitsProcessor
 from src.core.process.image_process import DeepseekOCRProcessor
 from src.core.logging import get_logger
@@ -48,12 +48,12 @@ class VLLMEngine(BaseOCREngine):
         """初始化vLLM引擎"""
         try:
             # 延迟导入，避免在不需要时加载依赖
-            from src.core.deepseek_ocr import DeepseekOCRForCausalLM
+            from src.core.models.deepseek_ocr_model import DeepseekOCRForCausalLM
             from vllm.model_executor.models.registry import ModelRegistry
             from vllm import LLM, SamplingParams
             
-            # 注册模型
-            ModelRegistry.register_model("DeepseekOCRForCausalLM", DeepseekOCRForCausalLM)
+            # 注册模型 - 使用正确的模型类型
+            ModelRegistry.register_model("DeepseekVLV2ForCausalLM", DeepseekOCRForCausalLM)
             
             # 设置模型路径
             model_path = self.model_path or MODEL_PATH
@@ -61,7 +61,7 @@ class VLLMEngine(BaseOCREngine):
             
             self.llm = LLM(
                 model=model_path,
-                hf_overrides={"architectures": ["DeepseekOCRForCausalLM"]},
+                hf_overrides={"architectures": ["DeepseekVLV2ForCausalLM"]},
                 block_size=256,
                 enforce_eager=False,
                 trust_remote_code=True, 

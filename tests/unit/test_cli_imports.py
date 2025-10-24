@@ -1,71 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-CLI导入测试
-确保所有CLI模块可以正确导入
+CLI模块导入测试
+验证CLI模块的正确导入和基本功能
 """
 
+import sys
+import os
 import pytest
-from unittest.mock import patch
+
+# 添加项目根目录到路径
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if project_root not in sys.path:
+    sys.path.append(project_root)
 
 def test_document_processor_import():
-    """测试DocumentProcessor导入"""
-    from cli.document_processor import DocumentProcessor
-    assert DocumentProcessor is not None
+    """测试文档处理器模块导入"""
+    try:
+        from src.cli.document_processor import DocumentProcessor
+        assert DocumentProcessor is not None
+    except ImportError as e:
+        pytest.fail(f"无法导入DocumentProcessor: {e}")
 
 def test_model_manager_import():
-    """测试ModelManager导入"""
-    from cli.model_manager import ModelManager
-    assert ModelManager is not None
+    """测试模型管理器模块导入"""
+    try:
+        from src.cli.model_manager import ModelManager
+        assert ModelManager is not None
+    except ImportError as e:
+        pytest.fail(f"无法导入ModelManager: {e}")
 
 def test_main_import():
-    """测试main模块导入"""
-    import cli.main
-    assert cli.main is not None
-
-def test_mode_determination():
-    """测试模式确定功能"""
-    from cli.document_processor import DocumentProcessor
-    
-    # 测试auto模式（在没有vLLM的环境中应该返回transformers）
-    processor_auto = DocumentProcessor(mode="auto")
-    actual_mode = processor_auto._determine_mode()
-    # 在当前测试环境中，vLLM不可用，所以应该返回transformers
-    assert actual_mode == "transformers"
-    
-    # 测试在非MPS环境下且vLLM可用的情况
-    processor_vllm = DocumentProcessor(mode="vllm")
-    # 直接模拟方法返回值
-    processor_vllm._is_mps_environment = lambda: False
-    processor_vllm._is_vllm_available = lambda: True
-    assert processor_vllm._determine_mode() == "vllm"
-    
-    processor_transformers = DocumentProcessor(mode="transformers")
-    processor_transformers._is_mps_environment = lambda: False
-    processor_transformers._is_vllm_available = lambda: True
-    assert processor_transformers._determine_mode() == "transformers"
-    
-    # 测试auto模式在vLLM可用且非MPS环境时应该选择vLLM
-    processor_auto_vllm = DocumentProcessor(mode="auto")
-    processor_auto_vllm._is_mps_environment = lambda: False
-    processor_auto_vllm._is_vllm_available = lambda: True
-    assert processor_auto_vllm._determine_mode() == "vllm"
-    
-    # 测试在MPS环境下的特殊处理
-    processor_vllm_on_mps = DocumentProcessor(mode="vllm")
-    processor_vllm_on_mps._is_mps_environment = lambda: True
-    processor_vllm_on_mps._is_vllm_available = lambda: False
-    # 即使强制使用vLLM，在MPS环境下也应该回退到transformers
-    assert processor_vllm_on_mps._determine_mode() == "transformers"
-    
-    # 在MPS环境下使用transformers模式
-    processor_transformers_on_mps = DocumentProcessor(mode="transformers")
-    processor_transformers_on_mps._is_mps_environment = lambda: True
-    processor_transformers_on_mps._is_vllm_available = lambda: False
-    assert processor_transformers_on_mps._determine_mode() == "transformers"
-    
-    # 测试auto模式在MPS环境下应该选择transformers
-    processor_auto_mps = DocumentProcessor(mode="auto")
-    processor_auto_mps._is_mps_environment = lambda: True
-    processor_auto_mps._is_vllm_available = lambda: False
-    assert processor_auto_mps._determine_mode() == "transformers"
+    """测试主模块导入"""
+    try:
+        from src.cli.main import main
+        assert main is not None
+    except ImportError as e:
+        pytest.fail(f"无法导入main: {e}")

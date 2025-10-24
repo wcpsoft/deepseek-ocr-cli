@@ -17,29 +17,29 @@ from src.core.logging import get_logger
 # 获取日志记录器
 logger = get_logger()
 
-# 定义需要忽略的文件和文件夹模式
-# 这些文件通常与模型运行无关，仅用于开发、测试或文档目的
-IGNORE_PATTERNS = [
-    "*.md",                    # 忽略Markdown文档
-    "README*",                 # 忽略README文件
-    "LICENSE*",                # 忽略许可证文件
-    "assets/*",                # 忽略assets文件夹（通常包含示例图片等）
-    "examples/*",              # 忽略examples文件夹
-    "scripts/*",               # 忽略scripts文件夹
-    "tests/*",                 # 忽略测试文件夹
-    ".git*",                   # 忽略Git相关文件
-    "*.ipynb_checkpoints",     # 忽略Jupyter Notebook检查点
-    ".ipynb_checkpoints/*",    # 忽略Jupyter Notebook检查点文件夹
-    ".msc",                    # 忽略.msc文件
-    ".mv",                     # 忽略.mv文件
-    "._____temp",              # 忽略临时文件
-    # 保留必要的模型实现文件，只忽略不需要的Python文件
-    # 注意：我们保留模型实现文件，因为它们是运行模型所必需的
-    "convert_*.py",            # 忽略转换脚本
-    "flax_*.py",               # 忽略Flax相关文件
-    "tf_*.py",                 # 忽略TensorFlow相关文件
-    "torch_*.py",              # 忽略PyTorch相关文件
+# 定义模型下载的文件模式，确保只下载运行必需的文件
+MODEL_DOWNLOAD_PATTERNS = [
+    "*.json",              # 包括config.json, tokenizer_config.json等
+    "*.txt",               # 包括special_tokens_map.txt等
+    "*.model",             # 包括tokenizer.model等
+    "*.bin",               # 包括PyTorch模型权重文件
+    "*.safetensors",       # 包括Safetensors模型权重文件
+    "*.index.json",        # 包括模型索引文件
+    "*.tiktoken",          # 包括tokenizer文件
+    "tokenizer.json",      # 特别包含tokenizer.json
+    "!configuration_*.py",  # 排除配置文件，使用项目内部实现
+    "!modeling_*.py",       # 排除建模文件，使用项目内部实现
+    "!*.md",               # 排除Markdown文档
+    "!README*",            # 排除README文件
+    "!LICENSE*",           # 排除许可证文件
+    "!assets/*",           # 排除assets文件夹
+    "!examples/*",         # 排除examples文件夹
+    "!scripts/*",          # 排除scripts文件夹
+    "!tests/*",            # 排除测试文件夹
+    "!*.ipynb_checkpoints", # 排除Jupyter Notebook检查点
+    "!*.ipynb_checkpoints/*", # 排除Jupyter Notebook检查点文件夹
 ]
+
 
 class ModelManager:
     def __init__(self, model_dir: str = "./models"):
@@ -168,22 +168,26 @@ class ModelManager:
         try:
             from huggingface_hub import snapshot_download
             
-            # 添加允许模式以提高下载效率
-            allow_patterns = [
-                "*",              # 允许所有文件
-                "**/*",           # 允许所有子目录文件
-            ]
-            
             logger.info(f"正在从Hugging Face下载模型 {repo_id} 到 {model_path}")
             
-            # 下载模型文件
-            snapshot_download(
-                repo_id=repo_id,
-                local_dir=str(model_path),
-                ignore_patterns=IGNORE_PATTERNS,
-                allow_patterns=allow_patterns,  # 添加allow_patterns参数
-                resume_download=True  # 允许断点续传
-            )
+            # 下载模型文件，添加重试机制
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    snapshot_download(
+                        repo_id=repo_id,
+                        local_dir=str(model_path),
+                        allow_patterns=MODEL_DOWNLOAD_PATTERNS,
+                        resume_download=True  # 允许断点续传
+                    )
+                    break  # 成功下载则退出循环
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"下载尝试 {attempt + 1} 失败: {str(e)}，正在重试...")
+                        import time
+                        time.sleep(2 ** attempt)  # 指数退避
+                    else:
+                        raise e  # 最后一次尝试失败则抛出异常
         except ImportError:
             raise RuntimeError("huggingface_hub 包未安装，请先安装: pip install huggingface_hub")
         except Exception as e:
@@ -199,12 +203,23 @@ class ModelManager:
             
             logger.info(f"正在从ModelScope下载模型 {model_id} 到 {model_path}")
             
-            # ModelScope的下载函数
-            ms_snapshot_download(
-                model_id=model_id,
-                local_dir=str(model_path),
-                ignore_patterns=IGNORE_PATTERNS
-            )
+            # ModelScope的下载函数，添加重试机制
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    ms_snapshot_download(
+                        model_id=model_id,
+                        local_dir=str(model_path),
+                        allow_patterns=MODEL_DOWNLOAD_PATTERNS
+                    )
+                    break  # 成功下载则退出循环
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"下载尝试 {attempt + 1} 失败: {str(e)}，正在重试...")
+                        import time
+                        time.sleep(2 ** attempt)  # 指数退避
+                    else:
+                        raise e  # 最后一次尝试失败则抛出异常
         except ImportError:
             raise RuntimeError("modelscope 包未安装，请先安装: pip install modelscope")
         except Exception as e:

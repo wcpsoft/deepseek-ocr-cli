@@ -27,14 +27,14 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+.trae/
 # IDEs
 .idea/
 .vscode/
 *.swp
 *.swo
 .DS_Store
-
+.DS_Store
 # Testing
 .pytest_cache/
 .coverage
