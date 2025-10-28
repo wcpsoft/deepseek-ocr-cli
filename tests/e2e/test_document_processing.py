@@ -101,7 +101,8 @@ def test_pdf_processing(samples_dir):
             output_dir = Path(temp_dir) / "output"
             
             # 处理第一个PDF文件
-            processor = DocumentProcessor(mode="transformers", prompt="<image>\n<|grounding|>Convert the document to markdown.")
+            from src.core.config import DEFAULT_OCR_PROMPT
+            processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
             # 不实际运行处理，只测试初始化
             assert processor is not None
             
@@ -123,7 +124,8 @@ def test_image_processing(samples_dir):
             output_dir = Path(temp_dir) / "output"
             
             # 处理第一张图像
-            processor = DocumentProcessor(mode="transformers", prompt="<image>\n<|grounding|>Convert the document to markdown.")
+            from src.core.config import DEFAULT_OCR_PROMPT
+            processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
             # 不实际运行处理，只测试初始化
             assert processor is not None
             
@@ -146,7 +148,8 @@ def test_document_conversion(samples_dir):
             output_dir = Path(temp_dir) / "output"
             
             # 处理第一个文档文件
-            processor = DocumentProcessor(mode="transformers", prompt="<image>\n<|grounding|>Convert the document to markdown.")
+            from src.core.config import DEFAULT_OCR_PROMPT
+            processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
             # 不实际运行处理，只测试初始化
             assert processor is not None
             

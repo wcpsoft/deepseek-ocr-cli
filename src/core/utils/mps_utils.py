@@ -35,14 +35,24 @@ def get_optimal_device() -> torch.device:
     Returns:
         torch.device: 最优设备对象
     """
+    # 使用模块级变量来跟踪是否已经记录过设备信息
+    if not hasattr(get_optimal_device, '_device_logged'):
+        get_optimal_device._device_logged = False
+    
     if is_mps_device():
-        logger.info("检测到MPS设备，将使用MPS")
+        if not get_optimal_device._device_logged:
+            logger.info("检测到MPS设备，将使用MPS")
+            get_optimal_device._device_logged = True
         return torch.device('mps')
     elif torch.cuda.is_available():
-        logger.info("检测到CUDA设备，将使用CUDA")
+        if not get_optimal_device._device_logged:
+            logger.info("检测到CUDA设备，将使用CUDA")
+            get_optimal_device._device_logged = True
         return torch.device('cuda')
     else:
-        logger.info("未检测到GPU设备，将使用CPU")
+        if not get_optimal_device._device_logged:
+            logger.info("未检测到GPU设备，将使用CPU")
+            get_optimal_device._device_logged = True
         return torch.device('cpu')
 
 

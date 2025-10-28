@@ -41,6 +41,7 @@ dependencies = [
     "uvicorn[standard]",
     "python-multipart",
     "tqdm",
+    "psutil",
 ]
 
 [project.optional-dependencies]

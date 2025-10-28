@@ -17,6 +17,7 @@ DOWNLOAD_MODELS=false
 INPUT_FILE=""
 OUTPUT_DIR="output"
 MODE="auto"
+DEBUG=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -28,9 +29,13 @@ while [[ $# -gt 0 ]]; do
             MODE="$2"
             shift 2
             ;;
+        --debug)
+            DEBUG=true
+            shift
+            ;;
         -*)
             log_error "未知选项: $1"
-            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [输入文件] [输出目录]"
+            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [输入文件] [输出目录]"
             exit 1
             ;;
         *)
@@ -89,7 +94,7 @@ fi
 
 # 如果没有提供输入文件，则退出
 if [ -z "$INPUT_FILE" ]; then
-    echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] <输入文件> [输出目录]"
+    echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] <输入文件> [输出目录]"
     echo "示例: ./dev/run.sh samples/1.pdf output"
     # 显示推荐的推理模式（如果有的话）
     if [ -n "$RECOMMENDED_MODE" ] && [ "$RECOMMENDED_MODE" != "auto" ]; then
@@ -124,7 +129,13 @@ log_info "处理文件: $INPUT_FILE"
 log_info "输出目录: $OUTPUT_DIR"
 log_info "推理模式: $FINAL_MODE"
 
-python3 -m src.cli.main "$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE"
+# 构建命令参数
+ARGS=("$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE")
+if [ "$DEBUG" = true ]; then
+    ARGS+=(--debug)
+fi
+
+python3 -m src.cli.main "${ARGS[@]}"
 
 echo "========================================="
 echo "  处理完成"

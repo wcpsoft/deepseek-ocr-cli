@@ -32,7 +32,7 @@ from PIL import Image
 # 导入utils模块中的统一函数
 from src.cli.utils import get_compatible_device, get_appropriate_dtype, should_use_bfloat16
 # 导入新的引擎工厂
-from src.core.factory.engine_factory import get_engine
+from src.core.factory.ocr_engine_factory import OCREngineFactory
 # 导入日志模块
 from src.core.logging import get_logger
 
@@ -41,13 +41,23 @@ logger = get_logger()
 
 class DocumentProcessor:
     def __init__(self, mode="auto", model_path=None, prompt=None, 
-                 base_size=1024, image_size=640, crop_mode=True):
+                 base_size=1024, image_size=640, crop_mode=True, debug=False):
         self.mode = mode
         self.model_path = model_path
         self.prompt = prompt
         self.base_size = base_size
         self.image_size = image_size
         self.crop_mode = crop_mode
+        self.debug = debug
+        
+        # 如果启用调试模式，设置日志级别为DEBUG
+        if self.debug:
+            import logging
+            # 设置根日志记录器级别
+            logging.getLogger().setLevel(logging.DEBUG)
+            # 设置OCR日志记录器级别
+            logging.getLogger("deepseek_ocr").setLevel(logging.DEBUG)
+            logger.debug("调试模式已启用")
         
         # 支持的文档格式
         self.supported_formats = {
@@ -187,7 +197,7 @@ class DocumentProcessor:
         actual_mode = self._determine_mode()
         
         # 使用工厂方法创建相应的OCR引擎
-        ocr_engine = get_engine(
+        ocr_engine = OCREngineFactory.create_engine(
             engine_type=actual_mode,
             model_path=self.model_path,
             prompt=self.prompt,
@@ -235,3 +245,36 @@ class DocumentProcessor:
             return torch.backends.mps.is_available() and torch.backends.mps.is_built()
         except ImportError:
             return False
+    
+    def convert_to_images(self, document_path: str) -> List[Image.Image]:
+        """
+        将文档转换为图像列表
+        
+        Args:
+            document_path: 文档路径
+            
+        Returns:
+            图像列表
+        """
+        document_path_obj = Path(document_path)
+        
+        if not document_path_obj.exists():
+            raise FileNotFoundError(f"输入文件不存在: {document_path}")
+        
+        # 获取文件扩展名
+        ext = document_path_obj.suffix.lower()
+        
+        if ext == '.pdf':
+            # 直接处理PDF
+            return self._pdf_to_images(document_path_obj)
+        elif ext in ['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx']:
+            # 先转换为PDF，再处理
+            with tempfile.TemporaryDirectory() as temp_dir:
+                pdf_path = self._convert_to_pdf(document_path_obj, Path(temp_dir))
+                return self._pdf_to_images(pdf_path)
+        elif ext in ['.jpg', '.jpeg', '.png']:
+            # 直接加载图像
+            image = Image.open(document_path)
+            return [image]
+        else:
+            raise ValueError(f"不支持的文件格式: {ext}")

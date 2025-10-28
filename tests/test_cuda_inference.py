@@ -6,8 +6,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from src.core.model_initializer import TransformersOCRModel
-from src.core.config import Config
+from src.core.transformers.transformers_engine import TransformersEngine
+from PIL import Image
 
 def test_cuda_inference():
     """在CUDA设备上测试推理"""
@@ -22,26 +22,32 @@ def test_cuda_inference():
     print(f"检测到CUDA设备: {torch.cuda.get_device_name(0)}")
     print(f"设备内存: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
     
-    # 加载配置
-    config = Config()
-    
-    # 初始化模型
-    print("\n正在初始化模型...")
-    model = TransformersOCRModel(config)
+    # 初始化引擎
+    print("\n正在初始化引擎...")
+    engine = TransformersEngine()
     
     # 测试推理
     print("\n开始测试推理...")
     try:
-        # 使用samples/4.pdf进行测试
-        result = model.infer("samples/4.pdf", "output/test_cuda")
+        # 将PDF转换为图像
+        from src.core.document_processor import DocumentProcessor
+        doc_processor = DocumentProcessor()
+        images = doc_processor.process_document("samples/4.pdf")
+        
+        # 使用引擎处理图像
+        engine.process(images, "output/test_cuda")
         print("推理成功完成!")
-        print(f"结果保存在: {result}")
+        print(f"结果保存在: output/test_cuda")
         
         # 读取并显示结果
-        with open(result, 'r', encoding='utf-8') as f:
-            content = f.read()
-            print("\n=== OCR识别结果 ===")
-            print(content)
+        result_file = os.path.join("output/test_cuda", "result.md")
+        if os.path.exists(result_file):
+            with open(result_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                print("\n=== OCR识别结果 ===")
+                print(content)
+        else:
+            print("未找到结果文件")
         
         return True
     except Exception as e:

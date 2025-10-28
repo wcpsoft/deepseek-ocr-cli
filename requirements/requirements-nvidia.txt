@@ -1,10 +1,10 @@
 # NVIDIA GPU PyTorch, Transformers and vLLM requirements (CUDA)
 PyMuPDF
 img2pdf
-flash-attn==2.7.3 --no-build-isolation
 torch==2.5.1
 torchvision>=0.20,<0.21
 torchaudio==2.5.1
 transformers==4.47.1
 tokenizers
+flash-attn==2.7.3 --no-build-isolation
 # vllm==0.8.5.post1

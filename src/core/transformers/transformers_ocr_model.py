@@ -6,7 +6,7 @@ DeepSeek OCR模型Transformers实现
 
 # 确保在模块加载时就注册配置类和模型类
 try:
-    from transformers import CONFIG_MAPPING, AutoModelForCausalLM, AutoTokenizer
+    from transformers import CONFIG_MAPPING, AutoModelForCausalLM, AutoTokenizer, AutoConfig
     from src.core.deepseek_ocr_config import DeepseekVLV2Config as ConfigDeepseekVLV2Config, DeepseekV2Config as ConfigDeepseekV2Config
     
     # 动态注册配置类（如果尚未注册）
@@ -15,18 +15,17 @@ try:
     if "deepseek_v2" not in CONFIG_MAPPING:
         CONFIG_MAPPING._extra_content["deepseek_v2"] = ConfigDeepseekV2Config
         
-    # 注册模型类
-    from src.core.models.deepseek_ocr_model import DeepseekOCRForCausalLM
-    if "DeepseekOCRForCausalLM" not in AutoModelForCausalLM._model_mapping._extra_content:
-        # 注意：这里需要根据配置类注册模型类
-        # 由于DeepseekVLV2Config是DeepSeek OCR的配置类，我们需要将其映射到DeepseekOCRForCausalLM
-        pass
+    # 尝试注册到AutoConfig
+    try:
+        if not hasattr(AutoConfig, "_model_mapping"):
+            AutoConfig._model_mapping = {}
         
-    # 注册tokenizer类
-    # 注意：这里需要根据配置类注册tokenizer类
-    # 由于DeepseekVLV2Config是DeepSeek OCR的配置类，我们需要将其映射到相应的tokenizer类
+        AutoConfig._model_mapping["deepseek_vl_v2"] = ConfigDeepseekVLV2Config
+        AutoConfig._model_mapping["deepseek_v2"] = ConfigDeepseekV2Config
+    except Exception as e:
+        pass
 except Exception as e:
-    pass  # 在模块加载时忽略错误
+    pass
 
 from transformers.models.llama.configuration_llama import LlamaConfig
 import torch
@@ -40,10 +39,19 @@ from src.core.logging import get_logger
 from src.core.deepencoder.sam_vary_sdpa import build_sam_vit_b
 from src.core.deepencoder.clip_sdpa import build_clip_l
 from src.core.deepencoder.build_linear import MlpProjector
+from src.core.utils.mps_utils import get_optimal_device
 from addict import Dict
 
 # 获取日志记录器
 logger = get_logger()
+
+# 导入modeling_deepseekocr模块中的模型类
+try:
+    from src.core.models.modeling_deepseekocr import DeepseekOCRForCausalLM as DirectDeepseekOCRForCausalLM
+    logger.info("成功从src.core.models.modeling_deepseekocr导入DeepseekOCRForCausalLM")
+except ImportError as e:
+    logger.error(f"无法从src.core.models.modeling_deepseekocr导入DeepseekOCRForCausalLM: {e}")
+    DirectDeepseekOCRForCausalLM = None
 
 # 为保持向后兼容性，创建别名
 class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
@@ -62,122 +70,136 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         super().__init__(config)
         
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs) -> 'DeepseekOCRForCausalLM':
+    def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs):
         """
         从预训练模型加载模型
-            
+        
         Args:
             pretrained_model_name_or_path: 预训练模型名称或路径
             *args: 位置参数
             **kwargs: 关键字参数
-                
+            
         Returns:
             DeepseekOCRForCausalLM实例
         """
-        # 创建实例
-        instance = cls()  # type: ignore
+        import logging
+        logger = logging.getLogger(__name__)
         
-        try:
-            # 移除trust_remote_code参数
-            kwargs_copy = kwargs.copy()
-            if 'trust_remote_code' in kwargs_copy:
-                del kwargs_copy['trust_remote_code']
-            
-            # 直接使用AutoModelForCausalLM，但不依赖远程代码
-            # 这是一个简单的实现，我们只需要确保有一个可以生成文本的模型
-            logger.info(f"正在加载模型: {pretrained_model_name_or_path}")
-            
-            # 由于我们没有modeling_deepseekocr.py文件，我们需要一个替代方案
-            # 我们可以创建一个简单的包装器，它具有必要的generate方法
-            from transformers import LlamaModel, LlamaConfig, AutoTokenizer
-            import torch.nn as nn
-            
-            # 首先尝试加载LlamaModel
+        # 如果有直接可用的模型类，优先使用
+        if DirectDeepseekOCRForCausalLM is not None:
+            logger.info("使用直接导入的DeepseekOCRForCausalLM类")
             try:
-                base_model = LlamaModel.from_pretrained(pretrained_model_name_or_path, **kwargs_copy)
-                logger.info(f"成功加载LlamaModel")
-                
-                # 创建一个简单的包装器，添加语言模型头和generate方法
-                class SimpleLlamaForCausalLM(nn.Module):
-                    def __init__(self, model):
-                        super().__init__()
-                        self.model = model
-                        # 添加语言模型头
-                        self.lm_head = nn.Linear(model.config.hidden_size, model.config.vocab_size, bias=False)
-                        self.config = model.config
-                    
-                    def forward(self, input_ids=None, attention_mask=None, **kwargs):
-                        # 简单的前向传播
-                        outputs = self.model(input_ids, attention_mask=attention_mask, **kwargs)
-                        logits = self.lm_head(outputs.last_hidden_state)
-                        return type('obj', (object,), {'logits': logits, 'last_hidden_state': outputs.last_hidden_state})
-                    
-                    def generate(self, input_ids, attention_mask=None, **kwargs):
-                        # 一个非常简单的生成实现
-                        # 实际应用中，这应该是一个更复杂的采样过程
-                        max_length = kwargs.get('max_length', 512)
-                        
-                        # 确保输入ids在GPU上
-                        if torch.backends.mps.is_available():
-                            device = torch.device('mps')
-                        elif torch.cuda.is_available():
-                            device = torch.device('cuda')
-                        else:
-                            device = torch.device('cpu')
-                            
-                        input_ids = input_ids.to(device)
-                        if attention_mask is not None:
-                            attention_mask = attention_mask.to(device)
-                        
-                        # 逐个token生成
-                        for _ in range(max_length - input_ids.shape[1]):
-                            # 前向传播获取logits
-                            with torch.no_grad():
-                                outputs = self(input_ids, attention_mask)
-                                next_token_logits = outputs.logits[:, -1, :]
-                                # 取概率最高的token
-                                next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
-                            
-                            # 将新token添加到输入中
-                            input_ids = torch.cat([input_ids, next_token], dim=1)
-                            # 更新attention mask
-                            if attention_mask is not None:
-                                attention_mask = torch.cat([attention_mask, torch.ones_like(next_token)], dim=1)
-                        
-                        return input_ids
-                
-                # 创建包装的模型
-                instance.model = SimpleLlamaForCausalLM(base_model)
-                instance.config = base_model.config
-                logger.info("成功创建带语言模型头的包装模型")
-                
+                return DirectDeepseekOCRForCausalLM.from_pretrained(
+                    pretrained_model_name_or_path, *args, **kwargs
+                )
             except Exception as e:
-                logger.error(f"加载模型失败: {e}")
-                import traceback
-                logger.error(f"错误堆栈: {traceback.format_exc()}")
-                raise e
-            
-            # 初始化视觉编码器和投影器
-            instance.sam_model = build_sam_vit_b()
-            instance.vision_model = build_clip_l()
-            
-            n_embed = 1280
-            instance.projector = MlpProjector(Dict(projector_type="linear", input_dim=2048, n_embed=n_embed))
-            instance.tile_tag = "2D"  # 使用默认值
-            instance.global_view_pos = True  # 使用默认值
-            
-            # special token for image token sequence format
-            embed_std = 1 / torch.sqrt(torch.tensor(n_embed, dtype=torch.float32))
-            instance.image_newline = nn.Parameter(torch.randn(n_embed) * embed_std)
-            instance.view_seperator = nn.Parameter(torch.randn(n_embed) * embed_std)
-                
-        except Exception as e:
-            logger.error(f"加载模型失败: {e}")
-            import traceback
-            logger.error(f"错误堆栈: {traceback.format_exc()}")
-            raise e
+                logger.error(f"直接导入的模型类加载失败，回退到基类实现: {e}")
+        else:
+            logger.warning("直接导入的DeepseekOCRForCausalLM类不可用，使用基类实现")
         
-        return instance
+        # 先创建实例，但不初始化视觉组件
+        model = cls(config=None)
+        
+        # 加载配置
+        from transformers import LlamaConfig
+        try:
+            config = LlamaConfig.from_pretrained(pretrained_model_name_or_path)
+        except Exception as e:
+            logger.error(f"加载配置失败: {e}")
+            # 尝试使用AutoConfig
+            from transformers import AutoConfig
+            config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+        
+        model.config = config
+        
+        # 加载语言模型
+        try:
+            from transformers import AutoModelForCausalLM
+            logger.info("正在加载语言模型")
+            
+            # 移除auto_map参数，避免循环导入问题
+            if 'auto_map' in kwargs:
+                del kwargs['auto_map']
+            
+            # 尝试直接加载语言模型
+            language_model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path, 
+                *args, 
+                **kwargs
+            )
+            logger.info("配置的model_type: %s", config.model_type)
+            model.language_model = language_model
+            model.image_token_id = 200005
+        except Exception as e:
+            logger.error(f"加载语言模型失败: {e}")
+            # 尝试使用语言配置加载
+            try:
+                if hasattr(config, 'language_config'):
+                    language_config = config.language_config
+                    
+                    # 检查language_config是字典还是对象
+                    if isinstance(language_config, dict):
+                        # 从字典中获取配置
+                        architectures = language_config.get('architectures', ['DeepseekV2ForCausalLM'])
+                        bos_token_id = language_config.get('bos_token_id', 0)
+                        eos_token_id = language_config.get('eos_token_id', 1)
+                        hidden_size = language_config.get('hidden_size', 1280)
+                        intermediate_size = language_config.get('intermediate_size', 6848)
+                        max_position_embeddings = language_config.get('max_position_embeddings', 8192)
+                        num_attention_heads = language_config.get('num_attention_heads', 10)
+                        num_hidden_layers = language_config.get('num_hidden_layers', 12)
+                        num_key_value_heads = language_config.get('num_key_value_heads', 10)
+                        vocab_size = language_config.get('vocab_size', 129280)
+                        torch_dtype = language_config.get('torch_dtype', 'bfloat16')
+                    else:
+                        # 从对象中获取配置
+                        architectures = language_config.architectures
+                        bos_token_id = language_config.bos_token_id
+                        eos_token_id = language_config.eos_token_id
+                        hidden_size = language_config.hidden_size
+                        intermediate_size = language_config.intermediate_size
+                        max_position_embeddings = language_config.max_position_embeddings
+                        num_attention_heads = language_config.num_attention_heads
+                        num_hidden_layers = language_config.num_hidden_layers
+                        num_key_value_heads = language_config.num_key_value_heads
+                        vocab_size = language_config.vocab_size
+                        torch_dtype = language_config.torch_dtype
+                    
+                    # 创建一个新的配置对象，只包含语言模型相关的配置
+                    lang_config = LlamaConfig(
+                        architectures=architectures,
+                        bos_token_id=bos_token_id,
+                        eos_token_id=eos_token_id,
+                        hidden_size=hidden_size,
+                        intermediate_size=intermediate_size,
+                        max_position_embeddings=max_position_embeddings,
+                        num_attention_heads=num_attention_heads,
+                        num_hidden_layers=num_hidden_layers,
+                        num_key_value_heads=num_key_value_heads,
+                        vocab_size=vocab_size,
+                        torch_dtype=torch_dtype
+                    )
+                    
+                    # 使用语言配置加载模型
+                    language_model = AutoModelForCausalLM.from_pretrained(
+                        pretrained_model_name_or_path,
+                        config=lang_config,
+                        *args,
+                        **kwargs
+                    )
+                    model.language_model = language_model
+                    model.image_token_id = 200005
+                    logger.info("使用语言配置成功加载语言模型")
+                else:
+                    raise ValueError("配置中没有language_config")
+            except Exception as e2:
+                logger.error(f"使用语言配置加载模型也失败: {e2}")
+                raise
+        
+        # 初始化视觉组件（在语言模型加载后）
+        model._initialize_vision_components()
+        
+        return model
         
     def generate(self, *args, **kwargs):
         """
@@ -190,7 +212,91 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         Returns:
             生成结果
         """
-        if hasattr(self, 'model') and self.model is not None:
-            return self.model.generate(*args, **kwargs)
+        if hasattr(self, 'language_model') and self.language_model is not None:
+            return self.language_model.generate(*args, **kwargs)
         else:
-            raise RuntimeError("模型未正确初始化")
+            logger.error("语言模型未初始化")
+            raise ValueError("语言模型未初始化")
+    
+    def to(self, *args, **kwargs):
+        """
+        将模型移到指定设备
+        
+        Args:
+            *args: 位置参数
+            **kwargs: 关键字参数
+            
+        Returns:
+            self
+        """
+        if len(args) > 0:
+            self.device = args[0]
+        elif 'device' in kwargs:
+            self.device = kwargs['device']
+        
+        # 调用父类的to方法处理视觉模型等组件
+        super().to(*args, **kwargs)
+        
+        # 处理语言模型
+        if hasattr(self, 'language_model') and self.language_model is not None:
+            self.language_model = self.language_model.to(*args, **kwargs)
+        return self
+        
+    def eval(self):
+        """
+        设置模型为评估模式
+        
+        Returns:
+            self
+        """
+        # 调用父类的eval方法
+        super().eval()
+        
+        # 设置语言模型为评估模式
+        if hasattr(self, 'language_model') and self.language_model is not None:
+            self.language_model = self.language_model.eval()
+        return self
+        
+    def parameters(self, recurse=True):
+        """
+        获取模型参数
+        
+        Args:
+            recurse: 是否递归获取参数
+            
+        Returns:
+            模型参数迭代器
+        """
+        # 获取父类参数
+        params = super().parameters(recurse)
+        
+        # 获取语言模型参数
+        if hasattr(self, 'language_model') and self.language_model is not None:
+            return list(params) + list(self.language_model.parameters(recurse))
+        
+        return params
+
+
+# 延迟注册模型类到transformers，避免循环导入
+def _register_model_classes():
+    """延迟注册模型类，避免循环导入问题"""
+    try:
+        from transformers import AutoModelForCausalLM
+        
+        # 创建DeepseekVLV2ForCausalLM类，它是DeepseekOCRForCausalLM的别名
+        class DeepseekVLV2ForCausalLM(DeepseekOCRForCausalLM):
+            """
+            DeepSeek VLV2因果语言模型
+            这是DeepseekOCRForCausalLM的别名，用于兼容模型配置
+            """
+            pass
+        
+        # 注册模型类到AutoModelForCausalLM
+        AutoModelForCausalLM.register(DeepseekVLV2Config, DeepseekVLV2ForCausalLM)
+        logger.info("已注册DeepseekVLV2ForCausalLM到AutoModelForCausalLM")
+        
+    except Exception as e:
+        logger.warning(f"注册模型类失败: {e}")
+
+# 在模块导入后执行注册
+_register_model_classes()

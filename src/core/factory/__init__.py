@@ -4,6 +4,6 @@
 OCR引擎工厂模块
 """
 
-from .engine_factory import EngineFactory, get_engine
+from .ocr_engine_factory import OCREngineFactory
 
-__all__ = ["EngineFactory", "get_engine"]
+__all__ = ["OCREngineFactory"]

@@ -68,7 +68,7 @@ except ImportError:
 # 项目内部导入
 from src.core.process.image_process import (
     DeepseekOCRProcessor, count_tiles)
-from src.core.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT
+from src.core.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, DEFAULT_OCR_PROMPT
 
 # 常量定义
 _IMAGE_TOKEN = "<image>"
@@ -217,7 +217,7 @@ class DeepseekOCRDummyInputsBuilder(
 
         max_image_size = self.info.get_image_size_with_most_features()
 
-        if '<image>' in PROMPT:
+        if '<image>' in DEFAULT_OCR_PROMPT:
             return {
                 "image":
                 DeepseekOCRProcessor().tokenize_with_images(images = self._get_dummy_images(width=max_image_size.width,

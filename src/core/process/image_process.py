@@ -1,3 +1,9 @@
+"""
+图像处理模块
+
+该模块包含了DeepSeek-OCR的图像处理算法，并支持多种设备类型，包括Apple Silicon(MPS)设备。
+"""
+
 import math
 from typing import List, Tuple, Optional, Union
 
@@ -29,7 +35,9 @@ except ImportError:
     CROP_MODE = True
     MIN_CROPS = 2
     MAX_CROPS = 6
-    PROMPT = '<image>\n<|grounding|>Convert the document to markdown.'
+    
+    # 提示词配置
+    from src.core.config.prompts import DEFAULT_OCR_PROMPT as PROMPT
     MODEL_PATH = 'deepseek-ai/DeepSeek-OCR'
     
     # 延迟导入TOKENIZER，避免在不需要时加载依赖
@@ -145,6 +153,11 @@ class ImageTransform:
         else:
             # 如果没有torchvision，返回原始图像
             return pil_img
+
+
+def is_mps_device() -> bool:
+    """检测是否使用MPS设备"""
+    return torch.backends.mps.is_available()
 
 
 class DeepseekOCRProcessor(ProcessorMixin):
@@ -372,7 +385,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
     def tokenize_with_images(
         self,
-        # conversation: str,
+        conversation: str,
         images: List[Image.Image],
         bos: bool = True,
         eos: bool = True,
@@ -382,8 +395,6 @@ class DeepseekOCRProcessor(ProcessorMixin):
         try:
             logger.debug("开始tokenize_with_images方法")
             logger.debug(f"输入参数: images数量={len(images) if images else 0}, bos={bos}, eos={eos}, cropping={cropping}")
-            # print(conversation)
-            conversation = PROMPT
             logger.debug(f"conversation: {conversation}")
             logger.debug(f"images长度: {len(images)}")
             assert conversation.count(self.image_token) == len(images)
@@ -606,5 +617,34 @@ class DeepseekOCRProcessor(ProcessorMixin):
             import traceback
             logger.error(f"错误堆栈: {traceback.format_exc()}")
             raise RuntimeError(f"tokenize_with_images方法中发生错误: {str(e)}") from e
+
+# 添加from_pretrained类方法
+    @classmethod
+    def from_pretrained(cls, model_path, **kwargs):
+        """
+        从预训练模型加载处理器
+        
+        Args:
+            model_path: 模型路径
+            **kwargs: 其他参数，包括trust_remote_code
+            
+        Returns:
+            处理器实例
+        """
+        # 移除trust_remote_code参数，因为它不是AutoTokenizer.from_pretrained的有效参数
+        tokenizer_kwargs = kwargs.copy()
+        if 'trust_remote_code' in tokenizer_kwargs:
+            tokenizer_kwargs.pop('trust_remote_code')
+            
+        # 加载tokenizer
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_path, **tokenizer_kwargs)
+        
+        # 创建处理器实例
+        processor_kwargs = kwargs.copy()
+        if 'trust_remote_code' in processor_kwargs:
+            processor_kwargs.pop('trust_remote_code')
+            
+        return cls(tokenizer=tokenizer, **processor_kwargs)
 
 AutoProcessor.register("DeepseekVLV2Processor", DeepseekOCRProcessor)

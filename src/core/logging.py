@@ -84,8 +84,21 @@ def get_logger() -> OCRLogger:
 
 
 # 兼容旧代码的函数
-def setup_logging() -> None:
-    """设置日志记录（兼容旧代码）"""
+def setup_logging(level: str = "INFO") -> None:
+    """
+    设置日志记录（兼容旧代码）
+    
+    Args:
+        level: 日志级别
+    """
+    # 根据传入的level设置环境变量
+    os.environ["LOG_LEVEL"] = level.upper()
+    
+    # 如果level是DEBUG，设置DEBUG环境变量
+    if level.upper() == "DEBUG":
+        os.environ["DEBUG"] = "TRUE"
+    
+    # 初始化日志记录器
     get_logger()
 
 

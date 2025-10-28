@@ -17,7 +17,7 @@ from src.core.process.image_process import (
     DeepseekOCRProcessor, count_tiles)
 
 # 配置导入
-from src.core.config.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, PROMPT
+from src.core.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, DEFAULT_OCR_PROMPT
 
 # 导入日志模块
 from src.core.logging import get_logger
@@ -231,7 +231,7 @@ if VLLM_AVAILABLE:
 
             max_image_size = self.info.get_image_size_with_most_features()
 
-            if '<image>' in PROMPT:
+            if '<image>' in DEFAULT_OCR_PROMPT:
                 width = max_image_size["width"] if isinstance(max_image_size, dict) else max_image_size.width
                 height = max_image_size["height"] if isinstance(max_image_size, dict) else max_image_size.height
                 return {

@@ -98,15 +98,19 @@ class DeepseekV2Config(PretrainedConfig):
 
 # 立即注册模型配置类
 def _register_configs():
+    """注册配置类到transformers库"""
     try:
-        from transformers import CONFIG_MAPPING
-        # 动态注册配置类
-        if "deepseek_vl_v2" not in CONFIG_MAPPING:
-            CONFIG_MAPPING["deepseek_vl_v2"] = DeepseekVLV2Config
-        if "deepseek_v2" not in CONFIG_MAPPING:
-            CONFIG_MAPPING["deepseek_v2"] = DeepseekV2Config
-    except Exception:
-        pass  # 忽略注册过程中的错误
+        from transformers import AutoConfig
+        
+        # 注册到AutoConfig中
+        AutoConfig.register("deepseek_vl_v2", DeepseekVLV2Config)
+        AutoConfig.register("deepseek_v2", DeepseekV2Config)
+            
+    except Exception as e:
+        # 忽略注册过程中的错误，但记录日志
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"配置类注册过程中出现警告: {e}")
 
 # 立即执行注册
 _register_configs()

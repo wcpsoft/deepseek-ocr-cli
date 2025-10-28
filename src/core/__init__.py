@@ -5,20 +5,16 @@ DeepSeek OCR核心模块
 """
 
 # 导入主要组件
-from .deepseek_ocr import (
-    DeepseekOCRVisionEncoder,
-    IMAGE_SIZE,
-    BASE_SIZE,
-    CROP_MODE,
-    PRINT_NUM_VIS_TOKENS
-)
-from .inference.deepseek_ocr_inference import DeepseekOCRInference
 from .process.image_process import DeepseekOCRProcessor
+from .models.model_factory import OCRModelFactory, OCRModelInterface
+
+# 导入配置常量
+from .config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS
 
 __all__ = [
-    "DeepseekOCRVisionEncoder",
-    "DeepseekOCRInference",
     "DeepseekOCRProcessor",
+    "OCRModelFactory",
+    "OCRModelInterface",
     "IMAGE_SIZE",
     "BASE_SIZE",
     "CROP_MODE",

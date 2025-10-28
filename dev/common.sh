@@ -105,7 +105,14 @@ install_platform_deps() {
     case $gpu_type in
         "nvidia")
             log_info "安装NVIDIA GPU特定依赖..."
-            uv pip install -r requirements/requirements-nvidia.txt
+            # 先安装PyTorch相关依赖
+            log_info "安装PyTorch..."
+            uv pip install torch==2.5.1 torchvision>=0.20,<0.21 torchaudio==2.5.1
+            # 再安装flash-attn
+            log_info "安装flash-attn..."
+            uv pip install flash-attn==2.7.3 --no-build-isolation
+            # 安装其他依赖
+            uv pip install -r requirements/requirements-nvidia.txt --exclude torch torchvision torchaudio flash-attn
             ;;
         "amd")
             log_info "安装AMD GPU特定依赖..."

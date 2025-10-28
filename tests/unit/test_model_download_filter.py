@@ -18,22 +18,22 @@ if project_root not in sys.path:
 def test_model_download_filter_configuration():
     """测试模型下载过滤配置"""
     try:
-        from src.cli.model_manager import ModelManager, IGNORE_PATTERNS
+        from src.cli.model_manager import ModelManager, MODEL_DOWNLOAD_PATTERNS
         # 验证忽略模式配置
-        assert "*.md" in IGNORE_PATTERNS
-        assert "README*" in IGNORE_PATTERNS
-        assert "tests/*" in IGNORE_PATTERNS
+        assert "!*.md" in MODEL_DOWNLOAD_PATTERNS
+        assert "!README*" in MODEL_DOWNLOAD_PATTERNS
+        assert "!tests/*" in MODEL_DOWNLOAD_PATTERNS
     except ImportError:
         pytest.fail("无法导入模型管理器")
 
 def test_huggingface_download_patterns():
     """测试Hugging Face下载模式配置"""
     try:
-        from src.cli.model_manager import ModelManager, IGNORE_PATTERNS
+        from src.cli.model_manager import ModelManager, MODEL_DOWNLOAD_PATTERNS
         # 验证关键的忽略模式
-        assert "*.md" in IGNORE_PATTERNS  # 文档文件
-        assert "tests/*" in IGNORE_PATTERNS  # 测试文件
-        assert "examples/*" in IGNORE_PATTERNS  # 示例文件
+        assert "!*.md" in MODEL_DOWNLOAD_PATTERNS  # 文档文件
+        assert "!tests/*" in MODEL_DOWNLOAD_PATTERNS  # 测试文件
+        assert "!examples/*" in MODEL_DOWNLOAD_PATTERNS  # 示例文件
     except ImportError:
         pytest.fail("无法导入模型管理器")
 
