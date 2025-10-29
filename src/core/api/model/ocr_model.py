@@ -1,17 +1,19 @@
 """
 API 数据模型定义
 """
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class OCRRequest(BaseModel):
     """OCR处理请求模型"""
-    prompt: Optional[str] = None
+
+    prompt: str | None = None
 
 
 class OCRResponse(BaseModel):
     """OCR处理响应模型"""
+
     job_id: str
     mmd: str
     det_mmd: str
@@ -22,6 +24,7 @@ class OCRResponse(BaseModel):
 
 class WebSocketMessage(BaseModel):
     """WebSocket消息模型"""
+
     type: str
-    progress: Optional[int] = None
-    message: Optional[str] = None
+    progress: int | None = None
+    message: str | None = None

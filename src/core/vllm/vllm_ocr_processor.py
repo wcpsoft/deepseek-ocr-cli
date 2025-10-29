@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 DeepSeek OCR模型vLLM处理器实现
 """
 
 import math
-from typing import List, Optional, Tuple, Mapping, Union, Sequence, Set, Iterable
-import torch
-import torch.nn as nn
+from collections.abc import Mapping, Sequence
 
 # 第三方库导入
 from transformers import BatchFeature
@@ -18,20 +15,41 @@ try:
     from vllm.model_executor import SamplingMetadata
     from vllm.model_executor.layers.quantization import QuantizationConfig
     from vllm.model_executor.model_loader.utils import set_default_torch_dtype
+    from vllm.model_executor.models.interfaces import (
+        MultiModalEmbeddings,
+        SupportsMultiModal,
+        SupportsPP,
+    )
+    from vllm.model_executor.models.utils import (
+        AutoWeightsLoader,
+        WeightsMapper,
+        flatten_bn,
+        init_vllm_registered_model,
+        maybe_prefix,
+        merge_multimodal_embeddings,
+    )
     from vllm.multimodal import MULTIMODAL_REGISTRY
-    from vllm.multimodal.inputs import (MultiModalDataDict, MultiModalFieldConfig,
-                                        MultiModalKwargs, NestedTensors)
-    from vllm.multimodal.parse import (ImageEmbeddingItems, ImageProcessorItems,
-                                    ImageSize, MultiModalDataItems)
-    from vllm.multimodal.processing import (BaseMultiModalProcessor,
-                                            BaseProcessingInfo, PromptReplacement,
-                                            PromptUpdate)
+    from vllm.multimodal.inputs import (
+        MultiModalDataDict,
+        MultiModalFieldConfig,
+        MultiModalKwargs,
+        NestedTensors,
+    )
+    from vllm.multimodal.parse import (
+        ImageEmbeddingItems,
+        ImageProcessorItems,
+        ImageSize,
+        MultiModalDataItems,
+    )
+    from vllm.multimodal.processing import (
+        BaseMultiModalProcessor,
+        BaseProcessingInfo,
+        PromptReplacement,
+        PromptUpdate,
+    )
     from vllm.multimodal.profiling import BaseDummyInputsBuilder
     from vllm.sequence import IntermediateTensors
-    from vllm.model_executor.models.interfaces import MultiModalEmbeddings, SupportsMultiModal, SupportsPP
-    from vllm.model_executor.models.utils import (AutoWeightsLoader, WeightsMapper, flatten_bn,
-                        init_vllm_registered_model, maybe_prefix,
-                        merge_multimodal_embeddings)
+
     VLLM_AVAILABLE = True
 except ImportError:
     # 在不支持vLLM的平台上设置占位符
@@ -59,16 +77,25 @@ except ImportError:
     SupportsPP = object
     AutoWeightsLoader = object
     WeightsMapper = object
-    flatten_bn = lambda x: x
-    init_vllm_registered_model = lambda *args, **kwargs: None
-    maybe_prefix = lambda prefix, name: name
-    merge_multimodal_embeddings = lambda *args, **kwargs: None
+
+    def flatten_bn(x):
+        return x
+
+    def init_vllm_registered_model(*args, **kwargs):
+        return None
+
+    def maybe_prefix(prefix, name):
+        return name
+
+    def merge_multimodal_embeddings(*args, **kwargs):
+        return None
+
     VLLM_AVAILABLE = False
 
+from src.core.config import BASE_SIZE, CROP_MODE, DEFAULT_OCR_PROMPT, IMAGE_SIZE
+
 # 项目内部导入
-from src.core.process.image_process import (
-    DeepseekOCRProcessor, count_tiles)
-from src.core.config import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS, DEFAULT_OCR_PROMPT
+from src.core.process.image_process import DeepseekOCRProcessor, count_tiles
 
 # 常量定义
 _IMAGE_TOKEN = "<image>"
@@ -83,21 +110,22 @@ class DeepseekOCRProcessingInfo(BaseProcessingInfo):
     def get_hf_config(self):
         """
         获取HuggingFace配置
-        
+
         Returns:
             HuggingFace配置对象
         """
         # 延迟导入配置类以避免循环导入
         from src.core.deepseek_ocr_config import DeepseekVLV2Config
+
         return self.ctx.get_hf_config(DeepseekVLV2Config)
 
     def get_hf_processor(self, **kwargs: object):
         """
         获取HuggingFace处理器
-        
+
         Args:
             **kwargs: 处理器参数
-            
+
         Returns:
             HuggingFace处理器对象
         """
@@ -106,25 +134,21 @@ class DeepseekOCRProcessingInfo(BaseProcessingInfo):
     def get_supported_mm_limits(self) -> dict:
         """
         获取支持的多模态限制
-        
+
         Returns:
             多模态限制映射
         """
         return {"image": None}
 
-    def get_num_image_tokens(self,
-                            *,
-                            image_width: int,
-                            image_height: int,
-                            cropping: bool = True) -> int:
+    def get_num_image_tokens(self, *, image_width: int, image_height: int, cropping: bool = True) -> int:
         """
         计算图像token数量
-        
+
         Args:
             image_width: 图像宽度
             image_height: 图像高度
             cropping: 是否进行裁剪
-            
+
         Returns:
             图像token数量
         """
@@ -143,7 +167,7 @@ class DeepseekOCRProcessingInfo(BaseProcessingInfo):
             else:
                 # find the closest aspect ratio to the target
                 crop_ratio = count_tiles(image_width, image_height, image_size=IMAGE_SIZE)
-                
+
             num_width_tiles, num_height_tiles = crop_ratio
         else:
             num_width_tiles = num_height_tiles = 1
@@ -153,29 +177,27 @@ class DeepseekOCRProcessingInfo(BaseProcessingInfo):
         h2 = w2 = math.ceil((image_size // patch_size) / downsample_ratio)
 
         global_views_tokens = h * (w + 1)
-        if num_width_tiles >1 or num_height_tiles>1:
+        if num_width_tiles > 1 or num_height_tiles > 1:
             local_views_tokens = (num_height_tiles * h2) * (num_width_tiles * w2 + 1)
         else:
             local_views_tokens = 0
-
 
         return global_views_tokens + local_views_tokens + 1
 
     def get_image_size_with_most_features(self) -> ImageSize:
         """
         获取具有最多特征的图像尺寸
-        
+
         Returns:
             图像尺寸对象
         """
 
         if IMAGE_SIZE == 1024 and BASE_SIZE == 1280:
-            return ImageSize(width=1024*2, height=1024*2)
-        return ImageSize(width=640*2, height=640*2)
+            return ImageSize(width=1024 * 2, height=1024 * 2)
+        return ImageSize(width=640 * 2, height=640 * 2)
 
 
-class DeepseekOCRDummyInputsBuilder(
-        BaseDummyInputsBuilder[DeepseekOCRProcessingInfo]):
+class DeepseekOCRDummyInputsBuilder(BaseDummyInputsBuilder[DeepseekOCRProcessingInfo]):
     """
     DeepSeek OCR虚拟输入构建器
     用于构建测试用的虚拟输入
@@ -184,10 +206,10 @@ class DeepseekOCRDummyInputsBuilder(
     def get_dummy_text(self, mm_counts: Mapping[str, int]) -> str:
         """
         获取虚拟文本
-        
+
         Args:
             mm_counts: 多模态计数映射
-            
+
         Returns:
             虚拟文本字符串
         """
@@ -205,11 +227,11 @@ class DeepseekOCRDummyInputsBuilder(
     ) -> MultiModalDataDict:
         """
         获取虚拟多模态数据
-        
+
         Args:
             seq_len: 序列长度
             mm_counts: 多模态计数映射
-            
+
         Returns:
             虚拟多模态数据字典
         """
@@ -217,21 +239,24 @@ class DeepseekOCRDummyInputsBuilder(
 
         max_image_size = self.info.get_image_size_with_most_features()
 
-        if '<image>' in DEFAULT_OCR_PROMPT:
+        if "<image>" in DEFAULT_OCR_PROMPT:
             return {
-                "image":
-                DeepseekOCRProcessor().tokenize_with_images(images = self._get_dummy_images(width=max_image_size.width,
-                                    height=max_image_size.height,
-                                    num_images=num_images), bos=True, eos=True, cropping=CROP_MODE)
+                "image": DeepseekOCRProcessor().tokenize_with_images(
+                    images=self._get_dummy_images(
+                        width=max_image_size.width,
+                        height=max_image_size.height,
+                        num_images=num_images,
+                    ),
+                    bos=True,
+                    eos=True,
+                    cropping=CROP_MODE,
+                )
             }
         else:
-            return {
-                "image": []
-            }
+            return {"image": []}
 
 
-class DeepseekOCRMultiModalProcessor(
-        BaseMultiModalProcessor[DeepseekOCRProcessingInfo]):
+class DeepseekOCRMultiModalProcessor(BaseMultiModalProcessor[DeepseekOCRProcessingInfo]):
     """
     DeepSeek OCR多模态处理器
     处理OCR相关的多模态输入
@@ -245,16 +270,16 @@ class DeepseekOCRMultiModalProcessor(
     ) -> BatchFeature:
         """
         调用HuggingFace处理器
-        
+
         Args:
             prompt: 提示文本
             mm_data: 多模态数据
             mm_kwargs: 多模态参数
-            
+
         Returns:
             批处理特征对象
         """
-        
+
         # print(mm_data)
         if mm_data:
             processed_outputs = self.info.ctx.call_hf_processor(
@@ -265,9 +290,7 @@ class DeepseekOCRMultiModalProcessor(
 
         else:
             tokenizer = self.info.get_tokenizer()
-            processed_outputs = tokenizer(prompt,
-                                        add_special_tokens=True,
-                                        return_tensors="pt")
+            processed_outputs = tokenizer(prompt, add_special_tokens=True, return_tensors="pt")
 
         return processed_outputs
 
@@ -278,20 +301,20 @@ class DeepseekOCRMultiModalProcessor(
     ) -> Mapping[str, MultiModalFieldConfig]:
         """
         获取多模态字段配置
-        
+
         Args:
             hf_inputs: HuggingFace输入
             hf_processor_mm_kwargs: HuggingFace处理器多模态参数
-            
+
         Returns:
             多模态字段配置映射
         """
-        return dict(
-            pixel_values=MultiModalFieldConfig.batched("image"),
-            images_spatial_crop=MultiModalFieldConfig.batched("image"),
+        return {
+            "pixel_values": MultiModalFieldConfig.batched("image"),
+            "images_spatial_crop": MultiModalFieldConfig.batched("image"),
             # image_embeds=MultiModalFieldConfig.batched("image2"),
-            images_crop=MultiModalFieldConfig.batched("image"),
-        )
+            "images_crop": MultiModalFieldConfig.batched("image"),
+        }
 
     def _get_prompt_updates(
         self,
@@ -301,12 +324,12 @@ class DeepseekOCRMultiModalProcessor(
     ) -> Sequence[PromptUpdate]:
         """
         获取提示更新序列
-        
+
         Args:
             mm_items: 多模态数据项
             hf_processor_mm_kwargs: HuggingFace处理器多模态参数
             out_mm_kwargs: 输出多模态参数
-            
+
         Returns:
             提示更新序列
         """
@@ -316,16 +339,12 @@ class DeepseekOCRMultiModalProcessor(
         assert isinstance(image_token_id, int)
 
         def get_replacement_deepseek_vl2(item_idx: int):
-            images = mm_items.get_items(
-                "image", (ImageEmbeddingItems, ImageProcessorItems))
-
-
+            images = mm_items.get_items("image", (ImageEmbeddingItems, ImageProcessorItems))
 
             if isinstance(images, ImageEmbeddingItems):
                 num_image_tokens = images.get_feature_size(item_idx)
             else:
 
-                
                 width = images[0][-1][0][0]
                 height = images[0][-1][0][1]
 
@@ -347,18 +366,18 @@ class DeepseekOCRMultiModalProcessor(
 
     def _cached_apply_hf_processor(
         self,
-        prompt: Union[str, list[int]],
+        prompt: str | list[int],
         mm_data_items: MultiModalDataItems,
         hf_processor_mm_kwargs: Mapping[str, object],
     ) -> tuple[list[int], MultiModalKwargs, bool]:
         """
         缓存应用HuggingFace处理器
-        
+
         Args:
             prompt: 提示文本或token列表
             mm_data_items: 多模态数据项
             hf_processor_mm_kwargs: HuggingFace处理器多模态参数
-            
+
         Returns:
             处理结果元组
         """

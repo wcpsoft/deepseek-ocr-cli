@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""
+设备管理器
+统一管理设备检测、选择和配置
+"""
+
+
+import torch
+
+from src.core.logging import get_logger
+
+logger = get_logger()
+
+
+class DeviceManager:
+    """统一的设备管理器"""
+
+    _instance = None
+    _device_logged = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        """初始化设备管理器"""
+        # 使用单例模式，避免重复初始化
+        if not hasattr(self, "initialized"):
+            self.initialized = True
+            self._optimal_device = None
+            self._device_info_logged = False
+
+    def is_mps_available(self) -> bool:
+        """
+        检查MPS是否可用
+
+        Returns:
+            bool: MPS是否可用
+        """
+        try:
+            return (
+                hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built()
+            )
+        except Exception:
+            return False
+
+    def is_cuda_available(self) -> bool:
+        """
+        检查CUDA是否可用
+
+        Returns:
+            bool: CUDA是否可用
+        """
+        try:
+            return torch.cuda.is_available()
+        except Exception:
+            return False
+
+    def get_optimal_device(self) -> torch.device:
+        """
+        获取最优设备
+
+        Returns:
+            torch.device: 最优设备
+        """
+        if self._optimal_device is not None:
+            return self._optimal_device
+
+        # 检查CUDA
+        if self.is_cuda_available():
+            try:
+                # 验证CUDA设备是否真正可用
+                device = torch.device("cuda")
+                test_tensor = torch.zeros(1).to(device)
+                del test_tensor
+                torch.cuda.empty_cache()
+
+                if not self._device_info_logged:
+                    logger.info("检测到CUDA设备，将使用CUDA")
+                    self._device_info_logged = True
+                self._optimal_device = device
+                return device
+            except Exception as e:
+                logger.warning(f"CUDA设备验证失败 ({e!s})，尝试其他设备...")
+
+        # 检查MPS
+        if self.is_mps_available():
+            try:
+                # 验证MPS设备是否真正可用
+                device = torch.device("mps")
+                test_tensor = torch.zeros(1).to(device)
+                del test_tensor
+
+                if not self._device_info_logged:
+                    logger.info("检测到MPS设备，将使用MPS")
+                    self._device_info_logged = True
+                self._optimal_device = device
+                return device
+            except Exception as e:
+                logger.warning(f"MPS设备验证失败 ({e!s})，使用CPU...")
+
+        # 默认使用CPU
+        if not self._device_info_logged:
+            logger.info("未检测到GPU设备，将使用CPU")
+            self._device_info_logged = True
+        device = torch.device("cpu")
+        self._optimal_device = device
+        return device
+
+    def get_appropriate_dtype(self, device: torch.device | None = None) -> torch.dtype:
+        """
+        根据设备获取适当的数据类型
+
+        Args:
+            device: 设备对象，如果为None则使用最优设备
+
+        Returns:
+            torch.dtype: 适当的数据类型
+        """
+        if device is None:
+            device = self.get_optimal_device()
+
+        if device.type == "mps":
+            # MPS上避免使用bfloat16和float16，使用float32以确保兼容性
+            logger.info("在MPS设备上运行，使用float32数据类型以确保兼容性")
+            return torch.float32
+        elif device.type == "cuda":
+            # 在CUDA设备上可以使用bfloat16（如果支持）
+            if torch.cuda.is_bf16_supported():
+                logger.info("在CUDA设备上运行，使用bfloat16数据类型")
+                return torch.bfloat16
+            else:
+                logger.info("在CUDA设备上运行，使用float32数据类型")
+                return torch.float32
+        else:
+            # 在CPU上使用float32
+            logger.info("在CPU设备上运行，使用float32数据类型")
+            return torch.float32
+
+    def should_use_bfloat16(self, device: torch.device | None = None) -> bool:
+        """
+        判断是否应该使用bfloat16数据类型
+
+        Args:
+            device: 设备对象，如果为None则使用最优设备
+
+        Returns:
+            bool: 是否应该使用bfloat16
+        """
+        if device is None:
+            device = self.get_optimal_device()
+
+        if device.type == "mps":
+            # MPS不支持bfloat16
+            return False
+        elif device.type == "cuda":
+            # 在CUDA设备上可以使用bfloat16（如果支持）
+            return torch.cuda.is_bf16_supported()
+        else:
+            # 在CPU上不使用bfloat16
+            return False
+
+    def move_tensor_to_device(self, tensor: torch.Tensor, device: torch.device | None = None) -> torch.Tensor:
+        """
+        将张量移动到指定设备
+
+        Args:
+            tensor: 张量
+            device: 目标设备，如果为None则使用最优设备
+
+        Returns:
+            torch.Tensor: 移动后的张量
+        """
+        if device is None:
+            device = self.get_optimal_device()
+
+        # 对于MPS设备的特殊处理
+        if device.type == "mps":
+            # MPS设备上使用float32而不是float16，以提高兼容性
+            if tensor.dtype == torch.float16:
+                tensor = tensor.to(torch.float32)
+
+        return tensor.to(device)
+
+    def clear_device_cache(self) -> None:
+        """清理设备缓存"""
+        device = self.get_optimal_device()
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        elif device.type == "mps" and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+
+
+# 创建全局设备管理器实例
+device_manager = DeviceManager()
+
+
+def get_device_manager() -> DeviceManager:
+    """
+    获取设备管理器实例
+
+    Returns:
+        DeviceManager: 设备管理器实例
+    """
+    return device_manager
+
+
+def get_optimal_device() -> torch.device:
+    """
+    获取最优设备的便捷函数
+
+    Returns:
+        torch.device: 最优设备
+    """
+    return device_manager.get_optimal_device()
+
+
+def get_appropriate_dtype(device: torch.device | None = None) -> torch.dtype:
+    """
+    获取适当数据类型的便捷函数
+
+    Args:
+        device: 设备对象，如果为None则使用最优设备
+
+    Returns:
+        torch.dtype: 适当的数据类型
+    """
+    return device_manager.get_appropriate_dtype(device)
+
+
+def should_use_bfloat16(device: torch.device | None = None) -> bool:
+    """
+    判断是否应该使用bfloat16的便捷函数
+
+    Args:
+        device: 设备对象，如果为None则使用最优设备
+
+    Returns:
+        bool: 是否应该使用bfloat16
+    """
+    return device_manager.should_use_bfloat16(device)

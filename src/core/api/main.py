@@ -2,10 +2,12 @@
 DeepSeek OCR API 主应用
 支持transformers和vllm两种推理模式
 """
+
 from pathlib import Path
+
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.core.api.controller.ocr_controller import OCRController
 
@@ -14,20 +16,20 @@ def create_app():
     """创建FastAPI应用"""
     # 获取项目根目录
     project_root = Path(__file__).resolve().parent.parent.parent.parent
-    
+
     app = FastAPI(title="DeepSeek-OCR Service")
-    
+
     # 创建OCR控制器
     ocr_controller = OCRController(project_root)
-    
+
     # 挂载API路由
     app.include_router(ocr_controller.router, prefix="/api")
-    
+
     # 静态文件目录
-    static_dir = project_root / 'server' / 'static'
+    static_dir = project_root / "server" / "static"
     static_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-    
+
     # 主页
     @app.get("/", response_class=HTMLResponse)
     async def index():
@@ -240,7 +242,7 @@ def create_app():
     <div class="container">
         <h1>🚀 DeepSeek-OCR</h1>
         <p class="subtitle">AI 驱动的智能文档识别服务</p>
-        
+
         <form id="uploadForm">
             <div class="upload-area" id="uploadArea">
                 <div class="upload-icon">📄</div>
@@ -248,18 +250,18 @@ def create_app():
                 <div class="file-name" id="fileName"></div>
                 <input type="file" id="fileInput" name="file" accept="application/pdf" required />
             </div>
-            
+
             <div class="prompt-group">
                 <label for="prompt">自定义 Prompt（可选）</label>
-                <input type="text" id="prompt" name="prompt" 
+                <input type="text" id="prompt" name="prompt"
                        placeholder="留空使用默认：<image>\\n<|grounding|>Convert the document to markdown." />
             </div>
-            
+
             <button type="submit" class="btn" id="submitBtn">
                 开始识别
             </button>
         </form>
-        
+
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
@@ -267,7 +269,7 @@ def create_app():
             <div class="status-text" id="statusText">准备中...</div>
             <div class="log-container" id="logContainer"></div>
         </div>
-        
+
         <div class="results" id="results">
             <h3>✅ 识别完成！</h3>
             <a href="#" class="download-link" id="linkMmd" download>📝 下载 Markdown 文件</a>
@@ -277,7 +279,7 @@ def create_app():
             <a href="#" class="download-link primary" id="linkAll" download>📦 下载全部文件 (ZIP)</a>
         </div>
     </div>
-    
+
     <script>
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
@@ -289,22 +291,22 @@ def create_app():
         const statusText = document.getElementById('statusText');
         const logContainer = document.getElementById('logContainer');
         const results = document.getElementById('results');
-        
+
         let selectedFile = null;
         let ws = null;
-        
+
         // File upload area interactions
         uploadArea.addEventListener('click', () => fileInput.click());
-        
+
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
         });
-        
+
         uploadArea.addEventListener('dragleave', () => {
             uploadArea.classList.remove('dragover');
         });
-        
+
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
@@ -315,23 +317,23 @@ def create_app():
                 fileName.textContent = '已选择: ' + files[0].name;
             }
         });
-        
+
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
                 selectedFile = e.target.files[0];
                 fileName.textContent = '已选择: ' + selectedFile.name;
             }
         });
-        
+
         // Form submission
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             if (!selectedFile) {
                 alert('请先选择一个 PDF 文件');
                 return;
             }
-            
+
             // Show progress, hide results
             progressContainer.style.display = 'block';
             results.style.display = 'none';
@@ -340,44 +342,44 @@ def create_app():
             progressFill.style.width = '10%';
             statusText.textContent = '上传文件中...';
             logContainer.innerHTML = '';
-            
+
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('prompt', document.getElementById('prompt').value);
-            
+
             try {
                 const response = await fetch('/api/ocr/pdf', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 if (!response.ok) {
                     throw new Error('上传失败: ' + response.statusText);
                 }
-                
+
                 const data = await response.json();
-                
+
                 if (data.error) {
                     throw new Error(data.error);
                 }
-                
+
                 // Connect WebSocket for progress updates
                 connectWebSocket(data.job_id, data);
-                
+
             } catch (error) {
                 statusText.textContent = '❌ 错误: ' + error.message;
                 submitBtn.disabled = false;
                 submitBtn.textContent = '开始识别';
             }
         });
-        
+
         function connectWebSocket(jobId, resultData) {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/${jobId}`);
-            
+
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                
+
                 if (data.type === 'progress') {
                     progressFill.style.width = data.progress + '%';
                     statusText.textContent = data.message;
@@ -390,7 +392,7 @@ def create_app():
                 } else if (data.type === 'complete') {
                     progressFill.style.width = '100%';
                     statusText.textContent = '✅ 处理完成！';
-                    
+
                     // Show download links
                     document.getElementById('linkMmd').href = resultData.mmd;
                     document.getElementById('linkDetMmd').href = resultData.det_mmd;
@@ -398,7 +400,7 @@ def create_app():
                     document.getElementById('linkImages').href = resultData.images;
                     document.getElementById('linkAll').href = resultData.all;
                     results.style.display = 'block';
-                    
+
                     submitBtn.disabled = false;
                     submitBtn.textContent = '开始识别';
                 } else if (data.type === 'error') {
@@ -407,11 +409,11 @@ def create_app():
                     submitBtn.textContent = '开始识别';
                 }
             };
-            
+
             ws.onerror = () => {
                 statusText.textContent = '⚠️ WebSocket 连接失败，但处理可能仍在继续...';
             };
-            
+
             ws.onclose = () => {
                 console.log('WebSocket closed');
             };
@@ -420,7 +422,7 @@ def create_app():
 </body>
 </html>
 """
-    
+
     return app
 
 
@@ -428,4 +430,5 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -3,18 +3,20 @@ CLIP视觉编码器实现（使用SDPA优化）
 基于Vision Transformer的CLIP视觉编码器实现
 """
 
-from contextlib import nullcontext
+import logging
 import math
-from typing import Optional, Tuple
+
+import torch
+
 # from megatron.model import LayerNorm
 from easydict import EasyDict as adict
-import torch
-from torch.nn import functional as F
 from torch import nn
-import logging
+from torch.nn import functional as F
+
 # 延迟导入flash_attn，避免在不支持的平台上报错
 try:
-    from flash_attn import flash_attn_qkvpacked_func, flash_attn_func
+    from flash_attn import flash_attn_func, flash_attn_qkvpacked_func
+
     FLASH_ATTN_AVAILABLE = True
 except ImportError:
     flash_attn_qkvpacked_func = None
@@ -66,14 +68,14 @@ except ImportError:
 
 class LayerNormfp32(torch.nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
-    
+
     def forward(self, input: torch.Tensor):
         """
         前向传播函数
-        
+
         Args:
             input: 输入张量
-            
+
         Returns:
             处理后的张量
         """
@@ -85,11 +87,11 @@ class LayerNormfp32(torch.nn.LayerNorm):
 def get_abs_pos(abs_pos, tgt_size):
     """
     获取绝对位置编码
-    
+
     Args:
         abs_pos: 绝对位置编码
         tgt_size: 目标尺寸
-        
+
     Returns:
         调整后的绝对位置编码
     """
@@ -105,20 +107,17 @@ def get_abs_pos(abs_pos, tgt_size):
     abs_pos_new = abs_pos.squeeze(0)
     cls_token, old_pos_embed = abs_pos_new[:1], abs_pos_new[1:]
 
-
-
     src_size = int(math.sqrt(abs_pos_new.shape[0] - 1))
     tgt_size = int(math.sqrt(tgt_size))
     dtype = abs_pos.dtype
 
     if src_size != tgt_size:
-        old_pos_embed = old_pos_embed.view(1, src_size, src_size, dim).permute(0, 3, 1,
-                                                                                    2).contiguous()
+        old_pos_embed = old_pos_embed.view(1, src_size, src_size, dim).permute(0, 3, 1, 2).contiguous()
         old_pos_embed = old_pos_embed.to(torch.float32)
         new_pos_embed = F.interpolate(
             old_pos_embed,
             size=(tgt_size, tgt_size),
-            mode='bicubic',
+            mode="bicubic",
             antialias=True,
             align_corners=False,
         ).to(dtype)
@@ -130,19 +129,19 @@ def get_abs_pos(abs_pos, tgt_size):
     else:
         return abs_pos
 
+
 @torch.jit.script
 def quick_gelu(x):
     """
     快速GELU激活函数
-    
+
     Args:
         x: 输入张量
-        
+
     Returns:
         激活后的张量
     """
     return x * torch.sigmoid(1.702 * x)
-
 
 
 class CLIPVisionEmbeddings(nn.Module):
@@ -150,10 +149,11 @@ class CLIPVisionEmbeddings(nn.Module):
     CLIP视觉嵌入层
     处理图像输入并生成视觉嵌入向量
     """
+
     def __init__(self, hidden_size=1024, image_size=224, patch_size=14, num_channels=3):
         """
         初始化CLIP视觉嵌入层
-        
+
         Args:
             hidden_size: 隐藏层大小
             image_size: 图像尺寸
@@ -178,18 +178,16 @@ class CLIPVisionEmbeddings(nn.Module):
         self.num_patches = (self.image_size // self.patch_size) ** 2
         self.num_positions = self.num_patches + 1
         self.position_embedding = torch.nn.Embedding(self.num_positions, self.embed_dim)
-        self.register_buffer(
-            "position_ids", torch.arange(self.num_positions).expand((1, -1))
-        )
+        self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)))
 
     def forward(self, pixel_values, patch_embeds):
         """
         前向传播函数
-        
+
         Args:
             pixel_values: 像素值张量
             patch_embeds: 图像块嵌入
-            
+
         Returns:
             视觉嵌入向量
         """
@@ -198,18 +196,16 @@ class CLIPVisionEmbeddings(nn.Module):
         #     pixel_values
         # )  # shape = [*, width, grid, grid]
 
-
         if patch_embeds is not None:
             patch_embeds = patch_embeds
             # print(patch_embeds.shape)
         else:
-            patch_embeds = self.patch_embedding(pixel_values)  
+            patch_embeds = self.patch_embedding(pixel_values)
             # print(111111)
         # shape = [*, width, grid, grid]
         # patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
         patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
-
 
         class_embeds = self.class_embedding.expand(batch_size, 1, -1)
         embeddings = torch.cat([class_embeds, patch_embeds], dim=1)
@@ -225,15 +221,16 @@ class NoTPFeedForward(nn.Module):
     无张量并行前馈网络
     简化的前馈网络实现
     """
+
     def __init__(
-            self,
-            cfg,
-            dim: int,
-            hidden_dim: int,
+        self,
+        cfg,
+        dim: int,
+        hidden_dim: int,
     ):
         """
         初始化前馈网络
-        
+
         Args:
             cfg: 配置对象
             dim: 输入维度
@@ -247,10 +244,10 @@ class NoTPFeedForward(nn.Module):
     def forward(self, x):
         """
         前向传播函数
-        
+
         Args:
             x: 输入张量
-            
+
         Returns:
             处理后的张量
         """
@@ -314,10 +311,11 @@ class NoTPAttention(torch.nn.Module):
     无张量并行注意力机制
     实现标准的自注意力机制
     """
+
     def __init__(self, cfg):
         """
         初始化注意力机制
-        
+
         Args:
             cfg: 配置对象
         """
@@ -336,15 +334,15 @@ class NoTPAttention(torch.nn.Module):
         self.attn_drop = cfg.attention_dropout
 
     def forward(
-            self,
-            x: torch.Tensor,
+        self,
+        x: torch.Tensor,
     ):
         """
         前向传播函数
-        
+
         Args:
             x: 输入张量
-            
+
         Returns:
             注意力处理后的张量
         """
@@ -370,15 +368,17 @@ class NoTPAttention(torch.nn.Module):
         output = self.out_proj(output)
         return output
 
+
 class NoTPTransformerBlock(nn.Module):
     """
     无张量并行Transformer块
     实现标准的Transformer块结构
     """
+
     def __init__(self, cfg, layer_id: int, multiple_of=256):
         """
         初始化Transformer块
-        
+
         Args:
             cfg: 配置对象
             layer_id: 层ID
@@ -390,24 +390,18 @@ class NoTPTransformerBlock(nn.Module):
         self.dim = cfg.hidden_size
         self.head_dim = cfg.hidden_size // cfg.num_attention_heads
         self.self_attn = NoTPAttention(cfg)
-        self.mlp = NoTPFeedForward(
-            cfg, dim=cfg.hidden_size, hidden_dim=cfg.ffn_hidden_size
-        )
+        self.mlp = NoTPFeedForward(cfg, dim=cfg.hidden_size, hidden_dim=cfg.ffn_hidden_size)
         self.layer_id = layer_id
-        self.layer_norm1 = torch.nn.LayerNorm(
-            cfg.hidden_size, eps=cfg.layernorm_epsilon
-        )
-        self.layer_norm2 = torch.nn.LayerNorm(
-            cfg.hidden_size, eps=cfg.layernorm_epsilon
-        )
+        self.layer_norm1 = torch.nn.LayerNorm(cfg.hidden_size, eps=cfg.layernorm_epsilon)
+        self.layer_norm2 = torch.nn.LayerNorm(cfg.hidden_size, eps=cfg.layernorm_epsilon)
 
     def forward(self, x: torch.Tensor):
         """
         前向传播函数
-        
+
         Args:
             x: 输入张量
-            
+
         Returns:
             处理后的张量
         """
@@ -422,10 +416,11 @@ class NoTPTransformer(nn.Module):
     无张量并行Transformer
     实现完整的Transformer结构
     """
+
     def __init__(self, cfg):
         """
         初始化Transformer
-        
+
         Args:
             cfg: 配置对象
         """
@@ -445,20 +440,20 @@ class NoTPTransformer(nn.Module):
             )
 
     def forward(
-            self,
-            hidden_states,
+        self,
+        hidden_states,
     ):
         """
         前向传播函数
-        
+
         Args:
             hidden_states: 隐藏状态张量
-            
+
         Returns:
             处理后的隐藏状态张量
         """
 
-        for lid, layer in enumerate(self.layers):
+        for _lid, layer in enumerate(self.layers):
             # if lid in self.recompute_list:
             #     def custom(layer_id):
             #         def custom_forward(*args, **kwargs):
@@ -483,20 +478,17 @@ class NoTPTransformer(nn.Module):
 
 # from megatron.core.tensor_parallel.layers import non_tensor_paralleled, local_dp_reduce, local_dp_scatter
 
+
 class VitModel(nn.Module):
     """
     Vision Transformer模型
     基于Vision Transformer的视觉模型实现
     """
-    def __init__(
-            self,
-            cfg,
-            freeze_embed=False,
-            freeze_pre_norm=False
-    ) -> None:
+
+    def __init__(self, cfg, freeze_embed=False, freeze_pre_norm=False) -> None:
         """
         初始化Vision Transformer模型
-        
+
         Args:
             cfg: 配置对象
             freeze_embed: 是否冻结嵌入层
@@ -504,10 +496,14 @@ class VitModel(nn.Module):
         """
         super().__init__()
 
-        self.embeddings = CLIPVisionEmbeddings(hidden_size=cfg.hidden_size, image_size=cfg.image_size, patch_size=cfg.patch_size)
+        self.embeddings = CLIPVisionEmbeddings(
+            hidden_size=cfg.hidden_size,
+            image_size=cfg.image_size,
+            patch_size=cfg.patch_size,
+        )
 
         if freeze_embed:
-            for name, param in self.embeddings.named_parameters():
+            for _name, param in self.embeddings.named_parameters():
                 param.requires_grad = False
 
         self.transformer = NoTPTransformer(cfg=cfg)
@@ -533,17 +529,17 @@ class VitModel(nn.Module):
         # )
 
         if freeze_pre_norm:
-            for name, param in self.pre_layrnorm.named_parameters():
+            for _name, param in self.pre_layrnorm.named_parameters():
                 param.requires_grad = False
 
         for p in self.parameters():
             # 为参数添加自定义属性
-            setattr(p, 'micro_dp', True)
+            p.micro_dp = True
 
     def set_input_tensor(self, input_tensor):
         """
         设置输入张量
-        
+
         Args:
             input_tensor: 输入张量
         """
@@ -555,24 +551,20 @@ class VitModel(nn.Module):
     def __str__(self) -> str:
         """
         字符串表示
-        
+
         Returns:
             模型名称字符串
         """
         return "open_clip"
 
-    def forward(
-            self,
-            x,
-            patch_embeds
-    ):
+    def forward(self, x, patch_embeds):
         """
         前向传播函数
-        
+
         Args:
             x: 输入张量
             patch_embeds: 图像块嵌入
-            
+
         Returns:
             处理后的张量
         """
@@ -590,27 +582,28 @@ class VitModel(nn.Module):
 vit_model_cfg = adict(
     num_layers=24,
     hidden_size=1024,
-    num_heads = 16,
+    num_heads=16,
     num_attention_heads=16,
     ffn_hidden_size=4096,
     seq_length=256,
     max_position_embeddings=256,
     use_flash_attn=False,
     understand_projector_stride=2,
-    hidden_dropout = 0.0,
-    attention_dropout = 0.0,
-    no_persist_layer_norm = False,
-    layernorm_epsilon = 1e-5,
-    pre_layernorm_epsilon = 1e-5,
-    image_size = 224,
-    patch_size = 14,
-    recompute_list = []
+    hidden_dropout=0.0,
+    attention_dropout=0.0,
+    no_persist_layer_norm=False,
+    layernorm_epsilon=1e-5,
+    pre_layernorm_epsilon=1e-5,
+    image_size=224,
+    patch_size=14,
+    recompute_list=[],
 )
+
 
 def build_clip_l():
     """
     构建CLIP-L模型
-    
+
     Returns:
         CLIP-L模型实例
     """
@@ -621,7 +614,7 @@ def build_clip_l():
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # 注释掉无法导入的模块
     # from mmgpt.model.vision_encoder.sam_b import build_sam_vit_b
@@ -635,14 +628,14 @@ if __name__ == '__main__':
         max_position_embeddings=256,
         use_flash_attn=False,
         understand_projector_stride=2,
-        hidden_dropout = 0.0,
-        attention_dropout = 0.0,
-        no_persist_layer_norm = False,
-        layernorm_epsilon = 1e-5,
-        pre_layernorm_epsilon = 1e-5,
-        image_size = 224,
-        patch_size = 14,
-        recompute_list = []
+        hidden_dropout=0.0,
+        attention_dropout=0.0,
+        no_persist_layer_norm=False,
+        layernorm_epsilon=1e-5,
+        pre_layernorm_epsilon=1e-5,
+        image_size=224,
+        patch_size=14,
+        recompute_list=[],
     )
 
     # 注释掉无法导入的模块
@@ -658,7 +651,6 @@ if __name__ == '__main__':
     # x = torch.zeros(2, 3, 224, 224)
     x = torch.zeros(2, 3, 1024, 1024)
 
-    
     with torch.no_grad():
         # y = vision_model(x)
         # patch_embed = sam_model(x)

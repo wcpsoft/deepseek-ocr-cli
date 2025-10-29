@@ -1,9 +1,15 @@
 # 导入新的统一配置
-from .settings import *
-from .prompts import get_prompt, DEFAULT_OCR_PROMPT
-
-# 导出get_config函数
-from .settings import get_config
+from .prompts import DEFAULT_OCR_PROMPT, get_prompt
 
 # 明确导出常用常量
-from .settings import IMAGE_SIZE, BASE_SIZE, CROP_MODE, PRINT_NUM_VIS_TOKENS
+# 导出get_config函数
+from .settings import (
+    BASE_SIZE,
+    CROP_MODE,
+    IMAGE_SIZE,
+    MAX_CROPS,
+    MIN_CROPS,
+    PRINT_NUM_VIS_TOKENS,
+    get_config,
+    get_tokenizer,
+)

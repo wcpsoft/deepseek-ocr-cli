@@ -42,6 +42,8 @@ dependencies = [
     "python-multipart",
     "tqdm",
     "psutil",
+    "transformers>=4.37.0,<4.47.1",
+    "PyYAML",
 ]
 
 [project.optional-dependencies]
@@ -95,32 +97,109 @@ testpaths = [
     "tests",
 ]
 
+[tool.black]
+# 与isort保持一致的行长度
+line-length = 120
+# 目标Python版本
+target-version = ['py310']
+
+[tool.isort]
+# 使用black配置文件以确保兼容性
+profile = "black"
+line_length = 120
+# 避免与black冲突的配置
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+combine_as_imports = true
+
 [tool.ruff]
+# 行长度限制，与black和isort保持一致
+line-length = 120
+# 目标Python版本
+target-version = "py310"
+
+[tool.ruff.lint]
 # 启用的规则
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "C",  # mccabe
-    "B",  # flake8-bugbear
-    "UP", # pyupgrade
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C",    # mccabe
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "N",    # pep8-naming
+    "YTT",  # flake8-2020
+    "ANN",  # flake8-annotations
+    "S",    # flake8-bandit
+    "BLE",  # flake8-blind-except
+    "FBT",  # flake8-boolean-trap
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "T10",  # flake8-debugger
+    "EXE",  # flake8-executable
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    "G",    # flake8-logging-format
+    "PIE",  # flake8-pie
+    "PYI",  # flake8-pyi
+    "RUF",  # Ruff-specific rules
+]
+# 忽略的规则
+extend-ignore = [
+    "ANN101",  # Missing type annotation for self in method
+    "ANN102",  # Missing type annotation for cls in classmethod
 ]
 
-# 行长度限制
-line-length = 120
-
-# 排除的文件和目录
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    "*.egg-info",
-]
-
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]
+"tests/**/*" = ["S101"]  # Use of assert detected
+
+[tool.mypy]
+# Python版本
+python_version = "3.10"
+# 显示错误代码
+show_error_codes = true
+# 严格模式
+strict = true
+# 忽略缺失的导入
+ignore_missing_imports = true
+# 禁用特定的严格检查
+disallow_untyped_calls = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "transformers.*",
+    "PIL.*",
+    "numpy.*",
+    "tqdm.*",
+    "matplotlib.*",
+    "einops.*",
+    "easydict.*",
+    "addict.*",
+    "fitz.*",
+    "img2pdf.*",
+    "huggingface_hub.*",
+    "fsspec.*",
+    "modelscope.*",
+    "toml.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "psutil.*",
+    "PyYAML.*",
+    "setuptools.*",
+    "wheel.*",
+]
+ignore_missing_imports = true
 
 [dependency-groups]
 dev = [

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 调试工具脚本
 提供统一的调试入口和工具函数
@@ -16,6 +15,7 @@ sys.path.insert(0, str(project_root))
 # 检查是否安装了ipdb
 try:
     import ipdb
+
     HAS_IPDB = True
 except ImportError:
     HAS_IPDB = False
@@ -41,29 +41,30 @@ def debug_wrapper(func):
     """
     调试装饰器
     在函数执行前后设置断点
-    
+
     Args:
         func: 要调试的函数
     """
+
     def wrapper(*args, **kwargs):
         if DEBUG_MODE:
             print(f"进入函数: {func.__name__}")
             ipdb.set_trace()
-        
+
         try:
             result = func(*args, **kwargs)
-            
+
             if DEBUG_MODE:
                 print(f"函数 {func.__name__} 执行完成")
                 ipdb.set_trace()
-                
+
             return result
         except Exception as e:
             if DEBUG_MODE:
                 print(f"函数 {func.__name__} 发生异常: {e}")
                 ipdb.set_trace()
             raise
-            
+
     return wrapper
 
 
@@ -72,13 +73,13 @@ def main():
     print("DeepSeek OCR 调试工具")
     print(f"调试模式: {'启用' if DEBUG_MODE else '未启用'}")
     print(f"IPDB支持: {'是' if HAS_IPDB else '否'}")
-    
+
     if not DEBUG_MODE:
         print("\n使用方法:")
         print("1. 设置环境变量: export DEBUG=TRUE")
         print("2. 运行调试命令: python -m dev.debug")
         print("3. 或者直接运行: DEBUG=TRUE python -m dev.debug")
-    
+
     # 示例调试代码
     if DEBUG_MODE:
         print("\n设置调试断点...")

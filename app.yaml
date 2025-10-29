@@ -1,0 +1,18 @@
+# 应用配置文件
+# 用于配置模型加载时的auto_map属性
+
+model_config:
+  # DeepSeek VLV2模型配置
+  deepseek_vl_v2:
+    auto_map:
+      AutoModelForCausalLM: src.core.models.modeling_deepseekocr.DeepseekOCRForCausalLM
+      AutoConfig: src.core.deepseek_ocr_config.DeepseekVLV2Config
+  
+  # DeepSeek V2模型配置
+  deepseek_v2:
+    auto_map:
+      AutoModelForCausalLM: src.core.models.modeling_deepseekv2.DeepseekV2ForCausalLM
+      AutoConfig: src.core.deepseek_ocr_config.DeepseekV2Config
+
+# 默认模型配置
+default_model: deepseek_vl_v2

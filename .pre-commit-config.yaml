@@ -1,0 +1,32 @@
+# pre-commit配置文件
+# 用于在代码提交前自动执行代码质量检查
+
+repos:
+  # black代码格式化
+  - repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+      - id: black
+        language_version: python3.10
+        args: [--line-length=120]
+
+  # isort导入排序
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=120]
+
+  # ruff代码检查
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.1.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # mypy类型检查
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v0.950
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests, types-PyYAML]

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 DeepSeek OCR配置类
 定义模型配置相关的类
@@ -12,6 +11,7 @@ class DeepseekVLV2Config(PretrainedConfig):
     """
     DeepSeek VLV2模型配置类
     """
+
     model_type = "deepseek_vl_v2"
 
     def __init__(
@@ -21,7 +21,7 @@ class DeepseekVLV2Config(PretrainedConfig):
         text_config=None,
         tile_tag="2D",
         global_view_pos="head",
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.vision_config = vision_config
@@ -35,6 +35,7 @@ class DeepseekV2Config(PretrainedConfig):
     """
     DeepSeek V2模型配置类
     """
+
     model_type = "deepseek_v2"
 
     def __init__(
@@ -65,7 +66,7 @@ class DeepseekV2Config(PretrainedConfig):
         bos_token_id=0,
         eos_token_id=1,
         torch_dtype="bfloat16",
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.hidden_size = hidden_size
@@ -101,16 +102,18 @@ def _register_configs():
     """注册配置类到transformers库"""
     try:
         from transformers import AutoConfig
-        
+
         # 注册到AutoConfig中
         AutoConfig.register("deepseek_vl_v2", DeepseekVLV2Config)
         AutoConfig.register("deepseek_v2", DeepseekV2Config)
-            
+
     except Exception as e:
         # 忽略注册过程中的错误，但记录日志
         import logging
+
         logger = logging.getLogger(__name__)
         logger.warning(f"配置类注册过程中出现警告: {e}")
+
 
 # 立即执行注册
 _register_configs()
@@ -120,6 +123,7 @@ class DeepseekV2Model:
     """
     DeepSeek V2模型类占位符
     """
+
     def __init__(self):
         pass
 
@@ -128,5 +132,6 @@ class DeepseekV2ForCausalLM:
     """
     DeepSeek V2因果语言模型类占位符
     """
+
     def __init__(self):
         pass

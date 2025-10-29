@@ -9,7 +9,7 @@ __version__ = "1.0.0"
 __author__ = "Rxzhang"
 
 # 导出核心模块
-from .core import *
+from . import core
 
 __all__ = [
     "core",

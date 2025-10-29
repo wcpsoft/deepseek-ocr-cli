@@ -39,6 +39,13 @@ log_info "安装开发依赖..."
 # 保持与setup.sh一致的依赖安装逻辑
 install_all_deps
 
+# 运行代码质量检查
+log_info "运行代码质量检查..."
+if ! run_quality_check; then
+    log_error "代码质量检查失败，终止测试"
+    exit 1
+fi
+
 # 运行单元测试
 log_info "运行单元测试..."
 .venv/bin/python -m pytest tests/unit/ -v

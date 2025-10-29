@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 DeepSeek OCR CLI setup script
 """
 
-from setuptools import setup
-import toml
 import os
+
+import toml
+from setuptools import setup
 
 
 def read_requirements(filename):
     """Read requirements from file"""
     filepath = os.path.join(os.path.dirname(__file__), "requirements", filename)
     if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as fh:
-            return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+        with open(filepath, encoding="utf-8") as fh:
+            return [
+                line.strip() for line in fh if line.strip() and not line.startswith("#")
+            ]
     return []
 
 
 # 读取pyproject.toml配置
-with open("pyproject.toml", "r", encoding="utf-8") as fh:
+with open("pyproject.toml", encoding="utf-8") as fh:
     pyproject_data = toml.load(fh)
 
 # 提取项目配置
@@ -43,10 +45,14 @@ setup(
     name=project_config["name"],
     version=project_config["version"],
     description=project_config["description"],
-    long_description=open("README.md", "r", encoding="utf-8").read(),
+    long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    author=project_config["authors"][0]["name"] if project_config.get("authors") else "",
-    author_email=project_config["authors"][0]["email"] if project_config.get("authors") else "",
+    author=(
+        project_config["authors"][0]["name"] if project_config.get("authors") else ""
+    ),
+    author_email=(
+        project_config["authors"][0]["email"] if project_config.get("authors") else ""
+    ),
     url=project_config["urls"]["Homepage"] if project_config.get("urls") else "",
     classifiers=project_config.get("classifiers", []),
     python_requires=project_config["requires-python"],

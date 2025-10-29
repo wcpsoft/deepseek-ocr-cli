@@ -198,151 +198,62 @@ transformers_engine = get_engine("transformers")
 
 # 初始化引擎
 vllm_engine.initialize()
-
-# 处理文档
-vllm_engine.process([image], "output_dir")
-
-# 清理资源
-vllm_engine.cleanup()
 ```
 
-## 分辨率模式
+## 代码质量保证
 
-模型支持以下分辨率模式：
-- 固定分辨率：
-  - Tiny: 512×512 （64 vision tokens）
-  - Small: 640×640 （100 vision tokens）
-  - Base: 1024×1024 （256 vision tokens）
-  - Large: 1280×1280 （400 vision tokens）
-- 动态分辨率：
-  - Gundam: n×640×640 + 1×1024×1024
+本项目采用严格的代码质量控制措施，使用多种工具确保代码质量和一致性：
 
-## 提示词示例
+### 代码质量工具链
 
-```
-# 文档转Markdown（默认）
-"<image>\n<|grounding|>Convert the document to markdown."
+1. **[black](https://github.com/psf/black)** - 代码格式化工具，确保代码风格统一
+2. **[isort](https://github.com/PyCQA/isort)** - 导入语句排序和格式化工具
+3. **[ruff](https://github.com/charliermarsh/ruff)** - 高性能Python代码检查工具
+4. **[mypy](https://github.com/python/mypy)** - 静态类型检查工具
 
-# 图像OCR
-"<image>\n<|grounding|>OCR this image."
+### 统一配置和执行顺序
 
-# 自由OCR（无布局）
-"<image>\nFree OCR."
+所有工具均已统一配置，确保无冲突并按最佳实践顺序执行：
 
-# 图表解析
-"<image>\nParse the figure."
+1. **isort** - 首先处理导入语句排序
+2. **black** - 然后进行代码格式化
+3. **ruff** - 接着进行代码质量检查和修复
+4. **mypy** - 最后进行类型检查
 
-# 图像描述
-"<image>\nDescribe this image in detail."
+### 使用方法
 
-# 文本定位
-"<image>\nLocate <|ref|>xxxx<|/ref|> in the image."
+#### 自动化脚本
 
-# 其他常用提示词
-"<image>\n先天下之忧而忧"
-
-# 模型文件中的提示词示例
-"<image>\n<|grounding|>Given the layout of the image."
-"<image>\nExtract the text in the image."
-"<image>\nExtract all information from this image and convert them into markdown format."
-```
-
-## 项目结构
-
-```
-DeepSeek-OCR/
-├── cli/                   # 命令行工具
-│   ├── __init__.py
-│   ├── main.py            # 主入口
-│   ├── document_processor.py  # 文档处理核心
-│   ├── model_manager.py   # 模型管理
-│   ├── pdf_converter.py   # PDF转换器
-│   ├── download_models.py # 模型下载
-│   └── test_cli.py        # CLI测试
-├── src/                   # 源代码目录
-│   ├── __init__.py
-│   ├── app.py             # Web API服务入口
-│   ├── cli.py             # CLI入口
-│   └── core/              # 核心算法实现
-│       ├── __init__.py
-│       ├── config.py          # 配置文件
-│       ├── deepseek_ocr.py    # vLLM模型实现
-│       ├── api/               # Web API服务
-│       ├── base/              # 基础抽象类
-│       ├── factory/           # 工厂模式
-│       ├── vllm/              # vLLM引擎实现
-│       ├── transformers/      # Transformers引擎实现
-│       ├── process/           # 处理模块
-│       └── deepencoder/       # 编码器模块
-├── dev/                   # 开发工具
-│   ├── run_tests.sh       # 自动化测试脚本
-│   ├── debug.py           # 统一调试脚本
-│   ├── detect_gpu.py      # GPU检测工具
-│   ├── run.sh             # 运行脚本
-│   └── setup.sh           # 安装脚本
-├── tests/                 # 测试目录
-│   └── test_cli.py        # CLI测试脚本
-├── README.md              # 项目说明与使用指南
-└── pyproject.toml         # 项目配置
-```
-
-## 架构设计
-
-### 工厂模式重构
-
-项目采用工厂模式重构了OCR引擎架构，实现了vLLM和Transformers引擎的解耦：
-
-1. **基础抽象类** (`src/core/base/ocr_engine.py`)：定义所有OCR引擎的通用接口
-2. **vLLM引擎实现** (`src/core/vllm/vllm_engine.py`)：vLLM引擎的具体实现
-3. **Transformers引擎实现** (`src/core/transformers/transformers_engine.py`)：Transformers引擎的具体实现
-4. **工厂类** (`src/core/factory/engine_factory.py`)：负责根据配置创建相应的OCR引擎实例
-
-这种设计具有以下优势：
-- **单一职责原则**：每个类只负责一个功能
-- **开闭原则**：易于扩展新的引擎类型，无需修改现有代码
-- **依赖倒置原则**：高层模块不依赖低层模块，都依赖抽象
-- **易于测试**：每个模块可以独立测试
-
-## 测试
-
-运行单元测试：
+项目提供了自动化脚本用于代码格式化和质量检查：
 
 ```bash
-# 运行所有测试
-python -m pytest tests/
-
-# 运行特定测试
-python -m pytest tests/test_cli.py
-
-# 运行端到端测试（使用samples目录中的示例文件）
-python -m pytest tests/test_e2e.py
-
-# 使用开发脚本运行测试
-./dev/run_tests.sh
-```
-
-## 代码质量检查
-
-项目使用多种工具确保代码质量：
-
-```bash
-# 使用开发脚本格式化代码
+# 代码格式化（按正确顺序执行所有工具）
 ./dev/format.sh
 
-# 或者手动运行各个工具
-black src/ cli/ tests/ dev/
-isort src/ cli/ tests/ dev/
-ruff check src/ cli/ tests/ dev/ --fix
-
-# 运行类型检查
-mypy src/ cli/
+# 代码质量检查（按正确顺序执行所有检查）
+./dev/check_quality.sh
 ```
 
-## 许可证
+#### Pre-commit钩子
 
-本项目采用 Apache 2.0 许可证。详情请见 [LICENSE](LICENSE) 文件。
+项目支持pre-commit钩子，在代码提交前自动执行质量检查：
 
-## 致谢
+```bash
+# 安装pre-commit钩子
+pre-commit install
 
-我们感谢以下项目提供的宝贵模型和想法：
-- [DeepSeek-OCR](https://github.com/deepseek-ai/DeepSeek-OCR)
+# 手动运行所有pre-commit检查
+pre-commit run --all-files
+```
+
+### 配置文件
+
+所有工具的配置均在 [pyproject.toml](file:///Users/zhangruixiang/aiworkspace/DeepSeek-OCR/pyproject.toml) 文件中统一管理，确保各工具间的兼容性：
+
+- 行长度统一设置为120字符
+- Python目标版本统一设置为3.10
+- isort使用black配置文件确保兼容性
+- ruff启用全面的检查规则集
+- mypy配置平衡严格性和实用性
+
+通过这套完整的代码质量保证体系，我们确保项目代码的一致性、可读性和可维护性。
