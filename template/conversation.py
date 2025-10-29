@@ -3,8 +3,8 @@ From https://github.com/lm-sys/FastChat/blob/main/fastchat/conversation.py
 """
 
 import dataclasses
-from enum import IntEnum
-from enum import auto
+from enum import IntEnum, auto
+from typing import Any, Dict, List
 
 
 class SeparatorStyle(IntEnum):
@@ -27,9 +27,9 @@ class Conversation:
     # The system message
     system_message: str = ""
     # The names of two roles
-    roles: list[str] = (("USER", "ASSISTANT"),)
+    roles: List[str] = (("USER", "ASSISTANT"),)
     # All messages. Each item is (role, message).
-    messages: list[list[str]] = ()
+    messages: List[List[str]] = ()
     # The number of few shot examples
     offset: int = 0
     # The separator style and configurations
@@ -39,7 +39,7 @@ class Conversation:
     # Stop criteria (the default one is EOS token)
     stop_str: str = None
     # Stops generation if meeting any token in this list
-    stop_token_ids: list[int] = None
+    stop_token_ids: List[int] = None
 
     def get_prompt(self) -> str:
         """Get the prompt for generation."""
@@ -65,9 +65,7 @@ class Conversation:
             for i, (role, message) in enumerate(self.messages):
                 if message:
                     if role == "User":
-                        ret += (
-                            "<｜sft▁begin｜>\n" + message + self.sep
-                        )  # <｜sft▁begin｜>User Input<｜sft▁end｜>\nResponse<｜end▁of▁sentence｜>
+                        ret += "<｜sft▁begin｜>\n" + message + self.sep #<｜sft▁begin｜>User Input<｜sft▁end｜>\nResponse<｜end▁of▁sentence｜>
                     else:
                         ret += message + self.sep2
                 else:
@@ -96,7 +94,7 @@ class Conversation:
                     if type(message) is tuple:
                         message, _, _ = message
                     if i % 2 == 0:
-                        ret += "<image>\n" + seps[i % 2]
+                        ret += '<image>\n' + seps[i % 2]
                     else:
                         ret += message + seps[i % 2]
                 else:
@@ -174,15 +172,13 @@ class Conversation:
 
 
 # A global registry for all conversation templates
-conv_templates: dict[str, Conversation] = {}
+conv_templates: Dict[str, Conversation] = {}
 
 
 def register_conv_template(template: Conversation, override: bool = False):
     """Register a new conversation template."""
     if not override:
-        assert (
-            template.name not in conv_templates
-        ), f"{template.name} has been registered."
+        assert template.name not in conv_templates, f"{template.name} has been registered."
 
     conv_templates[template.name] = template
 
@@ -206,7 +202,7 @@ register_conv_template(
         sep="\n\n",
         sep2="<｜end▁of▁sentence｜>",
         stop_token_ids=[100001],
-        stop_str=["User:", "<｜end▁of▁sentence｜>"],
+        stop_str=["User:", "<｜end▁of▁sentence｜>"]
     )
 )
 register_conv_template(
@@ -223,7 +219,7 @@ register_conv_template(
         sep="",
         sep2="<｜end▁of▁sentence｜>",
         stop_token_ids=[100001],
-        stop_str=["User:", "<｜end▁of▁sentence｜>"],
+        stop_str=["User:", "<｜end▁of▁sentence｜>"]
     )
 )
 
@@ -240,7 +236,7 @@ register_conv_template(
         sep="",
         sep2="",
         stop_token_ids=[100001],
-        stop_str=["</s>"],
+        stop_str=['</s>'],
     )
 )
 
@@ -257,7 +253,7 @@ register_conv_template(
         sep="",
         sep2="",
         stop_token_ids=[100001],
-        stop_str=["</s>"],
+        stop_str=['</s>'],
     )
 )
 

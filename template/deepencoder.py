@@ -1,13 +1,20 @@
-import copy
-import math
-from functools import partial
-
-import torch
 import torch.nn as nn
+import torch
 import torch.nn.functional as F
+import copy
+
+from contextlib import nullcontext
+import math
+from typing import Optional, Tuple
+# from megatron.model import LayerNorm
+
+from einops import rearrange
 from easydict import EasyDict as adict
 
-# from megatron.model import LayerNorm
+
+from typing import Optional, Tuple, Type
+from functools import partial
+
 
 
 class MlpProjector(nn.Module):
@@ -31,42 +38,28 @@ class MlpProjector(nn.Module):
                 modules.append(nn.GELU())
                 modules.append(nn.Linear(cfg.n_embed, cfg.n_embed))
             modules = nn.Sequential(*modules)
-
+        
         elif cfg.projector_type == "normlayer_downsample_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
             mlp_ratio = cfg.get("mlp_ratio", 1)
             modules = [
-                nn.LayerNorm(
-                    cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio
-                ),
-                nn.Linear(
-                    cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio,
-                    cfg.n_embed * mlp_ratio,
-                ),
+                nn.LayerNorm(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio),
+                nn.Linear(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio, cfg.n_embed * mlp_ratio)
             ]
             for _ in range(1, mlp_depth - 1):
                 modules.append(nn.GELU())
-                modules.append(
-                    nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio)
-                )
+                modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio))
             modules.append(nn.GELU())
             modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed))
             modules = nn.Sequential(*modules)
-
+        
         elif cfg.projector_type == "downsample_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
             mlp_ratio = cfg.get("mlp_ratio", 1)
-            modules = [
-                nn.Linear(
-                    cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio,
-                    cfg.n_embed * mlp_ratio,
-                )
-            ]
+            modules = [nn.Linear(cfg.input_dim * cfg.downsample_ratio * cfg.downsample_ratio, cfg.n_embed * mlp_ratio)]
             for _ in range(1, mlp_depth - 1):
                 modules.append(nn.GELU())
-                modules.append(
-                    nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio)
-                )
+                modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed * mlp_ratio))
             modules.append(nn.GELU())
             modules.append(nn.Linear(cfg.n_embed * mlp_ratio, cfg.n_embed))
             modules = nn.Sequential(*modules)
@@ -85,12 +78,8 @@ class MlpProjector(nn.Module):
         elif cfg.projector_type == "hybrid_split_feature_mlp_gelu":
             mlp_depth = cfg.get("depth", 1)
             channel_div = cfg.get("channel_div", 0.5)
-            self.high_up_proj = nn.Linear(
-                cfg.input_dim[0], int(cfg.n_embed * channel_div)
-            )
-            self.low_up_proj = nn.Linear(
-                cfg.input_dim[1], cfg.n_embed - int(cfg.n_embed * channel_div)
-            )
+            self.high_up_proj = nn.Linear(cfg.input_dim[0], int(cfg.n_embed * channel_div))
+            self.low_up_proj = nn.Linear(cfg.input_dim[1], cfg.n_embed - int(cfg.n_embed * channel_div))
 
             modules = []
             for _ in range(1, mlp_depth):
@@ -128,43 +117,38 @@ class MlpProjector(nn.Module):
             patches = x.unfold(2, 2, 2).unfold(3, 2, 2)
             batch_size, channels, h_patches, w_patches, _, _ = patches.size()
             # 在通道维度上拼接
-            patches = patches.contiguous().view(
-                batch_size, channels, h_patches * w_patches, -1
-            )
+            patches = patches.contiguous().view(batch_size, channels, h_patches * w_patches, -1)
 
             # 通过线性层
             patches = patches.permute(0, 2, 1, 3).contiguous()
             patches = patches.view(batch_size, h_patches * w_patches, channels * 4)
 
             x = self.token_pooling_layer(patches)
-
+        
         if self.cfg.get("conv_fusion_high_low_features", False):
             x = self.fusion_layer(x[:, 0]) + x[:, 1]
 
-        if self.cfg.projector_type == "low_high_hybrid_split_mlp_gelu":
+        if self.cfg.projector_type == 'low_high_hybrid_split_mlp_gelu':
             high_x, low_x = x[0], x[1]
             high_x = self.high_up_proj(high_x)
             low_x = self.low_up_proj(low_x)
             x = torch.concat([high_x, low_x], dim=-1)
-
-        if self.cfg.projector_type == "hybrid_split_feature_mlp_gelu":
-            high_x = x[..., : self.cfg.input_dim[0]]
-            low_x = x[..., self.cfg.input_dim[0] :]
+        
+        if self.cfg.projector_type == 'hybrid_split_feature_mlp_gelu':
+            high_x = x[...,:self.cfg.input_dim[0]]
+            low_x = x[...,self.cfg.input_dim[0]:]
             high_x = self.high_up_proj(high_x)
             low_x = self.low_up_proj(low_x)
             x = torch.concat([high_x, low_x], dim=-1)
-
-        if self.cfg.projector_type == "low_high_split_mlp_gelu":
+        
+        if self.cfg.projector_type == 'low_high_split_mlp_gelu':
             high_x, low_x = x[0], x[1]
             high_x = self.high_layers(high_x)
             low_x = self.low_layers(low_x)
             x = torch.concat([high_x, low_x], dim=-1)
             return x
-
-        if (
-            self.cfg.projector_type == "downsample_mlp_gelu"
-            or self.cfg.projector_type == "normlayer_downsample_mlp_gelu"
-        ):
+        
+        if self.cfg.projector_type == 'downsample_mlp_gelu' or self.cfg.projector_type == 'normlayer_downsample_mlp_gelu':
             bs, hw, input_dim = x.shape
             h = w = int((hw) ** 0.5)
 
@@ -179,14 +163,9 @@ class MlpProjector(nn.Module):
 
             """4 to 1 concat"""
             x = x.permute(0, 3, 1, 2)  # B, C, H, W
-            x = F.unfold(
-                x,
-                kernel_size=self.cfg.downsample_ratio,
-                stride=self.cfg.downsample_ratio,
-                padding=0,
-            )  # B, C*4, HW // 4
+            x = F.unfold(x, kernel_size=self.cfg.downsample_ratio, stride=self.cfg.downsample_ratio, padding=0) # B, C*4, HW // 4
             x = x.permute(0, 2, 1)
-
+            
         return self.layers(x)
 
     @staticmethod
@@ -194,25 +173,19 @@ class MlpProjector(nn.Module):
         if cfg.projector_type == "linear":
             fwd = 2 * cfg.input_dim * cfg.n_embed
 
-        elif "mlp_gelu" in cfg.projector_type:
+        elif "mlp_gelu" in cfg.projector_type :
             mlp_depth = cfg.get("depth", 1)
             downsample_ratio = cfg.get("downsample_ratio", 1)
-            input_dim = (
-                sum(cfg.input_dim) if isinstance(cfg.input_dim, list) else cfg.input_dim
-            )
+            input_dim = sum(cfg.input_dim) if isinstance(cfg.input_dim, list) else cfg.input_dim
             input_dim = input_dim * downsample_ratio * downsample_ratio
-            fwd = (
-                2 * input_dim * cfg.n_embed
-                + (mlp_depth - 1) * 2 * cfg.n_embed * cfg.n_embed
-            )
+            fwd = 2 * input_dim * cfg.n_embed + (mlp_depth - 1) * 2 * cfg.n_embed * cfg.n_embed
         else:
             fwd = 0
 
         return fwd * 3
+    
 
-
-# ===================clip============================================================
-
+#===================clip============================================================
 
 class LayerNormfp32(torch.nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
@@ -236,21 +209,20 @@ def get_abs_pos(abs_pos, tgt_size):
     abs_pos_new = abs_pos.squeeze(0)
     cls_token, old_pos_embed = abs_pos_new[:1], abs_pos_new[1:]
 
+
+
     src_size = int(math.sqrt(abs_pos_new.shape[0] - 1))
     tgt_size = int(math.sqrt(tgt_size))
     dtype = abs_pos.dtype
 
     if src_size != tgt_size:
-        old_pos_embed = (
-            old_pos_embed.view(1, src_size, src_size, dim)
-            .permute(0, 3, 1, 2)
-            .contiguous()
-        )
+        old_pos_embed = old_pos_embed.view(1, src_size, src_size, dim).permute(0, 3, 1,
+                                                                                    2).contiguous()
         old_pos_embed = old_pos_embed.to(torch.float32)
         new_pos_embed = F.interpolate(
             old_pos_embed,
             size=(tgt_size, tgt_size),
-            mode="bicubic",
+            mode='bicubic',
             antialias=True,
             align_corners=False,
         ).to(dtype)
@@ -262,10 +234,10 @@ def get_abs_pos(abs_pos, tgt_size):
     else:
         return abs_pos
 
-
 @torch.jit.script
 def quick_gelu(x):
     return x * torch.sigmoid(1.702 * x)
+
 
 
 class CLIPVisionEmbeddings(nn.Module):
@@ -298,34 +270,34 @@ class CLIPVisionEmbeddings(nn.Module):
         #     pixel_values
         # )  # shape = [*, width, grid, grid]
 
+
         if patch_embeds is not None:
             patch_embeds = patch_embeds
             # print(patch_embeds.shape)
         else:
-            patch_embeds = self.patch_embedding(pixel_values)
+            patch_embeds = self.patch_embedding(pixel_values)  
             # print(111111)
         # shape = [*, width, grid, grid]
         # patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
         patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
+
         class_embeds = self.class_embedding.expand(batch_size, 1, -1)
         embeddings = torch.cat([class_embeds, patch_embeds], dim=1)
 
         # x = torch.cat([cls_token, x], dim=1)
-        embeddings = embeddings + get_abs_pos(
-            self.position_embedding(self.position_ids), embeddings.size(1)
-        )
+        embeddings = embeddings + get_abs_pos(self.position_embedding(self.position_ids), embeddings.size(1))
         # embeddings = embeddings + self.position_embedding(self.position_ids)
         return embeddings
 
 
 class NoTPFeedForward(nn.Module):
     def __init__(
-        self,
-        cfg,
-        dim: int,
-        hidden_dim: int,
+            self,
+            cfg,
+            dim: int,
+            hidden_dim: int,
     ):
         super().__init__()
 
@@ -335,6 +307,8 @@ class NoTPFeedForward(nn.Module):
     def forward(self, x):
         output = self.fc2(quick_gelu(self.fc1(x)))
         return output
+
+
 
 
 class NoTPAttention(torch.nn.Module):
@@ -354,8 +328,8 @@ class NoTPAttention(torch.nn.Module):
         self.attn_drop = cfg.attention_dropout
 
     def forward(
-        self,
-        x: torch.Tensor,
+            self,
+            x: torch.Tensor,
     ):
         bsz, seqlen, _ = x.shape
         xqkv = self.qkv_proj(x)
@@ -374,11 +348,9 @@ class NoTPAttention(torch.nn.Module):
             xk = xk.permute(0, 2, 1, 3)
             xv = xv.permute(0, 2, 1, 3)
             # with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
-            output = torch.nn.functional.scaled_dot_product_attention(
-                xq, xk, xv, attn_mask=None
-            )
+            output = torch.nn.functional.scaled_dot_product_attention(xq, xk, xv, attn_mask=None)
             output = output.permute(0, 2, 1, 3).reshape(bsz, seqlen, -1)
-            # output = output.permute(0, 2, 1, 3).contiguous().view(bsz, seqlen, -1)
+                # output = output.permute(0, 2, 1, 3).contiguous().view(bsz, seqlen, -1)
         else:
             # print(22222)
             xq, xk, xv = torch.split(xqkv, 1, dim=2)
@@ -392,14 +364,11 @@ class NoTPAttention(torch.nn.Module):
             xk = xk.permute(0, 2, 1, 3)
             xv = xv.permute(0, 2, 1, 3)
             # with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False):
-            output = torch.nn.functional.scaled_dot_product_attention(
-                xq, xk, xv, attn_mask=None
-            )
+            output = torch.nn.functional.scaled_dot_product_attention(xq, xk, xv, attn_mask=None)
             output = output.permute(0, 2, 1, 3).reshape(bsz, seqlen, -1)
             # output = output.permute(0, 2, 1, 3).contiguous().view(bsz, seqlen, -1)
         output = self.out_proj(output)
         return output
-
 
 class NoTPTransformerBlock(nn.Module):
     def __init__(self, cfg, layer_id: int, multiple_of=256):
@@ -445,8 +414,8 @@ class NoTPTransformer(nn.Module):
             )
 
     def forward(
-        self,
-        hidden_states,
+            self,
+            hidden_states,
     ):
 
         for lid, layer in enumerate(self.layers):
@@ -474,16 +443,16 @@ class NoTPTransformer(nn.Module):
 
 # from megatron.core.tensor_parallel.layers import non_tensor_paralleled, local_dp_reduce, local_dp_scatter
 
-
 class VitModel(nn.Module):
-    def __init__(self, cfg, freeze_embed=False, freeze_pre_norm=False) -> None:
+    def __init__(
+            self,
+            cfg,
+            freeze_embed=False,
+            freeze_pre_norm=False
+    ) -> None:
         super().__init__()
 
-        self.embeddings = CLIPVisionEmbeddings(
-            hidden_size=cfg.hidden_size,
-            image_size=cfg.image_size,
-            patch_size=cfg.patch_size,
-        )
+        self.embeddings = CLIPVisionEmbeddings(hidden_size=cfg.hidden_size, image_size=cfg.image_size, patch_size=cfg.patch_size)
 
         if freeze_embed:
             for name, param in self.embeddings.named_parameters():
@@ -526,7 +495,11 @@ class VitModel(nn.Module):
     def __str__(self) -> str:
         return "open_clip"
 
-    def forward(self, x, patch_embeds):
+    def forward(
+            self,
+            x,
+            patch_embeds
+    ):
         x = self.embeddings(x, patch_embeds)
         hidden_states = self.pre_layrnorm(x)
 
@@ -541,23 +514,22 @@ class VitModel(nn.Module):
 vit_model_cfg = adict(
     num_layers=24,
     hidden_size=1024,
-    num_heads=16,
+    num_heads = 16,
     num_attention_heads=16,
     ffn_hidden_size=4096,
     seq_length=256,
     max_position_embeddings=256,
     use_flash_attn=False,
     understand_projector_stride=2,
-    hidden_dropout=0.0,
-    attention_dropout=0.0,
-    no_persist_layer_norm=False,
-    layernorm_epsilon=1e-5,
-    pre_layernorm_epsilon=1e-5,
-    image_size=224,
-    patch_size=14,
-    recompute_list=[],
+    hidden_dropout = 0.0,
+    attention_dropout = 0.0,
+    no_persist_layer_norm = False,
+    layernorm_epsilon = 1e-5,
+    pre_layernorm_epsilon = 1e-5,
+    image_size = 224,
+    patch_size = 14,
+    recompute_list = []
 )
-
 
 def build_clip_l():
     return VitModel(
@@ -567,7 +539,10 @@ def build_clip_l():
     )
 
 
-# =========================Sam-Vary=================================
+
+
+
+#=========================Sam-Vary=================================
 
 
 def get_abs_pos_sam(abs_pos, tgt_size):
@@ -582,7 +557,7 @@ def get_abs_pos_sam(abs_pos, tgt_size):
         new_pos_embed = F.interpolate(
             old_pos_embed,
             size=(tgt_size, tgt_size),
-            mode="bicubic",
+            mode='bicubic',
             antialias=True,
             align_corners=False,
         ).to(dtype)
@@ -592,12 +567,14 @@ def get_abs_pos_sam(abs_pos, tgt_size):
         return abs_pos
 
 
+
+
 class MLPBlock(nn.Module):
     def __init__(
         self,
         embedding_dim: int,
         mlp_dim: int,
-        act: type[nn.Module] = nn.GELU,
+        act: Type[nn.Module] = nn.GELU,
     ) -> None:
         super().__init__()
         self.lin1 = nn.Linear(embedding_dim, mlp_dim)
@@ -638,13 +615,13 @@ class ImageEncoderViT(nn.Module):
         mlp_ratio: float = 4.0,
         out_chans: int = 256,
         qkv_bias: bool = True,
-        norm_layer: type[nn.Module] = nn.LayerNorm,
-        act_layer: type[nn.Module] = nn.GELU,
+        norm_layer: Type[nn.Module] = nn.LayerNorm,
+        act_layer: Type[nn.Module] = nn.GELU,
         use_abs_pos: bool = True,
         use_rel_pos: bool = False,
         rel_pos_zero_init: bool = True,
         window_size: int = 0,
-        global_attn_indexes: tuple[int, ...] = (),
+        global_attn_indexes: Tuple[int, ...] = (),
     ) -> None:
         """
         Args:
@@ -674,13 +651,11 @@ class ImageEncoderViT(nn.Module):
             embed_dim=embed_dim,
         )
 
-        self.pos_embed: nn.Parameter | None = None
+        self.pos_embed: Optional[nn.Parameter] = None
         if use_abs_pos:
             # Initialize absolute positional embedding with pretrain image size.
             self.pos_embed = nn.Parameter(
-                torch.zeros(
-                    1, img_size // patch_size, img_size // patch_size, embed_dim
-                )
+                torch.zeros(1, img_size // patch_size, img_size // patch_size, embed_dim)
             )
 
         self.blocks = nn.ModuleList()
@@ -718,9 +693,7 @@ class ImageEncoderViT(nn.Module):
         )
 
         self.net_2 = nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1, bias=False)
-        self.net_3 = nn.Conv2d(
-            512, 1024, kernel_size=3, stride=2, padding=1, bias=False
-        )
+        self.net_3 = nn.Conv2d(512, 1024, kernel_size=3, stride=2, padding=1, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patch_embed(x)
@@ -747,12 +720,12 @@ class Block(nn.Module):
         num_heads: int,
         mlp_ratio: float = 4.0,
         qkv_bias: bool = True,
-        norm_layer: type[nn.Module] = nn.LayerNorm,
-        act_layer: type[nn.Module] = nn.GELU,
+        norm_layer: Type[nn.Module] = nn.LayerNorm,
+        act_layer: Type[nn.Module] = nn.GELU,
         use_rel_pos: bool = False,
         rel_pos_zero_init: bool = True,
         window_size: int = 0,
-        input_size: tuple[int, int] | None = None,
+        input_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         """
         Args:
@@ -781,9 +754,7 @@ class Block(nn.Module):
         )
 
         self.norm2 = norm_layer(dim)
-        self.mlp = MLPBlock(
-            embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer
-        )
+        self.mlp = MLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio), act=act_layer)
 
         self.window_size = window_size
 
@@ -816,7 +787,7 @@ class Attention(nn.Module):
         qkv_bias: bool = True,
         use_rel_pos: bool = False,
         rel_pos_zero_init: bool = True,
-        input_size: tuple[int, int] | None = None,
+        input_size: Optional[Tuple[int, int]] = None,
     ) -> None:
         """
         Args:
@@ -848,53 +819,35 @@ class Attention(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, H, W, _ = x.shape
         # qkv with shape (3, B, nHead, H * W, C)
-        qkv = (
-            self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
-        )
+        qkv = self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         # q, k, v with shape (B * nHead, H * W, C)
         q, k, v = qkv.reshape(3, B * self.num_heads, H * W, -1).unbind(0)
 
         rel_h, rel_w = None, None
         if self.use_rel_pos:
-            rel_h, rel_w = add_decomposed_rel_pos(
-                q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W)
-            )
+            rel_h, rel_w = add_decomposed_rel_pos(q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W))
 
         q = q.view(B, self.num_heads, H * W, -1)
         k = k.view(B, self.num_heads, H * W, -1)
         v = v.view(B, self.num_heads, H * W, -1)
 
         if self.use_rel_pos:
-            rel_h = rel_h.view(
-                B, self.num_heads, rel_h.size(1), rel_h.size(2), rel_h.size(3)
-            )
-            rel_w = rel_w.view(
-                B, self.num_heads, rel_w.size(1), rel_w.size(2), rel_w.size(3)
-            )
-            attn_bias = (rel_h + rel_w).view(
-                B, self.num_heads, rel_h.size(2), rel_h.size(3) * rel_w.size(4)
-            )
-            x = torch.nn.functional.scaled_dot_product_attention(
-                q, k, v, attn_mask=attn_bias
-            )
+            rel_h = rel_h.view(B, self.num_heads, rel_h.size(1), rel_h.size(2), rel_h.size(3))
+            rel_w = rel_w.view(B, self.num_heads, rel_w.size(1), rel_w.size(2), rel_w.size(3))
+            attn_bias = (rel_h + rel_w).view(B, self.num_heads, rel_h.size(2), rel_h.size(3) * rel_w.size(4))
+            x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
             # x = _attention_rel_h_rel_w(q, k, v, rel_h, rel_w)
         else:
             x = torch.nn.functional.scaled_dot_product_attention(q, k, v)
 
-        x = (
-            x.view(B, self.num_heads, H, W, -1)
-            .permute(0, 2, 3, 1, 4)
-            .reshape(B, H, W, -1)
-        )
+        x = x.view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
 
         x = self.proj(x)
 
         return x
 
 
-def window_partition(
-    x: torch.Tensor, window_size: int
-) -> tuple[torch.Tensor, tuple[int, int]]:
+def window_partition(x: torch.Tensor, window_size: int) -> Tuple[torch.Tensor, Tuple[int, int]]:
     """
     Partition into non-overlapping windows with padding if needed.
     Args:
@@ -914,17 +867,12 @@ def window_partition(
     Hp, Wp = H + pad_h, W + pad_w
 
     x = x.view(B, Hp // window_size, window_size, Wp // window_size, window_size, C)
-    windows = (
-        x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
-    )
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
     return windows, (Hp, Wp)
 
 
 def window_unpartition(
-    windows: torch.Tensor,
-    window_size: int,
-    pad_hw: tuple[int, int],
-    hw: tuple[int, int],
+    windows: torch.Tensor, window_size: int, pad_hw: Tuple[int, int], hw: Tuple[int, int]
 ) -> torch.Tensor:
     """
     Window unpartition into original sequences and removing padding.
@@ -940,9 +888,7 @@ def window_unpartition(
     Hp, Wp = pad_hw
     H, W = hw
     B = windows.shape[0] // (Hp * Wp // window_size // window_size)
-    x = windows.view(
-        B, Hp // window_size, Wp // window_size, window_size, window_size, -1
-    )
+    x = windows.view(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, Hp, Wp, -1)
 
     if Hp > H or Wp > W:
@@ -978,12 +924,8 @@ def get_rel_pos(q_size: int, k_size: int, rel_pos: torch.Tensor) -> torch.Tensor
         rel_pos_resized = rel_pos
 
     # Scale the coords with short length if shapes for q and k are different.
-    q_coords = torch.arange(q_size, device=rel_pos.device)[:, None] * max(
-        k_size / q_size, 1.0
-    )
-    k_coords = torch.arange(k_size, device=rel_pos.device)[None, :] * max(
-        q_size / k_size, 1.0
-    )
+    q_coords = torch.arange(q_size, device=rel_pos.device)[:, None] * max(k_size / q_size, 1.0)
+    k_coords = torch.arange(k_size, device=rel_pos.device)[None, :] * max(q_size / k_size, 1.0)
     relative_coords = (q_coords - k_coords) + (k_size - 1) * max(q_size / k_size, 1.0)
 
     return rel_pos_resized[relative_coords.long()]
@@ -993,8 +935,8 @@ def add_decomposed_rel_pos(
     q: torch.Tensor,
     rel_pos_h: torch.Tensor,
     rel_pos_w: torch.Tensor,
-    q_size: tuple[int, int],
-    k_size: tuple[int, int],
+    q_size: Tuple[int, int],
+    k_size: Tuple[int, int],
 ) -> torch.Tensor:
     """
     Calculate decomposed Relative Positional Embeddings from :paper:`mvitv2`.
@@ -1033,9 +975,9 @@ class PatchEmbed(nn.Module):
 
     def __init__(
         self,
-        kernel_size: tuple[int, int] = (16, 16),
-        stride: tuple[int, int] = (16, 16),
-        padding: tuple[int, int] = (0, 0),
+        kernel_size: Tuple[int, int] = (16, 16),
+        stride: Tuple[int, int] = (16, 16),
+        padding: Tuple[int, int] = (0, 0),
         in_chans: int = 3,
         embed_dim: int = 768,
     ) -> None:
@@ -1069,10 +1011,7 @@ def build_sam_vit_b(checkpoint=None):
         checkpoint=checkpoint,
     )
 
-
-def build_sam_fast_vit_b(
-    checkpoint=None, compile_mode="max-autotune", dtype=torch.bfloat16
-):
+def build_sam_fast_vit_b(checkpoint=None, compile_mode='max-autotune', dtype=torch.bfloat16):
     image_encoder = build_sam_vit_b(checkpoint).eval().to(dtype)
     # sam = _apply_eval_dtype_sam(sam, dtype)
     image_encoder = torch.compile(image_encoder, mode=compile_mode)
@@ -1090,20 +1029,20 @@ def _build_sam(
     image_size = 1024
     vit_patch_size = 16
     image_embedding_size = image_size // vit_patch_size
-    image_encoder = ImageEncoderViT(
-        depth=encoder_depth,
-        embed_dim=encoder_embed_dim,
-        img_size=image_size,
-        mlp_ratio=4,
-        norm_layer=partial(torch.nn.LayerNorm, eps=1e-6),
-        num_heads=encoder_num_heads,
-        patch_size=vit_patch_size,
-        qkv_bias=True,
-        use_rel_pos=True,
-        global_attn_indexes=encoder_global_attn_indexes,
-        window_size=14,
-        out_chans=prompt_embed_dim,
-    )
+    image_encoder=ImageEncoderViT(
+            depth=encoder_depth,
+            embed_dim=encoder_embed_dim,
+            img_size=image_size,
+            mlp_ratio=4,
+            norm_layer=partial(torch.nn.LayerNorm, eps=1e-6),
+            num_heads=encoder_num_heads,
+            patch_size=vit_patch_size,
+            qkv_bias=True,
+            use_rel_pos=True,
+            global_attn_indexes=encoder_global_attn_indexes,
+            window_size=14,
+            out_chans=prompt_embed_dim,
+        )
     image_encoder.eval()
     if checkpoint is not None:
         # with open(checkpoint, "rb") as f:
@@ -1114,9 +1053,6 @@ def _build_sam(
         # ocr-anyting
         # image_encoder.load_state_dict(state_dict, strict=True)
         # tob
-        image_encoder.load_state_dict(
-            {k[30:]: v for k, v in state_dict.items() if "vision_tower_high" in k},
-            strict=True,
-        )
+        image_encoder.load_state_dict({k[30:]: v for k, v in state_dict.items() if 'vision_tower_high' in k}, strict=True)
         print(checkpoint)
     return image_encoder
