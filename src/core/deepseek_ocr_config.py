@@ -53,6 +53,7 @@ class DeepseekV2Config(PretrainedConfig):
         qk_nope_head_dim=0,
         qk_rope_head_dim=0,
         v_head_dim=0,
+        *,
         use_mla=False,
         topk_method="greedy",
         topk_group=1,

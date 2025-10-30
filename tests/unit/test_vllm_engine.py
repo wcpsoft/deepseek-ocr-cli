@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 import pytest
+from PIL import Image
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
@@ -16,9 +17,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
-def test_vllm_engine_initialization():
+def test_vllm_engine_initialization() -> None:
     """测试vLLM引擎初始化"""
-    # 创建真实的配置对象，而不是模拟整个模块
+    # 创建真实的配置对象, 而不是模拟整个模块
     from src.core.config.settings import Config
 
     mock_config = Config()
@@ -34,7 +35,6 @@ def test_vllm_engine_initialization():
             "src.core.process.ngram_norepeat": MagicMock(),
             "src.core.process.image_process": MagicMock(),
             "src.core.multimodal.ocr_engine_interface": MagicMock(),
-            # 添加torch相关模块的模拟，避免版本冲突
             "torch": MagicMock(),
             "torch.nn": MagicMock(),
             "torch.nn.functional": MagicMock(),
@@ -44,7 +44,7 @@ def test_vllm_engine_initialization():
             "transformers.modeling_outputs": MagicMock(),
         },
     ):
-        # 模拟torch._C._has_torch_function，避免docstring冲突
+        # 模拟torch._C._has_torch_function, 避免docstring冲突
         with patch("torch._C._has_torch_function", Mock()):
             # 模拟get_config函数返回真实配置对象
             with patch("src.core.config.get_config", return_value=mock_config):
@@ -53,7 +53,7 @@ def test_vllm_engine_initialization():
                 # 创建vLLM引擎实例
                 engine = VLLMEngine()
 
-                # 手动设置属性，因为__init__被模拟了
+                # 手动设置属性, 因为__init__被模拟了
                 engine.model_path = mock_config.MODEL_PATH
 
                 # 验证初始化
@@ -65,9 +65,9 @@ def test_vllm_engine_initialization():
                 ]
 
 
-def test_vllm_engine_cleanup():
+def test_vllm_engine_cleanup() -> None:
     """测试vLLM引擎清理"""
-    # 创建真实的配置对象，而不是模拟整个模块
+    # 创建真实的配置对象, 而不是模拟整个模块
     from src.core.config.settings import Config
 
     mock_config = Config()
@@ -83,7 +83,7 @@ def test_vllm_engine_cleanup():
             "src.core.process.ngram_norepeat": MagicMock(),
             "src.core.process.image_process": MagicMock(),
             "src.core.multimodal.ocr_engine_interface": MagicMock(),
-            # 添加torch相关模块的模拟，避免版本冲突
+            # 添加torch相关模块的模拟, 避免版本冲突
             "torch": MagicMock(),
             "torch.nn": MagicMock(),
             "torch.nn.functional": MagicMock(),
@@ -93,7 +93,7 @@ def test_vllm_engine_cleanup():
             "transformers.modeling_outputs": MagicMock(),
         },
     ):
-        # 模拟torch._C._has_torch_function，避免docstring冲突
+        # 模拟torch._C._has_torch_function, 避免docstring冲突
         with patch("torch._C._has_torch_function", Mock()):
             # 模拟get_config函数返回真实配置对象
             with patch("src.core.config.get_config", return_value=mock_config):
@@ -102,14 +102,14 @@ def test_vllm_engine_cleanup():
                 # 创建vLLM引擎实例
                 engine = VLLMEngine()
 
-                # 手动设置属性，因为__init__被模拟了
+                # 手动设置属性, 因为__init__被模拟了
                 engine.model_path = mock_config.MODEL_PATH
                 engine.llm = MagicMock()
                 engine.processor = MagicMock()
                 engine.is_initialized = True
 
                 # 模拟cleanup方法
-                def mock_cleanup():
+                def mock_cleanup() -> None:
                     engine.llm = None
                     engine.processor = None
                     engine.is_initialized = False
@@ -124,9 +124,9 @@ def test_vllm_engine_cleanup():
                     assert engine.is_initialized is False
 
 
-def test_vllm_engine_process_without_initialization():
+def test_vllm_engine_process_without_initialization() -> None:
     """测试未初始化的引擎处理图像"""
-    # 创建真实的配置对象，而不是模拟整个模块
+    # 创建真实的配置对象, 而不是模拟整个模块
     from src.core.config.settings import Config
 
     mock_config = Config()
@@ -142,7 +142,7 @@ def test_vllm_engine_process_without_initialization():
             "src.core.process.ngram_norepeat": MagicMock(),
             "src.core.process.image_process": MagicMock(),
             "src.core.multimodal.ocr_engine_interface": MagicMock(),
-            # 添加torch相关模块的模拟，避免版本冲突
+            # 添加torch相关模块的模拟, 避免版本冲突
             "torch": MagicMock(),
             "torch.nn": MagicMock(),
             "torch.nn.functional": MagicMock(),
@@ -152,7 +152,7 @@ def test_vllm_engine_process_without_initialization():
             "transformers.modeling_outputs": MagicMock(),
         },
     ):
-        # 模拟torch._C._has_torch_function，避免docstring冲突
+        # 模拟torch._C._has_torch_function, 避免docstring冲突
         with patch("torch._C._has_torch_function", Mock()):
             # 模拟get_config函数返回真实配置对象
             with patch("src.core.config.get_config", return_value=mock_config):
@@ -161,22 +161,23 @@ def test_vllm_engine_process_without_initialization():
                 # 创建vLLM引擎实例
                 engine = VLLMEngine()
 
-                # 手动设置属性，因为__init__被模拟了
+                # 手动设置属性, 因为__init__被模拟了
                 engine.model_path = mock_config.MODEL_PATH
 
                 # 模拟process_image方法抛出RuntimeError
                 with patch.object(engine, "process_image", side_effect=RuntimeError("模型未初始化")):
                     # 创建测试图像
-                    test_image = np.zeros((100, 100, 3), dtype=np.uint8)
+                    test_image_array = np.zeros((100, 100, 3), dtype=np.uint8)
+                    test_image = Image.fromarray(test_image_array)
 
                     # 验证抛出异常
                     with pytest.raises(RuntimeError, match="模型未初始化"):
-                        engine.process_image(test_image)
+                        engine.process_image(test_image, "测试提示词")
 
 
-def test_vllm_engine_save_results():
+def test_vllm_engine_save_results() -> None:
     """测试vLLM引擎保存结果"""
-    # 创建真实的配置对象，而不是模拟整个模块
+    # 创建真实的配置对象, 而不是模拟整个模块
     from src.core.config.settings import Config
 
     mock_config = Config()
@@ -192,7 +193,7 @@ def test_vllm_engine_save_results():
             "src.core.process.ngram_norepeat": MagicMock(),
             "src.core.process.image_process": MagicMock(),
             "src.core.multimodal.ocr_engine_interface": MagicMock(),
-            # 添加torch相关模块的模拟，避免版本冲突
+            # 添加torch相关模块的模拟, 避免版本冲突
             "torch": MagicMock(),
             "torch.nn": MagicMock(),
             "torch.nn.functional": MagicMock(),
@@ -202,7 +203,7 @@ def test_vllm_engine_save_results():
             "transformers.modeling_outputs": MagicMock(),
         },
     ):
-        # 模拟torch._C._has_torch_function，避免docstring冲突
+        # 模拟torch._C._has_torch_function, 避免docstring冲突
         with patch("torch._C._has_torch_function", Mock()):
             # 模拟get_config函数返回真实配置对象
             with patch("src.core.config.get_config", return_value=mock_config):
@@ -211,7 +212,7 @@ def test_vllm_engine_save_results():
                 # 创建vLLM引擎实例
                 engine = VLLMEngine()
 
-                # 手动设置属性，因为__init__被模拟了
+                # 手动设置属性, 因为__init__被模拟了
                 engine.model_path = mock_config.MODEL_PATH
 
                 # 验证引擎实例存在

@@ -15,7 +15,7 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 
-def test_document_processor_import():
+def test_document_processor_import() -> None:
     """测试文档处理器模块导入"""
     try:
         from src.cli.document_processor import DocumentProcessor
@@ -25,7 +25,7 @@ def test_document_processor_import():
         pytest.fail(f"无法导入DocumentProcessor: {e}")
 
 
-def test_model_manager_import():
+def test_model_manager_import() -> None:
     """测试模型管理器模块导入"""
     try:
         from src.cli.model_manager import ModelManager
@@ -35,7 +35,7 @@ def test_model_manager_import():
         pytest.fail(f"无法导入ModelManager: {e}")
 
 
-def test_main_import():
+def test_main_import() -> None:
     """测试主模块导入"""
     try:
         from src.cli.main import main

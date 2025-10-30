@@ -16,7 +16,7 @@ from src.core.logging import get_logger
 logger = get_logger()
 
 
-class OCRException(Exception):
+class OCRError(Exception):
     """
     OCR处理异常基类
     """
@@ -32,7 +32,7 @@ class OCRException(Exception):
         self.details = details or {}
 
 
-class MemoryException(OCRException):
+class OCRMemoryError(OCRError):
     """
     内存不足异常
     """
@@ -41,7 +41,7 @@ class MemoryException(OCRException):
         super().__init__(message, "MEMORY_ERROR", details)
 
 
-class ModelLoadException(OCRException):
+class ModelLoadError(OCRError):
     """
     模型加载异常
     """
@@ -50,7 +50,7 @@ class ModelLoadException(OCRException):
         super().__init__(message, "MODEL_LOAD_ERROR", details)
 
 
-class ImageProcessException(OCRException):
+class ImageProcessError(OCRError):
     """
     图像处理异常
     """
@@ -91,9 +91,9 @@ class ExceptionHandler:
                     torch.cuda.empty_cache()
 
                 # 抛出内存不足异常
-                raise MemoryException(
+                raise OCRMemoryError(
                     "GPU内存不足，请尝试减小图像尺寸或使用CPU模式",
-                    details={"memory_info": memory_info, "original_error": str(e)},
+                    {"memory_info": memory_info, "original_error": str(e)},
                 ) from e
 
             except MemoryError as e:
@@ -103,9 +103,9 @@ class ExceptionHandler:
                 logger.error(f"内存信息: {memory_info}")
 
                 # 抛出内存不足异常
-                raise MemoryException(
+                raise OCRMemoryError(
                     "系统内存不足，请尝试减小图像尺寸或关闭其他程序",
-                    details={"memory_info": memory_info, "original_error": str(e)},
+                    {"memory_info": memory_info, "original_error": str(e)},
                 ) from e
 
             except Exception as e:
@@ -119,17 +119,17 @@ class ExceptionHandler:
 
                 # 根据异常类型抛出相应的自定义异常
                 if "model" in error_msg.lower() or "load" in error_msg.lower():
-                    raise ModelLoadException(
+                    raise ModelLoadError(
                         f"模型加载失败: {error_msg}",
                         details={"error_type": error_type, "original_error": str(e)},
                     ) from e
                 elif "image" in error_msg.lower() or "process" in error_msg.lower():
-                    raise ImageProcessException(
+                    raise ImageProcessError(
                         f"图像处理失败: {error_msg}",
                         details={"error_type": error_type, "original_error": str(e)},
                     ) from e
                 else:
-                    raise OCRException(
+                    raise OCRError(
                         f"处理失败: {error_msg}",
                         details={"error_type": error_type, "original_error": str(e)},
                     ) from e
@@ -217,39 +217,31 @@ class SafeExecution:
     """
 
     @staticmethod
-    def safe_execute(func: Callable, *args, stop_on_error: bool = True, **kwargs) -> Any:
+    def safe_execute(
+        func: Callable[..., object], *args: object, stop_on_error: bool = True, **kwargs: object
+    ) -> object:
         """
         安全执行函数
 
         Args:
             func: 要执行的函数
-            *args: 函数参数
-            stop_on_error: 是否在遇到错误时停止
-            **kwargs: 函数关键字参数
+            *args: 位置参数
+            stop_on_error: 出错时是否停止
+            **kwargs: 关键字参数
 
         Returns:
             函数执行结果
+
+        Raises:
+            OCRError: 执行失败时抛出
         """
         try:
             return func(*args, **kwargs)
-        except OCRException as e:
-            logger.error(f"OCR处理异常: {e!s}")
-            if e.details:
-                logger.error(f"异常详情: {e.details}")
-
-            if stop_on_error:
-                logger.error("停止处理")
-                raise
-            else:
-                logger.warning("继续处理下一项")
-                return None
         except Exception as e:
-            logger.error(f"未知异常: {e!s}")
-            logger.debug(f"异常堆栈: {traceback.format_exc()}")
+            error_msg = f"函数 {func.__name__} 执行失败: {e!s}"
+            logger.error(error_msg)
+            logger.debug(f"错误详情: {traceback.format_exc()}")
 
             if stop_on_error:
-                logger.error("停止处理")
-                raise OCRException(f"处理失败: {e!s}") from e
-            else:
-                logger.warning("继续处理下一项")
-                return None
+                raise OCRError(error_msg) from e
+            return None

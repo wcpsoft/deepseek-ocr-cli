@@ -92,6 +92,7 @@ class ModelManager:
     def download_models(
         self,
         model_names: list[str] | None = None,
+        *,
         force_redownload: bool = False,
         source: str = "huggingface",
     ):
@@ -108,7 +109,7 @@ class ModelManager:
                     sources = model_info["sources"]
                     if source in sources:
                         repo_id = sources[source]
-                self._download_model(model_name, repo_id, source, force_redownload)
+                self._download_model(model_name, repo_id, source, force_redownload=force_redownload)
             else:
                 # 检查是否是自定义模型
                 if model_name in self.model_configs.get("custom_models", {}):
@@ -119,7 +120,7 @@ class ModelManager:
                     else:
                         repo_id = model_info
                         source = "huggingface"
-                    self._download_model(model_name, repo_id, source, force_redownload)
+                    self._download_model(model_name, repo_id, source, force_redownload=force_redownload)
                 else:
                     logger.error(f"未知模型: {model_name}")
 
@@ -128,6 +129,7 @@ class ModelManager:
         model_name: str,
         repo_id: str,
         source: str = "huggingface",
+        *,
         force_redownload: bool = False,
     ):
         """下载单个模型"""
@@ -354,9 +356,11 @@ class ModelManager:
                         for weight_file in weight_files:
                             if (model_path / weight_file).exists():
                                 model_files.append(model_path / weight_file)
+                            else:
+                                logger.warning(f"模型文件不存在: {weight_file}")
                         return True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"处理模型文件时发生错误: {e}")
         return False
 
     def _check_no_py_files(self, model_path: Path) -> bool:
@@ -388,3 +392,11 @@ class ModelManager:
             logger.info(f"已清理 {len(py_files)} 个Python文件")
 
         return True
+
+
+
+
+
+
+
+

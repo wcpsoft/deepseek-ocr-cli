@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-统一的OCR服务类
-整合所有OCR功能，提供高级API
+OCR服务实现
+提供统一的OCR处理接口
 """
 
 import os
 from typing import Any
 
 from PIL import Image
+from torch import Tensor
 
-from src.core.config import get_config
+from src.core.config.settings import get_config
+
+# 获取日志记录器
 from src.core.logging import get_logger
 from src.core.multimodal.ocr_engine_interface import OCREngineInterface
 from src.core.multimodal.ocr_result_processor import BatchOCRProcessor
@@ -33,7 +36,7 @@ class OCRService:
         """
         self.engine = engine
         config = get_config()
-        self.output_dir = output_dir or config.OUTPUT_DIR
+        self.output_dir = output_dir or config.output_path
         self.batch_processor = None
 
     def initialize(self) -> bool:
@@ -93,6 +96,7 @@ class OCRService:
         images: list[Image.Image | str],
         prompts: list[str] | None = None,
         output_filename: str = "result.mmd",
+        *,
         stop_on_error: bool = True,
     ) -> dict[str, Any]:
         """
@@ -147,6 +151,7 @@ class OCRService:
         self,
         document_path: str,
         output_filename: str = "result.mmd",
+        *,
         stop_on_error: bool = True,
     ) -> dict[str, Any]:
         """
@@ -191,7 +196,7 @@ class OCRService:
             logger.error(f"加载图像失败: {image_path}, 错误: {e!s}")
             raise
 
-    def _convert_document_to_images(self, document_path: str) -> list[Image.Image]:
+    def _convert_document_to_images(self, document_path: str) -> list[Image.Image | str]:
         """
         将文档转换为图像
 
@@ -206,9 +211,13 @@ class OCRService:
         from src.cli.document_processor import DocumentProcessor
 
         processor = DocumentProcessor()
-        return processor.convert_to_images(document_path)
+        images = processor.convert_to_images(document_path)
+        # 转换为Image.Image | str类型以匹配process_images的签名
+        return list(images)
 
-    def _process_batch_with_engine(self, images: list[Image.Image], prompts: list[str], output_filename: str) -> bool:
+    def _process_batch_with_engine(
+        self, images: list[Image.Image | Tensor], prompts: list[str], output_filename: str
+    ) -> bool:
         """
         使用引擎批量处理图像
 
@@ -221,6 +230,10 @@ class OCRService:
             是否成功处理所有图像
         """
         try:
+            # 确保batch_processor已初始化
+            if self.batch_processor is None:
+                raise RuntimeError("批量处理器未初始化")
+
             # 批量处理图像
             results = self.engine.process_batch(images, prompts)
 

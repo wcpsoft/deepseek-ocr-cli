@@ -13,3 +13,20 @@ from .settings import (
     get_config,
     get_tokenizer,
 )
+
+# 为了向后兼容，导出PROMPT
+PROMPT = DEFAULT_OCR_PROMPT
+
+__all__ = [
+    "BASE_SIZE",
+    "CROP_MODE",
+    "IMAGE_SIZE",
+    "MAX_CROPS",
+    "MIN_CROPS",
+    "PRINT_NUM_VIS_TOKENS",
+    "PROMPT",
+    "DEFAULT_OCR_PROMPT",
+    "get_config",
+    "get_prompt",
+    "get_tokenizer",
+]

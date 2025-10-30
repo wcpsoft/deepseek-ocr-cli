@@ -6,6 +6,7 @@ pytest配置文件
 import os
 import sys
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -15,19 +16,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 @pytest.fixture(scope="session")
-def project_root():
+def project_root() -> Path:
     """项目根目录"""
     return Path(__file__).parent.parent
 
 
 @pytest.fixture(scope="session")
-def samples_dir(project_root):
+def samples_dir(project_root: Path) -> Path:
     """示例文件目录"""
     return project_root / "samples"
 
 
 @pytest.fixture(scope="function")
-def temp_dir():
+def temp_dir() -> Generator[Path, None, None]:
     """临时目录"""
     with tempfile.TemporaryDirectory() as tmp_dir:
         yield Path(tmp_dir)

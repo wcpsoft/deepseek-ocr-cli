@@ -309,12 +309,12 @@ if VLLM_AVAILABLE:
             Returns:
                 多模态字段配置映射
             """
-            return dict(
-                pixel_values=MultiModalFieldConfig.batched("image"),
-                images_spatial_crop=MultiModalFieldConfig.batched("image"),
-                # image_embeds=MultiModalFieldConfig.batched("image2"),
-                images_crop=MultiModalFieldConfig.batched("image"),
-            )
+            return {
+                "pixel_values": MultiModalFieldConfig.batched("image"),
+                "images_spatial_crop": MultiModalFieldConfig.batched("image"),
+                # "image_embeds": MultiModalFieldConfig.batched("image2"),
+                "images_crop": MultiModalFieldConfig.batched("image"),
+            }
 
         def _get_prompt_updates(
             self,

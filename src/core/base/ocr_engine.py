@@ -5,6 +5,7 @@ OCR引擎抽象基类
 """
 
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from PIL import Image
 
@@ -14,10 +15,12 @@ class BaseOCREngine(ABC):
 
     def __init__(
         self,
-        model_path: str | None = None,
-        prompt: str | None = None,
+        model_path: Optional[str] = None,
+        prompt: Optional[str] = None,
         base_size: int = 1024,
         image_size: int = 640,
+        device: Optional[str] = None,
+        *,
         crop_mode: bool = True,
     ):
         """
@@ -28,18 +31,24 @@ class BaseOCREngine(ABC):
             prompt: 提示词
             base_size: 基础尺寸
             image_size: 图像尺寸
+            device: 设备类型
             crop_mode: 是否启用裁剪模式
         """
         self.model_path = model_path
         self.prompt = prompt
         self.base_size = base_size
         self.image_size = image_size
+        self.device = device
         self.crop_mode = crop_mode
+        self.is_initialized = False
 
     @abstractmethod
-    def initialize(self) -> None:
+    def initialize(self) -> bool:
         """
         初始化引擎
+
+        Returns:
+            是否初始化成功
         """
 
     @abstractmethod
@@ -57,3 +66,12 @@ class BaseOCREngine(ABC):
         """
         清理资源
         """
+
+    def __enter__(self):
+        """上下文管理器入口"""
+        self.initialize()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """上下文管理器出口"""
+        self.cleanup()

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from src.core.logging import get_logger
-from src.core.utils.exception_handler import OCRException, SafeExecution
+from src.core.utils.exception_handler import OCRError as OCRException, SafeExecution
 
 logger = get_logger()
 
@@ -181,7 +181,7 @@ class BatchOCRProcessor:
     负责批量处理图像，并在遇到错误时停止处理
     """
 
-    def __init__(self, output_dir: str, stop_on_error: bool = True):
+    def __init__(self, output_dir: str, *, stop_on_error: bool = True):
         """
         初始化批量处理器
 

@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # 引入公共函数
 source "$(dirname "$0")/common.sh"
 
@@ -30,10 +28,6 @@ activate_venv
 log_info "检测GPU环境..."
 GPU_TYPE=$(detect_gpu)
 EXTRA_SUFFIX=$(get_extra_suffix)
-
-# 添加调试信息
-echo "DEBUG: GPU_TYPE='$GPU_TYPE'"
-echo "DEBUG: EXTRA_SUFFIX='$EXTRA_SUFFIX'"
 
 log_info "安装开发依赖..."
 # 保持与setup.sh一致的依赖安装逻辑

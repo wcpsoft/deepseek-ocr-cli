@@ -1,22 +1,33 @@
 #!/usr/bin/env python3
 """
-DeepSeek OCR模型Transformers实现
+Transformers OCR模型实现
+
+该模块实现了基于Transformers的OCR模型，支持Apple Silicon(MPS)设备。
 """
+
+import logging
+from typing import Any
+
+from transformers import (
+    CONFIG_MAPPING,
+    AutoConfig,
+    AutoModelForCausalLM,
+)
+
+from src.core.deepseek_ocr_config import (
+    DeepseekV2Config as ConfigDeepseekV2Config,
+)
+from src.core.deepseek_ocr_config import (
+    DeepseekVLV2Config as ConfigDeepseekVLV2Config,
+)
+from src.core.logging import get_logger
+from src.core.models.base_ocr_model import BaseDeepseekOCRForCausalLM
+
+# 获取日志记录器
+logger = get_logger()
 
 # 确保在模块加载时就注册配置类和模型类
 try:
-    from transformers import (
-        CONFIG_MAPPING,
-        AutoConfig,
-    )
-
-    from src.core.deepseek_ocr_config import (
-        DeepseekV2Config as ConfigDeepseekV2Config,
-    )
-    from src.core.deepseek_ocr_config import (
-        DeepseekVLV2Config as ConfigDeepseekVLV2Config,
-    )
-
     # 动态注册配置类（如果尚未注册）
     if "deepseek_vl_v2" not in CONFIG_MAPPING:
         CONFIG_MAPPING._extra_content["deepseek_vl_v2"] = ConfigDeepseekVLV2Config
@@ -25,25 +36,29 @@ try:
 
     # 尝试注册到AutoConfig
     try:
+        # 使用更安全的方式访问_model_mapping
         if not hasattr(AutoConfig, "_model_mapping"):
             AutoConfig._model_mapping = {}
 
-        AutoConfig._model_mapping["deepseek_vl_v2"] = ConfigDeepseekVLV2Config
-        AutoConfig._model_mapping["deepseek_v2"] = ConfigDeepseekV2Config
-    except Exception:
-        pass
-except Exception:
-    pass
+        # 使用getattr来获取属性
+        model_mapping = AutoConfig._model_mapping
+        model_mapping["deepseek_vl_v2"] = ConfigDeepseekVLV2Config
+        model_mapping["deepseek_v2"] = ConfigDeepseekV2Config
 
+        try:
+            # 注册DeepSeekVLV2模型配置
+            try:
+                from deepseek_vl.models.deepseek_vl_v2 import DeepseekVLV2Config
 
-from transformers import AutoConfig
-
-from src.core.deepseek_ocr_config import DeepseekVLV2Config
-from src.core.logging import get_logger
-from src.core.models.base_ocr_model import BaseDeepseekOCRForCausalLM
-
-# 获取日志记录器
-logger = get_logger()
+                model_mapping["deepseek_vl_v2"] = DeepseekVLV2Config
+            except Exception as e:
+                logger.warning(f"注册DeepSeekVLV2模型配置失败: {e}")
+        except Exception as e:
+            logger.warning(f"注册模型配置时发生未知错误: {e}")
+    except Exception as e:
+        logger.warning(f"初始化模型映射时发生错误: {e}")
+except Exception as e:
+    logger.warning(f"配置模型时发生未知错误: {e}")
 
 # 导入modeling_deepseekocr模块中的模型类
 try:
@@ -63,7 +78,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
     DeepSeek OCR因果语言模型Transformers实现
     """
 
-    def __init__(self, config=None):
+    def __init__(self, config: object | None = None) -> None:
         """
         初始化Transformers实现
 
@@ -74,7 +89,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         super().__init__(config)
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path: str, *args: Any, **kwargs: Any) -> "DeepseekOCRForCausalLM":
         """
         从预训练模型加载模型
 
@@ -86,7 +101,6 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         Returns:
             DeepseekOCRForCausalLM实例
         """
-        import logging
 
         logger = logging.getLogger(__name__)
 
@@ -119,8 +133,6 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
 
         # 加载语言模型
         try:
-            from transformers import AutoModelForCausalLM
-
             logger.info("正在加载语言模型")
 
             # 移除auto_map参数，避免循环导入问题
@@ -257,7 +269,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
             self.language_model = self.language_model.eval()
         return self
 
-    def parameters(self, recurse=True):
+    def parameters(self, recurse: bool = True):  # type: ignore
         """
         获取模型参数
 
@@ -272,7 +284,10 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
 
         # 获取语言模型参数
         if hasattr(self, "language_model") and self.language_model is not None:
-            return list(params) + list(self.language_model.parameters(recurse))
+            # 将参数合并为一个迭代器
+            import itertools
+
+            return itertools.chain(params, self.language_model.parameters(recurse))
 
         return params
 
@@ -281,9 +296,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
 def _register_model_classes():
     """延迟注册模型类，避免循环导入问题"""
     try:
-        from transformers import AutoModelForCausalLM
 
-        # 创建DeepseekVLV2ForCausalLM类，它是DeepseekOCRForCausalLM的别名
         class DeepseekVLV2ForCausalLM(DeepseekOCRForCausalLM):
             """
             DeepSeek VLV2因果语言模型

@@ -174,15 +174,15 @@ def mps_safe_model_load(
         logger.info(f"成功在{map_location}设备上加载模型权重")
     except Exception as e:
         logger.error(f"在{map_location}设备上加载模型失败: {e!s}")
-        # 尝试在CPU上加载，然后再移动到目标设备
-        logger.info("尝试在CPU上加载模型权重，然后移动到目标设备")
+        # 尝试在CPU上加载,然后再移动到目标设备
+        logger.info("尝试在CPU上加载模型权重,然后移动到目标设备")
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
         if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
             model.load_state_dict(checkpoint["state_dict"])
         else:
             model.load_state_dict(checkpoint)
 
-        # 对于MPS设备，使用优化函数来安全地移动模型
+        # 对于MPS设备,使用优化函数来安全地移动模型
         if map_location.type == "mps":
             model = optimize_model_for_mps(model)
         else:
@@ -247,9 +247,6 @@ def log_device_info() -> None:
     if torch.cuda.is_available():
         logger.info(f"  CUDA设备数量: {torch.cuda.device_count()}")
         logger.info(f"  当前CUDA设备: {torch.cuda.current_device()}")
-
-    device = get_optimal_device()
-    logger.info(f"  选择的设备: {device}")
 
 
 def clear_mps_cache() -> None:

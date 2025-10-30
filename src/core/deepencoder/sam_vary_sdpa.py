@@ -18,12 +18,9 @@ try:
 except ImportError:
     flash_attn_qkvpacked_func = None
     FLASH_ATTN_AVAILABLE = False
-# from .common import LayerNorm2d, MLPBlock
-
-# from mmgpt.model.vision_encoder.flash_4 import _attention_rel_h_rel_w
 
 
-def get_abs_pos(abs_pos, tgt_size):
+def get_abs_pos(abs_pos: torch.Tensor, tgt_size: int) -> torch.Tensor:
 
     dtype = abs_pos.dtype
 
@@ -62,7 +59,7 @@ class MLPBlock(nn.Module):
 
 
 # From https://github.com/facebookresearch/detectron2/blob/main/detectron2/layers/batch_norm.py
-# Itself from https://github.com/facebookresearch/ConvNeXt/blob/d1fa8f6fef0a165b27399986cc2bdacc92777e40/models/convnext.py#L119  # noqa
+# Itself from https://github.com/facebookresearch/ConvNeXt/blob/d1fa8f6fef0a165b27399986cc2bdacc92777e40/models/convnext.py#L119
 class LayerNorm2d(nn.Module):
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
         super().__init__()
@@ -78,7 +75,7 @@ class LayerNorm2d(nn.Module):
         return x
 
 
-# This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
+# This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py
 class ImageEncoderViT(nn.Module):
     def __init__(
         self,
@@ -90,6 +87,7 @@ class ImageEncoderViT(nn.Module):
         num_heads: int = 12,
         mlp_ratio: float = 4.0,
         out_chans: int = 256,
+        *,
         qkv_bias: bool = True,
         norm_layer: type[nn.Module] = nn.LayerNorm,
         act_layer: type[nn.Module] = nn.GELU,
@@ -194,6 +192,7 @@ class Block(nn.Module):
         dim: int,
         num_heads: int,
         mlp_ratio: float = 4.0,
+        *,
         qkv_bias: bool = True,
         norm_layer: type[nn.Module] = nn.LayerNorm,
         act_layer: type[nn.Module] = nn.GELU,
@@ -237,14 +236,16 @@ class Block(nn.Module):
         shortcut = x
         x = self.norm1(x)
         # Window partition
+        pad_hw = (0, 0)  # 初始化pad_hw变量
+        h, w = x.shape[1], x.shape[2]  # 初始化h, w变量
         if self.window_size > 0:
-            H, W = x.shape[1], x.shape[2]
+            h, w = x.shape[1], x.shape[2]
             x, pad_hw = window_partition(x, self.window_size)
 
         x = self.attn(x)
         # Reverse window partition
         if self.window_size > 0:
-            x = window_unpartition(x, self.window_size, pad_hw, (H, W))
+            x = window_unpartition(x, self.window_size, pad_hw, (h, w))
 
         x = shortcut + x
         x = x + self.mlp(self.norm2(x))
@@ -259,6 +260,7 @@ class Attention(nn.Module):
         self,
         dim: int,
         num_heads: int = 8,
+        *,
         qkv_bias: bool = True,
         use_rel_pos: bool = False,
         rel_pos_zero_init: bool = True,
@@ -290,33 +292,35 @@ class Attention(nn.Module):
             self.rel_pos_w = nn.Parameter(torch.zeros(2 * input_size[1] - 1, head_dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, H, W, _ = x.shape
+        b, h, w, _ = x.shape
         # qkv with shape (3, B, nHead, H * W, C)
-        qkv = self.qkv(x).reshape(B, H * W, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
+        qkv = self.qkv(x).reshape(b, h * w, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         # q, k, v with shape (B * nHead, H * W, C)
-        q, k, v = qkv.reshape(3, B * self.num_heads, H * W, -1).unbind(0)
+        q, k, v = qkv.reshape(3, b * self.num_heads, h * w, -1).unbind(0)
 
         rel_h, rel_w = None, None
         if self.use_rel_pos:
-            rel_h, rel_w = add_decomposed_rel_pos(q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W))
+            rel_h, rel_w = add_decomposed_rel_pos(q, self.rel_pos_h, self.rel_pos_w, (h, w), (h, w))
 
-        q = q.view(B, self.num_heads, H * W, -1)
-        k = k.view(B, self.num_heads, H * W, -1)
-        v = v.view(B, self.num_heads, H * W, -1)
+        q = q.view(b, self.num_heads, h * w, -1)
+        k = k.view(b, self.num_heads, h * w, -1)
+        v = v.view(b, self.num_heads, h * w, -1)
 
         if self.use_rel_pos:
-            rel_h = rel_h.view(B, self.num_heads, rel_h.size(1), rel_h.size(2), rel_h.size(3))
-            rel_w = rel_w.view(B, self.num_heads, rel_w.size(1), rel_w.size(2), rel_w.size(3))
-            attn_bias = (rel_h + rel_w).view(B, self.num_heads, rel_h.size(2), rel_h.size(3) * rel_w.size(4))
-            x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
-            # x = _attention_rel_h_rel_w(q, k, v, rel_h, rel_w)
+            if rel_h is not None and rel_w is not None:
+                rel_h = rel_h.view(b, self.num_heads, rel_h.size(1), rel_h.size(2), rel_h.size(3))
+                rel_w = rel_w.view(b, self.num_heads, rel_w.size(1), rel_w.size(2), rel_w.size(3))
+                attn_bias = (rel_h + rel_w).view(b, self.num_heads, rel_h.size(2), rel_h.size(3) * rel_w.size(4))
+                x = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=attn_bias)
+            else:
+                x = torch.nn.functional.scaled_dot_product_attention(q, k, v)
         else:
             x = torch.nn.functional.scaled_dot_product_attention(q, k, v)
-            # qkv = torch.stack([q, k, v], dim=1).transpose(1, 3).reshape(B, H * W, 3, self.num_heads, -1)
+            # qkv = torch.stack([q, k, v], dim=1).transpose(1, 3).reshape(b, h * w, 3, self.num_heads, -1)
             # if FLASH_ATTN_AVAILABLE:
             #     x = flash_attn_qkvpacked_func(qkv, dropout_p=0.0, causal=False).transpose(1, 2)
 
-        x = x.view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
+        x = x.view(b, self.num_heads, h, w, -1).permute(0, 2, 3, 1, 4).reshape(b, h, w, -1)
 
         x = self.proj(x)
 
@@ -334,17 +338,17 @@ def window_partition(x: torch.Tensor, window_size: int) -> tuple[torch.Tensor, t
         windows: windows after partition with [B * num_windows, window_size, window_size, C].
         (Hp, Wp): padded height and width before partition
     """
-    B, H, W, C = x.shape
+    b, h, w, c = x.shape
 
-    pad_h = (window_size - H % window_size) % window_size
-    pad_w = (window_size - W % window_size) % window_size
+    pad_h = (window_size - h % window_size) % window_size
+    pad_w = (window_size - w % window_size) % window_size
     if pad_h > 0 or pad_w > 0:
         x = F.pad(x, (0, 0, 0, pad_w, 0, pad_h))
-    Hp, Wp = H + pad_h, W + pad_w
+    hp, wp = h + pad_h, w + pad_w
 
-    x = x.view(B, Hp // window_size, window_size, Wp // window_size, window_size, C)
-    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
-    return windows, (Hp, Wp)
+    x = x.view(b, hp // window_size, window_size, wp // window_size, window_size, c)
+    windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, c)
+    return windows, (hp, wp)
 
 
 def window_unpartition(
@@ -364,14 +368,14 @@ def window_unpartition(
     Returns:
         x: unpartitioned sequences with [B, H, W, C].
     """
-    Hp, Wp = pad_hw
-    H, W = hw
-    B = windows.shape[0] // (Hp * Wp // window_size // window_size)
-    x = windows.view(B, Hp // window_size, Wp // window_size, window_size, window_size, -1)
-    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, Hp, Wp, -1)
+    hp, wp = pad_hw
+    h, w = hw
+    b = windows.shape[0] // (hp * wp // window_size // window_size)
+    x = windows.view(b, hp // window_size, wp // window_size, window_size, window_size, -1)
+    x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(b, hp, wp, -1)
 
-    if Hp > H or Wp > W:
-        x = x[:, :H, :W, :].contiguous()
+    if hp > h or wp > w:
+        x = x[:, :h, :w, :].contiguous()
     return x
 
 
@@ -416,7 +420,7 @@ def add_decomposed_rel_pos(
     rel_pos_w: torch.Tensor,
     q_size: tuple[int, int],
     k_size: tuple[int, int],
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Calculate decomposed Relative Positional Embeddings from :paper:`mvitv2`.
     https://github.com/facebookresearch/mvit/blob/19786631e330df9f3622e5402b4a419a263a2c80/mvit/models/attention.py
@@ -432,17 +436,13 @@ def add_decomposed_rel_pos(
     """
     q_h, q_w = q_size
     k_h, k_w = k_size
-    Rh = get_rel_pos(q_h, k_h, rel_pos_h)
-    Rw = get_rel_pos(q_w, k_w, rel_pos_w)
+    rh = get_rel_pos(q_h, k_h, rel_pos_h)
+    rw = get_rel_pos(q_w, k_w, rel_pos_w)
 
-    B, _, dim = q.shape
-    r_q = q.reshape(B, q_h, q_w, dim)
-    rel_h = torch.einsum("bhwc,hkc->bhwk", r_q, Rh)
-    rel_w = torch.einsum("bhwc,wkc->bhwk", r_q, Rw)
-    rel_h = rel_h.unsqueeze(-1)
-    rel_w = rel_w.unsqueeze(-2)
-    rel_h = rel_h.reshape(B, q_h * q_w, k_h, 1)
-    rel_w = rel_w.reshape(B, q_h * q_w, 1, k_w)
+    b, _, dim = q.shape
+    r_q = q.reshape(b, q_h, q_w, dim)
+    rel_h = torch.einsum("bhwc,hkc->bhwk", r_q, rh)
+    rel_w = torch.einsum("bhwc,wkc->bhwk", r_q, rw)
 
     return rel_h, rel_w
 

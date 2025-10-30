@@ -33,7 +33,7 @@ local_model_path = "./models/deepseek-ocr"
 if os.path.exists(local_model_path):
     MODEL_PATH = local_model_path
 else:
-    MODEL_PATH = "deepseek-ai/DeepSeek-OCR"  # change to your model path
+    MODEL_PATH = "./models/deepseek-ocr"  # change to your model path
 
 # TODO: change INPUT_PATH
 # .pdf: run_dpsk_ocr_pdf.py;

@@ -169,10 +169,9 @@ install_quality_tools() {
 run_format() {
     log_info "运行代码格式化..."
     
-    # 检查目录是否存在
+    # 检查目录是否存在（排除template目录）
     SRC_DIRS=""
     [ -d "src" ] && SRC_DIRS="$SRC_DIRS src/"
-    [ -d "cli" ] && SRC_DIRS="$SRC_DIRS cli/"
     [ -d "tests" ] && SRC_DIRS="$SRC_DIRS tests/"
     [ -d "dev" ] && SRC_DIRS="$SRC_DIRS dev/"
     
@@ -180,7 +179,7 @@ run_format() {
     # 1. isort（导入排序）
     log_info "运行isort进行导入排序..."
     if [ -n "$SRC_DIRS" ]; then
-        python -m isort $SRC_DIRS
+        python -m isort $SRC_DIRS --skip template/
     else
         log_warn "未找到源代码目录"
     fi
@@ -188,7 +187,7 @@ run_format() {
     # 2. black（代码格式化）
     log_info "运行black进行代码格式化..."
     if [ -n "$SRC_DIRS" ]; then
-        python -m black $SRC_DIRS
+        python -m black $SRC_DIRS --exclude template/
     else
         log_warn "未找到源代码目录"
     fi
@@ -196,7 +195,7 @@ run_format() {
     # 3. ruff（代码检查和修复）
     log_info "运行ruff进行代码检查..."
     if [ -n "$SRC_DIRS" ]; then
-        python -m ruff check $SRC_DIRS --fix
+        python -m ruff check $SRC_DIRS --exclude template/
     else
         log_warn "未找到源代码目录"
     fi
@@ -208,10 +207,9 @@ run_format() {
 run_quality_check() {
     log_info "运行代码质量检查..."
     
-    # 检查目录是否存在
+    # 检查目录是否存在（排除template目录）
     SRC_DIRS=""
     [ -d "src" ] && SRC_DIRS="$SRC_DIRS src/"
-    [ -d "cli" ] && SRC_DIRS="$SRC_DIRS cli/"
     [ -d "tests" ] && SRC_DIRS="$SRC_DIRS tests/"
     [ -d "dev" ] && SRC_DIRS="$SRC_DIRS dev/"
     
@@ -223,34 +221,33 @@ run_quality_check() {
     # 按照最佳实践顺序执行检查工具
     # 1. isort检查（不修改文件）
     log_info "运行isort进行导入排序检查..."
-    if ! python -m isort --check-only $SRC_DIRS; then
+    if ! python -m isort --check-only $SRC_DIRS --skip template/; then
         log_error "isort检查失败，请运行格式化脚本修复问题"
         return 1
     fi
     
     # 2. black检查（不修改文件）
     log_info "运行black进行代码格式检查..."
-    if ! python -m black --check $SRC_DIRS; then
+    if ! python -m black --check $SRC_DIRS --exclude template/; then
         log_error "black检查失败，请运行格式化脚本修复问题"
         return 1
     fi
     
     # 3. ruff检查
     log_info "运行ruff进行代码质量检查..."
-    if ! python -m ruff check $SRC_DIRS; then
+    if ! python -m ruff check $SRC_DIRS --exclude template/; then
         log_error "ruff检查失败，请修复代码质量问题"
         return 1
     fi
     
-    # 4. mypy类型检查（只检查存在的目录）
+    # 4. mypy类型检查（只检查存在的目录，排除template目录）
     MY_PY_DIRS=""
     [ -d "src" ] && MY_PY_DIRS="$MY_PY_DIRS src/"
-    [ -d "cli" ] && MY_PY_DIRS="$MY_PY_DIRS cli/"
     [ -d "dev" ] && MY_PY_DIRS="$MY_PY_DIRS dev/"
     
     if [ -n "$MY_PY_DIRS" ]; then
         log_info "运行mypy进行类型检查..."
-        if ! python -m mypy $MY_PY_DIRS; then
+        if ! python -m mypy $MY_PY_DIRS --exclude template/; then
             log_error "mypy类型检查失败，请修复类型问题"
             return 1
         fi

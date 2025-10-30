@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-模型下载过滤配置测试
-验证模型下载时的文件过滤配置是否正确
+模型下载过滤器单元测试
 """
 
 import os
 import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,47 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 
-def test_model_download_filter_configuration():
+class TestModelDownloadFilter(unittest.TestCase):
+    """模型下载过滤器测试类"""
+
+    def test_model_manager_initialization(self) -> None:
+        """测试模型管理器初始化"""
+        try:
+            from src.cli.model_manager import ModelManager
+
+            # 使用临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                manager = ModelManager(str(temp_path))
+                # 使用Path.resolve()来处理符号链接
+                expected_path = temp_path.resolve()
+                assert manager.model_dir == expected_path
+        except ImportError as e:
+            self.skipTest(f"跳过测试,依赖未安装: {e}")
+
+    def test_model_manager_model_dir_setter(self) -> None:
+        """测试模型目录设置功能"""
+        try:
+            from src.cli.model_manager import ModelManager
+
+            # 使用临时目录
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                manager = ModelManager(str(temp_path))
+
+                # 测试模型目录设置
+                with tempfile.TemporaryDirectory() as new_temp_dir:
+                    new_temp_path = Path(new_temp_dir)
+                    manager.set_model_dir(str(new_temp_path))
+                    # 使用Path.resolve()来处理符号链接
+                    expected_path = str(new_temp_path.resolve())
+                    actual_path = manager.get_model_dir()
+                    assert actual_path == expected_path
+        except ImportError as e:
+            self.skipTest(f"跳过测试,依赖未安装: {e}")
+
+
+def test_model_download_filter_configuration() -> None:
     """测试模型下载过滤配置"""
     try:
         from src.cli.model_manager import MODEL_DOWNLOAD_PATTERNS
@@ -29,7 +70,7 @@ def test_model_download_filter_configuration():
         pytest.fail("无法导入模型管理器")
 
 
-def test_huggingface_download_patterns():
+def test_huggingface_download_patterns() -> None:
     """测试Hugging Face下载模式配置"""
     try:
         from src.cli.model_manager import MODEL_DOWNLOAD_PATTERNS
@@ -42,17 +83,22 @@ def test_huggingface_download_patterns():
         pytest.fail("无法导入模型管理器")
 
 
-def test_model_verification_logic():
+def test_model_verification_logic() -> None:
     """测试模型验证逻辑"""
     try:
         from src.cli.model_manager import ModelManager
 
-        manager = ModelManager("/tmp/test_models")
-        # 测试模型目录设置
-        manager.set_model_dir("/tmp/new_models")
-        # 使用Path.resolve()来处理符号链接
-        expected_path = str(Path("/tmp/new_models").resolve())
-        actual_path = manager.get_model_dir()
-        assert actual_path == expected_path
+        # 使用临时目录
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            manager = ModelManager(str(temp_path))
+            # 测试模型目录设置
+            with tempfile.TemporaryDirectory() as new_temp_dir:
+                new_temp_path = Path(new_temp_dir)
+                manager.set_model_dir(str(new_temp_path))
+                # 使用Path.resolve()来处理符号链接
+                expected_path = str(new_temp_path.resolve())
+                actual_path = manager.get_model_dir()
+                assert actual_path == expected_path
     except ImportError:
         pytest.fail("无法导入模型管理器")

@@ -55,6 +55,7 @@ class ImageHandler:
         self,
         image: Image.Image | torch.Tensor,
         prompt: str = "",
+        *,
         crop_mode: bool = True,
     ) -> Any:
         """
@@ -81,8 +82,8 @@ class ImageHandler:
             if not prompt:
                 prompt = f"{self.processor.image_token}"
 
+            # 直接调用processor的tokenize_with_images方法，传入正确的参数
             processed_data = self.processor.tokenize_with_images(
-                conversation=prompt,
                 images=[image],
                 bos=True,
                 eos=True,

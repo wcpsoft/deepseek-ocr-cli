@@ -15,14 +15,14 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 
-def test_cuda_warnings_suppression():
+def test_cuda_warnings_suppression() -> None:
     """测试CUDA警告抑制功能"""
     # 保存原始环境变量
-    original_cuda_module_loading = os.environ.get("CUDA_MODULE_LOADING", "")
+    original_cuda_module_loading: str = os.environ.get("CUDA_MODULE_LOADING", "")
 
     try:
         # 验证环境变量是否正确设置
-        # 注意：在实际代码中，这个环境变量应该在导入相关模块时被设置
+        # 注意:在实际代码中,这个环境变量应该在导入相关模块时被设置
         # 这里我们只是测试环境变量的设置逻辑
         os.environ["CUDA_MODULE_LOADING"] = "LAZY"
         assert os.environ.get("CUDA_MODULE_LOADING") == "LAZY"
@@ -34,10 +34,10 @@ def test_cuda_warnings_suppression():
             del os.environ["CUDA_MODULE_LOADING"]
 
 
-def test_environment_variables():
+def test_environment_variables() -> None:
     """测试环境变量设置"""
     # 保存原始环境变量
-    original_vars = {
+    original_vars: dict[str, str] = {
         "CUDA_MODULE_LOADING": os.environ.get("CUDA_MODULE_LOADING", ""),
     }
 
@@ -60,7 +60,7 @@ def test_environment_variables():
                 del os.environ[key]
 
 
-def test_new_cli_command():
+def test_new_cli_command() -> None:
     """测试新的CLI命令"""
     try:
         # 测试导入dev.debug模块

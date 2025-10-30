@@ -25,7 +25,7 @@ class ModelInitializer:
 
     @staticmethod
     def initialize_transformers_model_and_tokenizer(
-        model_path: str, trust_remote_code: bool = True
+        model_path: str, *, trust_remote_code: bool = True
     ) -> tuple[object, object]:
         """
         初始化Transformers模型和分词器
@@ -35,7 +35,7 @@ class ModelInitializer:
             trust_remote_code: 是否信任远程代码
 
         Returns:
-            (模型, 分词器) 元组
+            模型和分词器元组
         """
         try:
             # 加载tokenizer
@@ -45,9 +45,7 @@ class ModelInitializer:
             # 检查是否是本地路径，如果是则只使用本地文件
             # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
             is_remote_repo = (
-                model_path.startswith(("http://", "https://"))
-                or model_path.startswith("deepseek-ai/")
-                or model_path.startswith("huggingface.co/")
+                model_path.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
                 or "/" not in model_path  # 单个名称可能是远程仓库名
                 or (not os.path.exists(model_path) and not os.path.exists(os.path.expanduser(model_path)))
             )
@@ -73,9 +71,7 @@ class ModelInitializer:
             # 检查是否是本地路径，如果是则只使用本地文件
             # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
             is_remote_repo = (
-                model_path.startswith(("http://", "https://"))
-                or model_path.startswith("deepseek-ai/")
-                or model_path.startswith("huggingface.co/")
+                model_path.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
                 or "/" not in model_path  # 单个名称可能是远程仓库名
                 or (not os.path.exists(model_path) and not os.path.exists(os.path.expanduser(model_path)))
             )
@@ -149,13 +145,14 @@ class ModelInitializer:
             raise RuntimeError(f"初始化Transformers模型和分词器失败: {e!s}") from e
 
     @staticmethod
-    def initialize_vllm_model(model_path: str, prompt: str | None = None, trust_remote_code: bool = True) -> object:
+    def initialize_vllm_model(model_path: str, prompt: str | None = None, *, trust_remote_code: bool = True) -> object:
         """
         初始化vLLM模型
 
         Args:
             model_path: 模型路径
             prompt: 提示词
+            trust_remote_code: 是否信任远程代码
 
         Returns:
             vLLM模型实例
@@ -164,9 +161,7 @@ class ModelInitializer:
             # 检查是否是本地路径，如果是则只使用本地文件
             # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
             is_remote_repo = (
-                model_path.startswith(("http://", "https://"))
-                or model_path.startswith("deepseek-ai/")
-                or model_path.startswith("huggingface.co/")
+                model_path.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
                 or "/" not in model_path  # 单个名称可能是远程仓库名
                 or (not os.path.exists(model_path) and not os.path.exists(os.path.expanduser(model_path)))
             )
@@ -194,11 +189,12 @@ class ModelInitializer:
 
             # vLLM相关导入（延迟导入，避免在不支持的平台上报错）
             try:
-                from transformers import AutoConfig, AutoModelForCausalLM
                 from vllm import LLM
+
+                vllm_class = LLM
             except ImportError:
                 # 在不支持vLLM的平台上设置占位符
-                LLM = object
+                vllm_class = object
                 raise RuntimeError("vLLM未安装或不支持当前平台") from None
 
             # 注册自定义模型类
@@ -236,7 +232,7 @@ class ModelInitializer:
             }
 
             # 初始化vLLM模型
-            llm = LLM(**vllm_kwargs)
+            llm = vllm_class(**vllm_kwargs)
 
             return llm
         except Exception as e:

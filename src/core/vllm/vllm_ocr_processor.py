@@ -81,13 +81,13 @@ except ImportError:
     def flatten_bn(x):
         return x
 
-    def init_vllm_registered_model(*args, **kwargs):
+    def init_vllm_registered_model(*args: object, **kwargs: object) -> None:
         return None
 
-    def maybe_prefix(prefix, name):
+    def maybe_prefix(prefix: str, name: str) -> str:
         return name
 
-    def merge_multimodal_embeddings(*args, **kwargs):
+    def merge_multimodal_embeddings(*args: object, **kwargs: object) -> None:
         return None
 
     VLLM_AVAILABLE = False

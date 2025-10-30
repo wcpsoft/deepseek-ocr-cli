@@ -5,6 +5,7 @@ Transformers引擎实现
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import torch
 from PIL import Image
@@ -28,10 +29,12 @@ class TransformersEngine(BaseOCREngine):
 
     def __init__(
         self,
-        model_path: str | None = None,
-        prompt: str | None = None,
+        model_path: Optional[str] = None,
+        prompt: Optional[str] = None,
         base_size: int = 1024,
         image_size: int = 640,
+        device: Optional[str] = None,
+        *,
         crop_mode: bool = True,
     ):
         """
@@ -42,15 +45,15 @@ class TransformersEngine(BaseOCREngine):
             prompt: 提示词
             base_size: 基础尺寸
             image_size: 图像尺寸
+            device: 设备类型
             crop_mode: 是否启用裁剪模式
         """
-        super().__init__(model_path, prompt, base_size, image_size, crop_mode)
+        super().__init__(model_path, prompt, base_size, image_size, device, crop_mode=crop_mode)
         self.model_manager = ModelManager(model_path or MODEL_PATH)
         self.image_handler = None
-        self.device = None
 
     @debug_wrapper
-    def initialize(self) -> None:
+    def initialize(self) -> bool:
         """初始化Transformers引擎"""
         debug_trace()
         try:
@@ -70,15 +73,128 @@ class TransformersEngine(BaseOCREngine):
             if self.tokenizer:
                 self.image_handler = ImageHandler(self.tokenizer)
 
+            self.is_initialized = True
+
             # 添加调试信息
             logger.debug(f"模型初始化完成，设备: {self.device}, 模型类型: {type(self.model)}")
             debug_trace()
+            return True
         except Exception as e:
             logger.error(f"Transformers引擎初始化失败: {e!s}")
             import traceback
 
             logger.error(f"错误堆栈: {traceback.format_exc()}")
-            raise RuntimeError(f"Transformers引擎初始化失败: {e!s}") from e
+            return False
+
+    def process_image(self, image: Image.Image, prompt: Optional[str] = None) -> str:
+        """
+        处理单张图像并返回OCR结果
+
+        Args:
+            image: PIL图像对象
+            prompt: 提示词
+
+        Returns:
+            OCR识别结果
+        """
+        debug_trace()
+        logger.debug(f"开始process_image方法，图像尺寸: {image.size}")
+        if not self.is_initialized:
+            logger.debug("模型未初始化，开始初始化")
+            if not self.initialize():
+                raise RuntimeError("Transformers引擎初始化失败")
+            logger.debug("初始化完成")
+
+        # 确保image_handler已初始化
+        if self.image_handler is None:
+            raise RuntimeError("图像处理器未初始化")
+
+        # 确保设备已设置
+        device = self.device or get_optimal_device()
+
+        try:
+            # 使用图像处理器处理图像和提示词
+            prompt_text = prompt or self.prompt or DEFAULT_OCR_PROMPT
+            logger.info(f"开始OCR识别，提示词: {prompt_text}")
+
+            # 处理图像和提示词
+            processed_data = self.image_handler.process_image(image, prompt_text, crop_mode=self.crop_mode)
+            logger.debug("图像处理完成")
+
+            # 提取处理后的数据
+            if (
+                processed_data is None
+                or len(processed_data) == 0
+                or processed_data[0] is None
+                or len(processed_data[0]) < 7
+            ):
+                raise ValueError("图像处理失败，未生成有效的输入数据")
+
+            # 提取张量并移到设备
+            (
+                input_ids,
+                pixel_values,
+                images_crop,
+                images_seq_mask,
+                images_spatial_crop,
+                _num_image_tokens,  # 未使用的变量，添加下划线前缀
+                _image_shapes,  # 未使用的变量，添加下划线前缀
+            ) = self.image_handler.extract_tensors(processed_data, device)
+
+            # 构造注意力掩码
+            attention_mask = torch.ones_like(input_ids)
+
+            # 使用模型的生成功能
+            with torch.no_grad():
+                # 获取生成配置参数
+                generation_config = GenerationConfigManager.get_generation_config(self.model)
+
+                # 确保模型有generate方法
+                if not hasattr(self.model, "generate"):
+                    logger.error("模型没有generate方法，无法进行生成")
+                    raise RuntimeError("模型没有generate方法，无法进行生成")
+
+                # 生成结果 - 使用正确的参数格式
+                logger.debug("开始模型生成")
+                outputs = self.model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=generation_config.get("max_new_tokens", 8192),
+                    do_sample=generation_config.get("do_sample", False),
+                    pad_token_id=(self.tokenizer.eos_token_id if self.tokenizer is not None else 0),
+                    # 传递图像特征给模型 - 使用正确的格式
+                    images=[(images_crop, pixel_values)],
+                    images_seq_mask=images_seq_mask.unsqueeze(0),
+                    images_spatial_crop=images_spatial_crop,
+                )
+                logger.debug("模型生成完成")
+
+                # 解码输出
+                logger.debug("开始解码输出")
+                if self.tokenizer is not None:
+                    # 获取原始输入长度
+                    input_length = input_ids.shape[1]
+
+                    # 只取生成的部分
+                    if outputs.shape[1] > input_length:
+                        new_tokens = outputs[0, input_length:]
+                    else:
+                        new_tokens = outputs[0]
+
+                    # 解码新生成的token
+                    result = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
+                    logger.debug(f"解码完成，结果长度: {len(result)}")
+                    logger.debug(f"解码结果: {result}")
+                    return result.strip()
+                else:
+                    raise RuntimeError("解码失败：缺少tokenizer")
+
+        except Exception as e:
+            logger.error(f"图像处理失败: {e!s}")
+            import traceback
+
+            logger.error(f"错误堆栈: {traceback.format_exc()}")
+            raise RuntimeError(f"图像处理失败: {e!s}") from e
 
     @debug_wrapper
     def process(self, images: list[Image.Image], output_dir: str) -> None:  # noqa: C901
@@ -91,9 +207,10 @@ class TransformersEngine(BaseOCREngine):
         """
         debug_trace()
         logger.debug(f"开始process方法，图像数量: {len(images) if images else 0}, 输出目录: {output_dir}")
-        if self.model is None or self.tokenizer is None or self.image_handler is None:
-            logger.debug("模型或tokenizer未初始化，开始初始化")
-            self.initialize()
+        if not self.is_initialized:
+            logger.debug("模型未初始化，开始初始化")
+            if not self.initialize():
+                raise RuntimeError("Transformers引擎初始化失败")
             logger.debug("初始化完成")
 
         # 确保image_handler已初始化
@@ -131,81 +248,10 @@ class TransformersEngine(BaseOCREngine):
                 logger.info(f"临时图像已保存: {temp_image_path}")
 
                 try:
-                    # 使用原始模型的生成功能处理图像
-                    prompt = self.prompt or DEFAULT_OCR_PROMPT
-                    logger.info(f"开始OCR识别第 {i+1} 张图像")
-
-                    # 处理图像和提示词
-                    processed_data = self.image_handler.process_image(image, prompt, self.crop_mode)
-                    logger.debug("图像处理完成")
-
-                    # 提取处理后的数据
-                    if (
-                        processed_data is None
-                        or len(processed_data) == 0
-                        or processed_data[0] is None
-                        or len(processed_data[0]) < 7
-                    ):
-                        raise ValueError("图像处理失败，未生成有效的输入数据")
-
-                    # 提取张量并移到设备
-                    (
-                        input_ids,
-                        pixel_values,
-                        images_crop,
-                        images_seq_mask,
-                        images_spatial_crop,
-                        num_image_tokens,
-                        image_shapes,
-                    ) = self.image_handler.extract_tensors(processed_data, device)
-
-                    # 构造注意力掩码
-                    attention_mask = torch.ones_like(input_ids)
-
-                    # 使用模型的生成功能
-                    with torch.no_grad():
-                        # 获取生成配置参数
-                        generation_config = GenerationConfigManager.get_generation_config(self.model)
-
-                        # 确保模型有generate方法
-                        if not hasattr(self.model, "generate"):
-                            logger.error("模型没有generate方法，无法进行生成")
-                            raise RuntimeError("模型没有generate方法，无法进行生成")
-
-                        # 生成结果 - 使用正确的参数格式
-                        logger.debug("开始模型生成")
-                        outputs = self.model.generate(
-                            input_ids=input_ids,
-                            attention_mask=attention_mask,
-                            max_new_tokens=generation_config.get("max_new_tokens", 8192),
-                            do_sample=generation_config.get("do_sample", False),
-                            pad_token_id=(self.tokenizer.eos_token_id if self.tokenizer is not None else 0),
-                            # 传递图像特征给模型 - 使用正确的格式
-                            images=[(images_crop, pixel_values)],
-                            images_seq_mask=images_seq_mask.unsqueeze(0),
-                            images_spatial_crop=images_spatial_crop,
-                        )
-                        logger.debug("模型生成完成")
-
-                        # 解码输出
-                        logger.debug("开始解码输出")
-                        if self.tokenizer is not None:
-                            # 获取原始输入长度
-                            input_length = input_ids.shape[1]
-
-                            # 只取生成的部分
-                            if outputs.shape[1] > input_length:
-                                new_tokens = outputs[0, input_length:]
-                            else:
-                                new_tokens = outputs[0]
-
-                            # 解码新生成的token
-                            result = self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-                            logger.debug(f"解码完成，结果长度: {len(result)}")
-                        else:
-                            raise RuntimeError("解码失败：缺少tokenizer")
-
+                    # 使用process_image方法处理图像
+                    result = self.process_image(image, self.prompt)
                     logger.info(f"第 {i+1} 张图像OCR识别完成")
+
                     # 检查结果是否有效
                     if result and isinstance(result, str) and len(result.strip()) > 0:
                         # 添加结果和元数据
@@ -255,3 +301,6 @@ class TransformersEngine(BaseOCREngine):
     def cleanup(self) -> None:
         """清理资源"""
         # Transformers引擎不需要特殊清理
+        self.is_initialized = False
+
+

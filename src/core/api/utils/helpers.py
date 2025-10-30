@@ -11,7 +11,7 @@ def generate_job_id() -> str:
     return uuid.uuid4().hex[:8]
 
 
-def create_job_directories(project_root: Path, job_id: str, is_web_api: bool = True) -> tuple[Path, Path]:
+def create_job_directories(project_root: Path, job_id: str, *, is_web_api: bool = True) -> tuple[Path, Path]:
     """创建任务目录"""
     if is_web_api:
         uploads_dir = project_root / "server" / "uploads" / job_id

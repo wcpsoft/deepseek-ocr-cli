@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-def test_mps_detection():
+def test_mps_detection() -> None:
     """
     测试MPS设备检测功能
     """
@@ -31,7 +31,7 @@ def test_mps_detection():
 
         # 检查MPS设备可用性
         mps_available = is_mps_device()
-        logger.info(f"MPS设备可用性检测结果: {mps_available}")
+        logger.info("MPS设备可用性检测结果: %s", mps_available)
 
         # 验证检测结果
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -44,11 +44,11 @@ def test_mps_detection():
         logger.info("MPS设备检测功能测试完成")
 
     except Exception as e:
-        logger.error(f"测试MPS设备检测时发生错误: {e!s}")
+        logger.error("测试MPS设备检测时发生错误: %s", e)
         raise
 
 
-def test_tensor_optimization():
+def test_tensor_optimization() -> None:
     """
     测试张量优化
     """
@@ -61,7 +61,7 @@ def test_tensor_optimization():
 
         # 检查MPS设备可用性
         mps_available = is_mps_device()
-        logger.info(f"MPS设备可用性: {mps_available}")
+        logger.info("MPS设备可用性: %s", mps_available)
 
         # 测试不同设备的数据类型选择
         if torch.cuda.is_available():
@@ -76,53 +76,59 @@ def test_tensor_optimization():
 
         # 验证设备选择逻辑
         assert device in ["cuda", "mps", "cpu"], f"无效的设备类型: {device}"
-        logger.info(f"设备选择正确: {device}")
+        logger.info("设备选择正确: %s", device)
 
         logger.info("张量优化测试完成")
 
     except Exception as e:
-        logger.error(f"测试张量优化时发生错误: {e!s}")
+        logger.error("测试张量优化时发生错误: %s", e)
         raise
 
 
-def test_processor_comparison():
+def test_processor_comparison() -> None:
     """
     测试处理器比较
     """
     logger.info("测试处理器比较...")
 
     try:
-        from src.core.process.image_process import (
-            DeepseekOCRProcessor,
-        )
-        from src.core.process.image_process import (
-            DeepseekOCRProcessor as MPSDeepseekOCRProcessor,
-        )
+        # 尝试导入处理器
+        try:
+            from src.core.process.image_process import (
+                DeepseekOCRProcessor,
+            )
+            from src.core.process.image_process import (
+                DeepseekOCRProcessor as MPSDeepseekOCRProcessor,
+            )
 
-        # 创建标准处理器
-        processor = DeepseekOCRProcessor()
-        logger.info("标准处理器创建成功")
+            # 创建标准处理器
+            processor = DeepseekOCRProcessor()
+            logger.info("标准处理器创建成功")
 
-        # 创建MPS处理器
-        mps_processor = MPSDeepseekOCRProcessor()
-        logger.info("MPS处理器创建成功")
+            # 创建MPS处理器
+            mps_processor = MPSDeepseekOCRProcessor()
+            logger.info("MPS处理器创建成功")
 
-        # 比较处理器类型
-        assert type(processor).__name__ == "DeepseekOCRProcessor", "标准处理器类型不正确"
-        assert type(mps_processor).__name__ == "DeepseekOCRProcessor", "MPS处理器类型不正确"
+            # 比较处理器类型
+            assert type(processor).__name__ == "DeepseekOCRProcessor", "标准处理器类型不正确"
+            assert type(mps_processor).__name__ == "DeepseekOCRProcessor", "MPS处理器类型不正确"
 
-        # 检查处理器方法
-        assert callable(processor), "标准处理器应有__call__方法"
-        assert callable(mps_processor), "MPS处理器应有__call__方法"
+            # 检查处理器方法
+            assert callable(processor), "标准处理器应有__call__方法"
+            assert callable(mps_processor), "MPS处理器应有__call__方法"
 
-        logger.info("处理器比较测试完成")
+            logger.info("处理器比较测试完成")
+
+        except ImportError as e:
+            logger.error("无法导入处理器: %s", e)
+            raise
 
     except Exception as e:
-        logger.error(f"测试处理器比较时发生错误: {e!s}")
+        logger.error("测试处理器比较时发生错误: %s", e)
         raise
 
 
-def test_mps_image_processing():
+def test_mps_image_processing() -> None:
     """
     测试MPS图像处理功能
     """
@@ -142,24 +148,24 @@ def test_mps_image_processing():
 
         # 检查是否有MPS设备
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            logger.info("检测到MPS设备，进行MPS处理测试")
+            logger.info("检测到MPS设备, 进行MPS处理测试")
 
             # 测试图像处理
-            # 注意：这里只测试处理器创建和基本属性，不进行实际处理
-            # 因为实际处理需要加载模型，这在单元测试中可能不可行
+            # 注意: 这里只测试处理器创建和基本属性, 不进行实际处理
+            # 因为实际处理需要加载模型, 这在单元测试中可能不可行
             assert callable(processor), "MPS处理器应有__call__方法"
             logger.info("MPS图像处理器测试通过")
         else:
-            logger.info("未检测到MPS设备，跳过MPS处理测试")
+            logger.info("未检测到MPS设备, 跳过MPS处理测试")
 
         logger.info("MPS图像处理功能测试完成")
 
     except Exception as e:
-        logger.error(f"测试MPS图像处理时发生错误: {e!s}")
+        logger.error("测试MPS图像处理时发生错误: %s", e)
         raise
 
 
-def main():
+def main() -> int:
     """主测试函数"""
     logger.info("开始MPS设备测试...")
 
@@ -176,7 +182,7 @@ def main():
     test_mps_image_processing()
 
     # 总结测试结果
-    logger.info("所有测试完成！MPS支持测试通过。")
+    logger.info("所有测试完成! MPS支持测试通过。")
     return 0
 
 

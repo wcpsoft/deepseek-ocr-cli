@@ -9,7 +9,7 @@ import math
 import torch
 
 # from megatron.model import LayerNorm
-from easydict import EasyDict as adict
+from easydict import EasyDict
 from torch import nn
 from torch.nn import functional as F
 
@@ -22,54 +22,12 @@ except ImportError:
     flash_attn_qkvpacked_func = None
     flash_attn_func = None
     FLASH_ATTN_AVAILABLE = False
-# from optimus import flash_attn_func
-# from megatron.core import tensor_parallel
-# from megatron.core import parallel_state as mpu
-# from megatron.core.utils import make_viewless_tensor, divide
-# from megatron.model.fused_rms_norm import RMSNorm
-# from megatron.model.transformer import (
-#     FlashSelfAttention,
-#     NoopTransformerLayer,
-#     _cfg_to_kwargs,
-# )
-# from megatron.model.enums import AttnMaskType, AttnType
-# from megatron.model.fused_softmax import FusedScaleMaskSoftmax
-# from megatron.model.utils import attention_mask_func
-
-# from megatron.model.module import MegatronModule
-
-# try:
-#     from einops import rearrange
-# except ImportError:
-#     rearrange = None
-
-# from flash_attn import flash_attn_varlen_func as flash_attn_unpadded_func
-
-# try:
-#     # flash attention 2.x
-#     from flash_attn import flash_attn_varlen_func as flash_attn_unpadded_func
-# except ImportError:
-#     try:
-#         # flash attention 1.x
-#         from flash_attn.flash_attn_interface import flash_attn_unpadded_func
-#     except ImportError:
-#         flash_attn_unpadded_func = None
-
-# try:
-#     from flash_attn.flash_attn_interface import flash_attn_unpadded_relative_attention_bias_func
-# except ImportError:
-#     flash_attn_unpadded_relative_attention_bias_func = None
-
-# try:
-#     from flash_attn.flash_attn_interface import mask_flash_attn_unpadded_func
-# except ImportError:
-#     mask_flash_attn_unpadded_func = None
 
 
 class LayerNormfp32(torch.nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
 
-    def forward(self, input: torch.Tensor):
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         """
         前向传播函数
 
@@ -84,7 +42,7 @@ class LayerNormfp32(torch.nn.LayerNorm):
         return ret.type(orig_type)
 
 
-def get_abs_pos(abs_pos, tgt_size):
+def get_abs_pos(abs_pos: torch.Tensor, tgt_size: int) -> torch.Tensor:
     """
     获取绝对位置编码
 
@@ -131,7 +89,7 @@ def get_abs_pos(abs_pos, tgt_size):
 
 
 @torch.jit.script
-def quick_gelu(x):
+def quick_gelu(x: torch.Tensor) -> torch.Tensor:
     """
     快速GELU激活函数
 
@@ -150,7 +108,9 @@ class CLIPVisionEmbeddings(nn.Module):
     处理图像输入并生成视觉嵌入向量
     """
 
-    def __init__(self, hidden_size=1024, image_size=224, patch_size=14, num_channels=3):
+    def __init__(
+        self, hidden_size: int = 1024, image_size: int = 224, patch_size: int = 14, num_channels: int = 3
+    ) -> None:
         """
         初始化CLIP视觉嵌入层
 
@@ -180,7 +140,7 @@ class CLIPVisionEmbeddings(nn.Module):
         self.position_embedding = torch.nn.Embedding(self.num_positions, self.embed_dim)
         self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)))
 
-    def forward(self, pixel_values, patch_embeds):
+    def forward(self, pixel_values: torch.Tensor, patch_embeds: torch.Tensor | None = None) -> torch.Tensor:
         """
         前向传播函数
 
@@ -198,7 +158,6 @@ class CLIPVisionEmbeddings(nn.Module):
 
         if patch_embeds is not None:
             patch_embeds = patch_embeds
-            # print(patch_embeds.shape)
         else:
             patch_embeds = self.patch_embedding(pixel_values)
             # print(111111)
@@ -485,7 +444,7 @@ class VitModel(nn.Module):
     基于Vision Transformer的视觉模型实现
     """
 
-    def __init__(self, cfg, freeze_embed=False, freeze_pre_norm=False) -> None:
+    def __init__(self, cfg, *, freeze_embed=False, freeze_pre_norm=False) -> None:
         """
         初始化Vision Transformer模型
 
@@ -579,7 +538,7 @@ class VitModel(nn.Module):
         return output
 
 
-vit_model_cfg = adict(
+vit_model_cfg = EasyDict(
     num_layers=24,
     hidden_size=1024,
     num_heads=16,
@@ -619,7 +578,7 @@ if __name__ == "__main__":
     # 注释掉无法导入的模块
     # from mmgpt.model.vision_encoder.sam_b import build_sam_vit_b
 
-    vit_model_cfg = adict(
+    vit_model_cfg = EasyDict(
         num_layers=24,
         hidden_size=1024,
         num_attention_heads=16,

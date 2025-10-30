@@ -17,7 +17,7 @@ from src.core.factory.ocr_engine_factory import OCREngineFactory
 from src.core.logging import get_logger, setup_logging
 from src.core.multimodal.ocr_engine_interface import OCREngineInterface
 from src.core.service.ocr_service import OCRService
-from src.core.utils.exception_handler import OCRException
+from src.core.utils.exception_handler import OCRError as OCRException
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -345,6 +345,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--image-size", type=int, default=640, help="图像尺寸 (默认: 640)")
     parser.add_argument("--crop-mode", action="store_true", help="是否启用裁剪模式")
     parser.add_argument("--debug", action="store_true", help="启用调试模式，输出详细日志")
+    parser.add_argument("--ipdb", action="store_true", help="启用ipdb调试模式，进入断点调试")
     parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -420,9 +421,26 @@ def _setup_logging(args):
     setup_logging(level=args.log_level)
 
 
+def _handle_ipdb_debugging(args):
+    """处理ipdb调试"""
+    if args.ipdb:
+        try:
+            import ipdb
+            ipdb.set_trace()
+        except ImportError:
+            try:
+                import pdb
+                pdb.set_trace()
+            except ImportError:
+                print("错误: 未安装ipdb或pdb，无法启动调试模式")
+
+
 def _execute_ocr_strategy(args):
     """执行OCR策略"""
-    # 创建上下文
+    # 处理ipdb调试
+    _handle_ipdb_debugging(args)
+    
+    # 创建上下文并执行策略
     context = OCRContext(args)
 
     # 选择策略

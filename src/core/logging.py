@@ -112,10 +112,7 @@ def is_debug_mode() -> bool:
 
 
 def debug_trace():
-    """
-    设置调试断点
-    如果安装了ipdb则使用ipdb，否则使用标准pdb
-    """
+    """调试跟踪函数"""
     if not is_debug_mode():
         return
 

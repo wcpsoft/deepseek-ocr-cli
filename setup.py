@@ -14,9 +14,7 @@ def read_requirements(filename):
     filepath = os.path.join(os.path.dirname(__file__), "requirements", filename)
     if os.path.exists(filepath):
         with open(filepath, encoding="utf-8") as fh:
-            return [
-                line.strip() for line in fh if line.strip() and not line.startswith("#")
-            ]
+            return [line.strip() for line in fh if line.strip() and not line.startswith("#")]
     return []
 
 
@@ -37,9 +35,7 @@ install_requires = project_config.get("dependencies", [])
 # 构建入口点
 entry_points = {}
 if "scripts" in project_config:
-    entry_points["console_scripts"] = [
-        f"{name}={value}" for name, value in project_config["scripts"].items()
-    ]
+    entry_points["console_scripts"] = [f"{name}={value}" for name, value in project_config["scripts"].items()]
 
 setup(
     name=project_config["name"],
@@ -47,12 +43,8 @@ setup(
     description=project_config["description"],
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    author=(
-        project_config["authors"][0]["name"] if project_config.get("authors") else ""
-    ),
-    author_email=(
-        project_config["authors"][0]["email"] if project_config.get("authors") else ""
-    ),
+    author=(project_config["authors"][0]["name"] if project_config.get("authors") else ""),
+    author_email=(project_config["authors"][0]["email"] if project_config.get("authors") else ""),
     url=project_config["urls"]["Homepage"] if project_config.get("urls") else "",
     classifiers=project_config.get("classifiers", []),
     python_requires=project_config["requires-python"],

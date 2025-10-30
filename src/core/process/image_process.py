@@ -4,7 +4,7 @@
 该模块包含了DeepSeek-OCR的图像处理算法，并支持多种设备类型，包括Apple Silicon(MPS)设备。
 """
 
-import math
+from typing import Any, ClassVar
 
 import torch
 
@@ -14,7 +14,7 @@ try:
 except ImportError:
     T = None
 
-from PIL import Image, ImageOps
+from PIL import Image
 from transformers import AutoProcessor, BatchFeature, ProcessorMixin
 
 # 导入日志模块
@@ -71,7 +71,14 @@ def count_tiles(
     return target_aspect_ratio
 
 
-def dynamic_preprocess(image, min_num=MIN_CROPS, max_num=MAX_CROPS, image_size=640, use_thumbnail=False):
+def dynamic_preprocess(
+    image,
+    min_num=MIN_CROPS,
+    max_num=MAX_CROPS,
+    image_size=640,
+    *,
+    use_thumbnail=False,
+):
     orig_width, orig_height = image.size
     aspect_ratio = orig_width / orig_height
 
@@ -121,6 +128,7 @@ class ImageTransform:
         self,
         mean: tuple[float, float, float] = (0.5, 0.5, 0.5),
         std: tuple[float, float, float] = (0.5, 0.5, 0.5),
+        *,
         normalize: bool = True,
     ):
         self.mean = mean
@@ -152,8 +160,8 @@ def is_mps_device() -> bool:
 
 
 class DeepseekOCRProcessor(ProcessorMixin):
-    tokenizer_class = ("LlamaTokenizer", "LlamaTokenizerFast")
-    attributes = ["tokenizer"]
+    tokenizer_class: ClassVar[tuple[str, str]] = ("LlamaTokenizer", "LlamaTokenizerFast")
+    attributes: ClassVar[list[str]] = ["tokenizer"]
 
     def __init__(
         self,
@@ -163,6 +171,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         downsample_ratio: int = 4,
         image_mean: tuple[float, float, float] = (0.5, 0.5, 0.5),
         image_std: tuple[float, float, float] = (0.5, 0.5, 0.5),
+        *,
         normalize: bool = True,
         image_token: str = "<image>",
         pad_token: str = "<｜▁pad▁｜>",
@@ -217,7 +226,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         # special_tokens_dict = {"additional_special_tokens": special_tokens}
         # self.tokenizer.add_special_tokens(special_tokens_dict)
 
-        # # add special tokens for SFT data
+        # add special tokens for SFT data
         # special_tokens = ["<|User|>", "<|Assistant|>"]
         # special_tokens_dict = {"additional_special_tokens": special_tokens}
         # self.tokenizer.add_special_tokens(special_tokens_dict)
@@ -271,13 +280,13 @@ class DeepseekOCRProcessor(ProcessorMixin):
     def pad_id(self):
         return self.tokenizer.pad_token_id
 
-    def encode(self, text: str, bos: bool = True, eos: bool = False):
+    def encode(self, text: str, *, bos: bool = True, eos: bool = False):
         t = self.tokenizer.encode(text, add_special_tokens=False)
 
         if bos:
-            t = [self.bos_id] + t
+            t = [self.bos_id, *t]
         if eos:
-            t = t + [self.eos_id]
+            t = [*t, self.eos_id]
 
         return t
 
@@ -288,6 +297,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         self,
         prompt: str,
         images: list,
+        *,
         inference_mode: bool = True,
         **kwargs,
     ):
@@ -380,212 +390,45 @@ class DeepseekOCRProcessor(ProcessorMixin):
         # 转换为BatchFeature以保持兼容性
         return BatchFeature(data=prepare, tensor_type="pt")
 
-    def tokenize_with_images(
+    def _tokenize_with_image_tags(
         self,
-        conversation: str,
-        images: list[Image.Image],
+        text: str,
+        *,
+        image_token: str = "<image>",
         bos: bool = True,
         eos: bool = True,
         cropping: bool = True,
-    ):
-        """Tokenize text with <image> tags."""
-        try:
-            logger.debug("开始tokenize_with_images方法")
-            logger.debug(
-                f"输入参数: images数量={len(images) if images else 0}, bos={bos}, eos={eos}, cropping={cropping}"
-            )
-            logger.debug(f"conversation: {conversation}")
-            logger.debug(f"images长度: {len(images)}")
-            assert conversation.count(self.image_token) == len(images)
+    ) -> tuple[list[int], list[bool]]:
+        """将文本分割成多个部分，并在每个图像位置插入图像token"""
+        logger.debug("开始处理文本和图像token")
+        tokenized_str = []
+        images_seq_mask = []
 
-            # 初始化变量
-            text_splits = conversation.split(self.image_token)
-            logger.debug(f"text_splits: {text_splits}")
-            images_list, images_crop_list, images_seq_mask, images_spatial_crop = (
-                [],
-                [],
-                [],
-                [],
-            )
-            image_shapes = []
-            num_image_tokens = []
-            tokenized_str = []
+        # 分割文本
+        text_splits = text.split(image_token)
+        logger.debug(f"分割后的文本部分: {text_splits}")
 
-            # 处理每个图像
-            for i, (text_sep, image) in enumerate(zip(text_splits, images, strict=False)):
-                result = self._process_single_image(
-                    i,
-                    text_sep,
-                    image,
-                    tokenized_str,
-                    images_seq_mask,
-                    images_list,
-                    images_crop_list,
-                    images_spatial_crop,
-                    image_shapes,
-                    num_image_tokens,
-                    cropping,
-                )
-                (
-                    tokenized_str,
-                    images_seq_mask,
-                    images_list,
-                    images_crop_list,
-                    images_spatial_crop,
-                    image_shapes,
-                    num_image_tokens,
-                ) = result
+        # 处理每个文本分割
+        for i, text_split in enumerate(text_splits):
+            logger.debug(f"处理文本分割: {text_split}")
+            tokenized_sep = self.encode(text_split, bos=False, eos=False)
+            tokenized_str += tokenized_sep
+            images_seq_mask += [False] * len(tokenized_sep)
 
-            # 处理最后一个文本分割和添加tokens
-            tokenized_str, images_seq_mask = self._process_final_tokens(
-                text_splits, tokenized_str, images_seq_mask, bos, eos
-            )
+            # 如果不是最后一个分割，添加图像token
+            if i < len(text_splits) - 1:
+                logger.debug("添加图像token")
+                tokenized_str += [self.image_token_id]
+                images_seq_mask += [True]
 
-            # 验证长度和创建张量
-            result = self._create_final_result(
-                tokenized_str,
-                images_seq_mask,
-                images_list,
-                images_crop_list,
-                images_spatial_crop,
-            )
-
-            logger.debug("张量创建完成")
-            return result
-        except Exception as e:
-            logger.error(f"tokenize_with_images方法中发生错误: {e!s}")
-            logger.error(f"错误类型: {type(e)}")
-            import traceback
-
-            logger.error(f"错误堆栈: {traceback.format_exc()}")
-            raise RuntimeError(f"tokenize_with_images方法中发生错误: {e!s}") from e
-
-    def _process_single_image(
-        self,
-        i,
-        text_sep,
-        image,
-        tokenized_str,
-        images_seq_mask,
-        images_list,
-        images_crop_list,
-        images_spatial_crop,
-        image_shapes,
-        num_image_tokens,
-        cropping,
-    ):
-        """处理单个图像"""
-        logger.debug(f"处理第{i}个图像，text_sep: '{text_sep}', image尺寸: {image.size if image else 'None'}")
-        if image is None:
-            logger.error(f"第{i}个图像为None")
-            raise ValueError(f"第{i}个图像为None")
-        """encode text_sep"""
-        tokenized_sep = self.encode(text_sep, bos=False, eos=False)
-        logger.debug(f"tokenized_sep: {tokenized_sep}")
-        tokenized_str += tokenized_sep
-        images_seq_mask += [False] * len(tokenized_sep)
-
-        """select best resolution for anyres"""
-        # if cropping:
-        #     best_width, best_height = self.select_best_resolution(image.size)
-        # else:
-        #     best_width, best_height = self.image_size, self.image_size
-
-        image_shapes.append(image.size)
-
-        # 初始化images_crop_raw
-        images_crop_raw = []
-
-        if image.size[0] <= 640 and image.size[1] <= 640:
-            crop_ratio = [1, 1]
-        else:
-            if cropping:
-                # print('image-size: ', image.size)
-                # print('open_size:', image.size)
-                logger.debug(f"开始动态预处理图像，尺寸: {image.size}")
-                images_crop_raw, crop_ratio = dynamic_preprocess(image, image_size=IMAGE_SIZE)
-                logger.debug(
-                    f"动态预处理完成，crop_ratio: {crop_ratio}, "
-                    f"images_crop_raw数量: {len(images_crop_raw) if images_crop_raw else 0}"
-                )
-                # print('crop_ratio: ', crop_ratio)
-            else:
-                # best_width, best_height = self.image_size, self.image_size
-                crop_ratio = [1, 1]
-        # print(image.size, (best_width, best_height)) # check the select_best_resolutions func
-
-        # print(crop_ratio)
-        """process the global view"""
-
-        # if cropping
-        if self.image_size <= 640 and not cropping:
-            # print('directly resize')
-            # 使用高质量的重采样方法
-            logger.debug("直接调整图像大小")
-            image = image.resize((self.image_size, self.image_size), resample=Image.Resampling.LANCZOS)
-
-        logger.debug("开始处理全局视图")
-        global_view = ImageOps.pad(
-            image,
-            (self.base_size, self.base_size),
-            color=tuple(int(x * 255) for x in self.image_transform.mean),
+        # 处理最后一个文本分割和添加tokens
+        tokenized_str, images_seq_mask = self._process_final_tokens(
+            text_splits, tokenized_str, images_seq_mask, bos, eos
         )
-        images_list.append(self.image_transform(global_view))
-        logger.debug("全局视图处理完成")
 
-        """record height / width crop num"""
-        # width_crop_num, height_crop_num = best_width // self.image_size, best_height // self.image_size
-        num_width_tiles, num_height_tiles = crop_ratio
-        images_spatial_crop.append([num_width_tiles, num_height_tiles])
+        return tokenized_str, images_seq_mask
 
-        if num_width_tiles > 1 or num_height_tiles > 1:
-            """process the local views"""
-            # 确保images_crop_raw已定义且不为空
-            if images_crop_raw:
-                logger.debug(f"处理局部视图，数量: {len(images_crop_raw)}")
-                for i in range(len(images_crop_raw)):
-                    images_crop_list.append(self.image_transform(images_crop_raw[i]))
-                logger.debug("局部视图处理完成")
-
-        # """process the global view"""
-        # global_view = ImageOps.pad(image, (self.image_size, self.image_size),
-        #                            color=tuple(int(x * 255) for x in self.image_transform.mean))
-        # images_list.append(self.image_transform(global_view))
-
-        # """process the local views"""
-        # local_view = ImageOps.pad(image, (best_width, best_height),
-        #                           color=tuple(int(x * 255) for x in self.image_transform.mean))
-        # for i in range(0, best_height, self.image_size):
-        #     for j in range(0, best_width, self.image_size):
-        #         images_list.append(
-        #             self.image_transform(local_view.crop((j, i, j + self.image_size, i + self.image_size))))
-
-        # """add image tokens"""
-        """add image tokens"""
-        logger.debug("开始添加图像tokens")
-        num_queries = math.ceil((self.image_size // self.patch_size) / self.downsample_ratio)
-        num_queries_base = math.ceil((self.base_size // self.patch_size) / self.downsample_ratio)
-
-        tokenized_image = ([self.image_token_id] * num_queries_base + [self.image_token_id]) * num_queries_base
-        tokenized_image += [self.image_token_id]
-        if num_width_tiles > 1 or num_height_tiles > 1:
-            tokenized_image += ([self.image_token_id] * (num_queries * num_width_tiles) + [self.image_token_id]) * (
-                num_queries * num_height_tiles
-            )
-        tokenized_str += tokenized_image
-        images_seq_mask += [True] * len(tokenized_image)
-        num_image_tokens.append(len(tokenized_image))
-        logger.debug("图像tokens添加完成")
-
-        return (
-            tokenized_str,
-            images_seq_mask,
-            images_list,
-            images_crop_list,
-            images_spatial_crop,
-            image_shapes,
-            num_image_tokens,
-        )
+    # _process_single_image函数已被移除，因为它是不完整的
 
     def _process_final_tokens(self, text_splits, tokenized_str, images_seq_mask, bos, eos):
         """处理最后一个文本分割和添加tokens"""
@@ -598,11 +441,11 @@ class DeepseekOCRProcessor(ProcessorMixin):
         # 添加bos和eos tokens
         logger.debug("添加bos和eos tokens")
         if bos:
-            tokenized_str = [self.bos_id] + tokenized_str
-            images_seq_mask = [False] + images_seq_mask
+            tokenized_str = [self.bos_id, *tokenized_str]
+            images_seq_mask = [False, *images_seq_mask]
         if eos:
-            tokenized_str = tokenized_str + [self.eos_id]
-            images_seq_mask = images_seq_mask + [False]
+            tokenized_str = [*tokenized_str, self.eos_id]
+            images_seq_mask = [*images_seq_mask, False]
 
         return tokenized_str, images_seq_mask
 
@@ -616,7 +459,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
     ):
         """创建最终结果"""
         # 验证长度和创建masked_tokenized_str
-        input_ids, target_ids, images_seq_mask_tensor = self._validate_and_create_tensors(
+        input_ids, _target_ids, images_seq_mask_tensor = self._validate_and_create_tensors(  # 未使用的变量
             tokenized_str, images_seq_mask
         )
 
@@ -777,36 +620,180 @@ class DeepseekOCRProcessor(ProcessorMixin):
                     if isinstance(item, torch.Tensor):
                         logger.debug(f"result[0][{i}]张量形状: {item.shape}")
 
+    def tokenize_with_images(
+        self,
+        images: list,
+        bos: bool = True,
+        eos: bool = True,
+        cropping: bool = True,
+    ):
+        """Tokenize text with <image> tags."""
+        import math
+        from PIL import ImageOps
+        
+        logger.debug("开始tokenize_with_images处理")
+        
+        # 初始化变量
+        images_list, images_crop_list, images_seq_mask, images_spatial_crop = [], [], [], []
+        image_shapes = []
+        num_image_tokens = []
+        tokenized_str = []
+        
+        # 使用默认提示词
+        from src.core.config import PROMPT
+        conversation = PROMPT
+        text_splits = conversation.split(self.image_token)
+        
+        # 处理每个图像和对应的文本分割
+        for text_sep, image in zip(text_splits, images):
+            logger.debug(f"处理图像，大小: {image.size}")
+            image_shapes.append(image.size)
+
+            # 编码文本分割
+            tokenized_sep = self.encode(text_sep, bos=False, eos=False)
+            tokenized_str += tokenized_sep
+            images_seq_mask += [False] * len(tokenized_sep)
+
+            # 处理裁剪逻辑
+            images_crop_raw = []  # 初始化为空列表
+            if image.size[0] <= 640 and image.size[1] <= 640:
+                crop_ratio = [1, 1]
+            else:
+                if cropping:
+                    images_crop_raw, crop_ratio = dynamic_preprocess(image, image_size=IMAGE_SIZE)
+                else:
+                    crop_ratio = [1, 1]
+            
+            logger.debug(f"裁剪比例: {crop_ratio}")
+
+            # 处理全局视图
+            if IMAGE_SIZE <= 640 and not cropping:
+                image = image.resize((IMAGE_SIZE, IMAGE_SIZE))
+
+            global_view = ImageOps.pad(image, (BASE_SIZE, BASE_SIZE),
+                                    color=tuple(int(x * 255) for x in self.image_transform.mean))
+            images_list.append(self.image_transform(global_view))
+
+            # 记录高度/宽度裁剪数量
+            num_width_tiles, num_height_tiles = crop_ratio
+            images_spatial_crop.append([num_width_tiles, num_height_tiles])
+
+            # 处理局部视图
+            if num_width_tiles > 1 or num_height_tiles > 1:
+                for i in range(len(images_crop_raw)):
+                    images_crop_list.append(self.image_transform(images_crop_raw[i]))
+
+            # 添加图像tokens
+            num_queries = math.ceil((IMAGE_SIZE // self.patch_size) / self.downsample_ratio)
+            num_queries_base = math.ceil((BASE_SIZE // self.patch_size) / self.downsample_ratio)
+
+            tokenized_image = ([self.image_token_id] * num_queries_base + [self.image_token_id]) * num_queries_base
+            tokenized_image += [self.image_token_id]
+            if num_width_tiles > 1 or num_height_tiles > 1:
+                tokenized_image += ([self.image_token_id] * (num_queries * num_width_tiles) + [self.image_token_id]) * (
+                            num_queries * num_height_tiles)
+            tokenized_str += tokenized_image
+            images_seq_mask += [True] * len(tokenized_image)
+            num_image_tokens.append(len(tokenized_image))
+
+        # 处理最后一个文本分割
+        tokenized_sep = self.encode(text_splits[-1], bos=False, eos=False)
+        tokenized_str += tokenized_sep
+        images_seq_mask += [False] * len(tokenized_sep)
+
+        # 添加bos和eos tokens
+        if bos:
+            tokenized_str = [self.bos_id, *tokenized_str]
+            images_seq_mask = [False, *images_seq_mask]
+        if eos:
+            tokenized_str = [*tokenized_str, self.eos_id]
+            images_seq_mask = [*images_seq_mask, False]
+
+        # 验证长度
+        assert len(tokenized_str) == len(
+            images_seq_mask), f"tokenize_with_images func: tokenized_str's length {len(tokenized_str)} is not equal to images_seq_mask's length {len(images_seq_mask)}"
+
+        # 创建masked_tokenized_str
+        masked_tokenized_str = []
+        for token_index in tokenized_str:
+            if token_index != self.image_token_id:
+                masked_tokenized_str.append(token_index)
+            else:
+                masked_tokenized_str.append(self.ignore_id)
+
+        # 验证所有长度
+        assert len(tokenized_str) == len(images_seq_mask) == len(masked_tokenized_str), \
+            (f"tokenized_str's length {len(tokenized_str)}, input_ids' length {len(masked_tokenized_str)}, "
+             f"images_seq_mask's length {len(images_seq_mask)}, are not equal")
+
+        # 创建张量
+        input_ids = torch.LongTensor(tokenized_str)
+        target_ids = torch.LongTensor(masked_tokenized_str)
+        images_seq_mask_tensor = torch.tensor(images_seq_mask, dtype=torch.bool)
+
+        # 设置input_ids < 0 | input_ids == self.image_token_id为ignore_id
+        target_ids[(input_ids < 0) | (input_ids == self.image_token_id)] = self.ignore_id
+        input_ids[input_ids < 0] = self.pad_id
+
+        # 推理模式
+        inference_mode = True
+        if inference_mode:
+            # 移除结尾的eos token
+            assert input_ids[-1] == self.eos_id
+            input_ids = input_ids[:-1]
+            target_ids = target_ids[:-1]
+            images_seq_mask_tensor = images_seq_mask_tensor[:-1]
+
+        # 处理图像张量
+        if len(images_list) == 0:
+            pixel_values = torch.zeros((1, 3, self.base_size, self.base_size))
+            images_spatial_crop_tensor = torch.zeros((1, 1), dtype=torch.long)
+            images_crop = torch.zeros((1, 3, self.image_size, self.image_size)).unsqueeze(0)
+        else:
+            pixel_values = torch.stack(images_list, dim=0)
+            images_spatial_crop_tensor = torch.tensor(images_spatial_crop, dtype=torch.long)
+            if images_crop_list:
+                images_crop = torch.stack(images_crop_list, dim=0).unsqueeze(0)
+            else:
+                images_crop = torch.zeros((1, 3, self.image_size, self.image_size)).unsqueeze(0)
+
+        input_ids = input_ids.unsqueeze(0)
+
+        # 返回与原始仓库一致的数据结构
+        result = [
+            [
+                input_ids,
+                pixel_values,
+                images_crop,
+                images_seq_mask_tensor,
+                images_spatial_crop_tensor,
+                num_image_tokens,
+                image_shapes,
+            ]
+        ]
+        
+        logger.debug("tokenize_with_images处理完成")
+        return result
+
     # 添加from_pretrained类方法
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, *args, **kwargs):
+    def from_pretrained(cls, pretrained_model_name_or_path: str, *args: Any, **kwargs: Any) -> "DeepseekOCRProcessor":
         """
         从预训练模型加载处理器
 
         Args:
-            pretrained_model_name_or_path: 预训练模型名称或路径
+            pretrained_model_name_or_path: 预训练模型路径
             *args: 位置参数
-            **kwargs: 其他参数，包括trust_remote_code
+            **kwargs: 关键字参数
 
         Returns:
-            处理器实例
+            DeepseekOCRProcessor: 处理器实例
         """
-        # 移除trust_remote_code参数，因为它不是AutoTokenizer.from_pretrained的有效参数
-        tokenizer_kwargs = kwargs.copy()
-        if "trust_remote_code" in tokenizer_kwargs:
-            tokenizer_kwargs.pop("trust_remote_code")
-
-        # 加载tokenizer
-        from transformers import AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name_or_path, *args, **tokenizer_kwargs)
-
-        # 创建处理器实例
-        processor_kwargs = kwargs.copy()
-        if "trust_remote_code" in processor_kwargs:
-            processor_kwargs.pop("trust_remote_code")
-
-        return cls(tokenizer=tokenizer, **processor_kwargs)
+        # 调用父类的from_pretrained方法
+        result = super().from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
+        if isinstance(result, tuple):
+            return result[0]  # 返回处理器实例，忽略配置字典
+        return result
 
 
 AutoProcessor.register("DeepseekVLV2Processor", DeepseekOCRProcessor)

@@ -117,8 +117,8 @@ class DeepSeekOCRInference(BaseOCREngine):
                 images_crop,
                 images_seq_mask,
                 images_spatial_crop,
-                num_image_tokens,
-                image_shapes,
+                _num_image_tokens,  # 未使用的变量
+                _image_shapes,  # 未使用的变量
             ) = self.image_handler.extract_tensors(processed_data, device)
 
             # 构造注意力掩码

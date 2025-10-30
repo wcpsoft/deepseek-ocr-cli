@@ -19,7 +19,7 @@ class EnhancedOCRResultProcessor:
     提供更强大的结果处理、过滤和保存功能
     """
 
-    def __init__(self, output_dir: str, filter_empty_results: bool = True):
+    def __init__(self, output_dir: str, *, filter_empty_results: bool = True) -> None:
         """
         初始化增强版结果处理器
 
@@ -28,11 +28,11 @@ class EnhancedOCRResultProcessor:
             filter_empty_results: 是否过滤空结果
         """
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.results = []
-        self.errors = []
         self.filter_empty_results = filter_empty_results
-        self.metadata = {}
+        self.results: list[dict[str, Any]] = []
+        self.errors: list[dict[str, Any]] = []
+        self.metadata: dict[str, Any] = {}
+        self.image_counter = 0
 
     def add_result(self, image_index: int, result: str, metadata: dict[str, Any] | None = None) -> None:
         """
@@ -43,22 +43,28 @@ class EnhancedOCRResultProcessor:
             result: OCR结果
             metadata: 结果元数据
         """
+        # 使用日志系统替代print语句
+        logger.debug(f"添加结果: 图像索引={image_index}, 结果长度={len(result) if result else 0}")
+        logger.debug(f"结果内容: {result}")
+        
         # 过滤空结果
         if self.filter_empty_results and (not result or not isinstance(result, str) or len(result.strip()) == 0):
-            logger.warning(f"图像 {image_index} OCR识别返回空结果，已过滤")
-            self.errors.append((image_index, "OCR识别未返回有效结果"))
+            logger.debug(f"图像 {image_index} OCR识别返回空结果，已过滤")
+            self.errors.append({"index": image_index, "error": "OCR识别未返回有效结果"})
             return
 
         # 清理结果内容
         cleaned_result = self._clean_result(result)
+        logger.debug(f"清理后结果长度: {len(cleaned_result)}")
 
         # 如果清理后结果为空且启用了过滤，则记录为错误
         if self.filter_empty_results and (not cleaned_result or len(cleaned_result.strip()) == 0):
-            logger.warning(f"图像 {image_index} OCR识别返回空结果（清理后），已过滤")
-            self.errors.append((image_index, "OCR识别未返回有效结果"))
+            logger.debug(f"图像 {image_index} OCR识别返回空结果（清理后），已过滤")
+            self.errors.append({"index": image_index, "error": "OCR识别未返回有效结果"})
             return
 
         self.results.append({"index": image_index, "result": cleaned_result, "metadata": metadata or {}})
+        logger.debug(f"结果已添加到结果列表，当前结果数量: {len(self.results)}")
 
     def add_error(self, image_index: int, error: str, metadata: dict[str, Any] | None = None) -> None:
         """
@@ -175,12 +181,14 @@ class EnhancedOCRResultProcessor:
         Returns:
             输出文件路径，如果没有有效结果则返回None
         """
+        logger.debug(f"开始保存结果，当前结果数量: {len(self.results)}")
         if not self.has_valid_results():
-            logger.warning("没有有效的OCR结果，不保存文件")
+            logger.debug("没有有效的OCR结果，不保存文件")
             return None
 
         # 按图像索引排序结果
         sorted_results = sorted(self.results, key=lambda x: x["index"])
+        logger.debug(f"排序后结果数量: {len(sorted_results)}")
 
         # 根据格式类型生成内容
         if format_type.lower() == "json":
@@ -190,15 +198,19 @@ class EnhancedOCRResultProcessor:
         else:  # 默认为markdown
             content = self._generate_markdown_content(sorted_results)
 
+        logger.debug(f"生成内容长度: {len(content)}")
+        logger.debug(f"内容预览: {content[:200]}...")
+
         # 写入文件
         result_file = self.output_dir / filename
+        logger.debug(f"准备写入文件: {result_file}")
         try:
             with open(result_file, "w", encoding="utf-8") as f:
                 f.write(content)
-            logger.info(f"OCR结果已保存到: {result_file}")
+            logger.debug(f"OCR结果已保存到: {result_file}")
             return str(result_file)
         except Exception as e:
-            logger.error(f"保存OCR结果失败: {e!s}")
+            logger.debug(f"保存OCR结果失败: {e}")
             return None
 
     def _generate_markdown_content(self, results: list[dict[str, Any]]) -> str:
@@ -288,7 +300,7 @@ class EnhancedOCRResultProcessor:
             logger.info(f"错误报告已保存到: {error_file}")
             return str(error_file)
         except Exception as e:
-            logger.error(f"保存错误报告失败: {e!s}")
+            logger.error(f"保存错误报告失败: {e}")
             return None
 
     def get_summary(self) -> dict[str, Any]:

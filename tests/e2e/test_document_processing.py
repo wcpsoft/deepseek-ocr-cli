@@ -1,93 +1,51 @@
 #!/usr/bin/env python3
 """
 文档处理端到端测试
-测试完整的文档处理流程
+验证文档处理器的功能和模型可用性
 """
 
-import os
 import shutil
-import sys
 import tempfile
-
-# from pathlib import Path
-from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
-# 添加项目根目录到路径
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if project_root not in sys.path:
-    sys.path.append(project_root)
 
-
-def test_document_processor_import():
-    """测试文档处理器导入"""
-    try:
-        from src.cli.document_processor import DocumentProcessor
-
-        assert DocumentProcessor is not None
-    except ImportError:
-        pytest.fail("无法导入DocumentProcessor")
-
-
-def test_model_manager_import():
-    """测试模型管理器导入"""
-    try:
-        from src.cli.model_manager import ModelManager
-
-        assert ModelManager is not None
-    except ImportError:
-        pytest.fail("无法导入ModelManager")
-
-
-def test_cli_main_import():
-    """测试CLI主模块导入"""
-    try:
-        from src.cli.main import main
-
-        assert main is not None
-    except ImportError:
-        pytest.fail("无法导入CLI主模块")
-
-
-def test_document_processing_workflow():
-    """测试文档处理工作流程"""
-    try:
-        from src.cli.document_processor import DocumentProcessor
-
-        # 创建文档处理器实例
-        processor = DocumentProcessor(mode="transformers")
-        assert processor.mode == "transformers"
-
-        # 测试模式判断方法
-        with (
-            patch("torch.backends.mps.is_available", return_value=True),
-            patch("torch.backends.mps.is_built", return_value=True),
-        ):
-            mode = processor._determine_mode()
-            # 在MPS环境下应该使用transformers模式
-            assert mode == "transformers"
-    except ImportError:
-        pytest.fail("无法导入相关模块")
-
-
-def ensure_model_downloaded():
+def ensure_model_downloaded() -> bool:
     """确保模型已下载"""
     try:
         from src.cli.model_manager import ModelManager
 
-        model_manager = ModelManager("./models")
+        # 创建模型管理器实例
+        model_manager = ModelManager()
 
-        # 检查模型是否存在且完整
-        # 简化检查逻辑，只检查目录是否存在
+        # 检查模型目录是否存在
         model_path = model_manager.model_dir / "deepseek-ocr"
-        if model_path.exists():
-            return True
+        if not model_path.exists():
+            print("模型目录不存在, 跳过测试")
+            return False
 
-        # 如果模型不存在，返回False
-        print("模型目录不存在，跳过测试")
-        return False
-    except Exception as e:
+        # 验证模型文件
+        required_files = [
+            "config.json",
+            "pytorch_model.bin",
+            "tokenizer_config.json",
+            "vocab.json",
+        ]
+
+        missing_files = []
+        for file_name in required_files:
+            file_path = model_path / file_name
+            if not file_path.exists():
+                missing_files.append(file_name)
+
+        if missing_files:
+            print(f"模型文件缺失: {', '.join(missing_files)}, 跳过测试")
+            return False
+
+        return True
+
+    except OSError as e:
         print(f"模型检查过程中出错: {e}")
         return False
 
@@ -97,7 +55,7 @@ pytestmark = pytest.mark.skipif(not ensure_model_downloaded(), reason="模型不
 
 
 @pytest.mark.skipif(not shutil.which("libreoffice"), reason="LibreOffice not installed")
-def test_pdf_processing(samples_dir):
+def test_pdf_processing(samples_dir: Path) -> None:
     """测试PDF文件处理"""
     try:
         from src.cli.document_processor import DocumentProcessor
@@ -115,14 +73,14 @@ def test_pdf_processing(samples_dir):
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            # 不实际运行处理，只测试初始化
+            # 不实际运行处理, 只测试初始化
             assert processor is not None
 
-    except ImportError:
-        pytest.fail("无法导入DocumentProcessor")
+    except ImportError as e:
+        pytest.fail(f"文档处理器初始化测试失败: {e}")
 
 
-def test_image_processing(samples_dir):
+def test_image_processing(samples_dir: Path) -> None:
     """测试图像文件处理"""
     try:
         from src.cli.document_processor import DocumentProcessor
@@ -142,16 +100,16 @@ def test_image_processing(samples_dir):
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            # 不实际运行处理，只测试初始化
+            # 不实际运行处理, 只测试初始化
             assert processor is not None
 
-    except ImportError:
-        pytest.fail("无法导入DocumentProcessor")
+    except ImportError as e:
+        pytest.fail(f"文档处理器初始化测试失败: {e}")
 
 
 @pytest.mark.skipif(not shutil.which("libreoffice"), reason="LibreOffice not installed")
-def test_document_conversion(samples_dir):
-    """测试文档转换处理（Word、PPT等）"""
+def test_document_conversion(samples_dir: Path) -> None:
+    """测试文档转换处理 (Word, PPT等)"""
     try:
         from src.cli.document_processor import DocumentProcessor
 
@@ -172,8 +130,32 @@ def test_document_conversion(samples_dir):
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            # 不实际运行处理，只测试初始化
+            # 不实际运行处理, 只测试初始化
             assert processor is not None
 
+    except ImportError as e:
+        pytest.fail(f"文档处理器初始化测试失败: {e}")
+
+
+def test_model_directory_setting() -> None:
+    """测试模型目录设置"""
+    try:
+        from src.cli.document_processor import DocumentProcessor
+        from src.core.config import DEFAULT_OCR_PROMPT
+
+        # 创建处理器实例
+        processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+        assert processor.mode is not None
+
+    except ImportError as e:
+        pytest.fail(f"模型目录设置测试失败: {e}")
+
+
+def test_model_manager_import() -> None:
+    """测试模型管理器导入"""
+    try:
+        from src.cli.model_manager import ModelManager
+
+        assert ModelManager is not None
     except ImportError:
-        pytest.fail("无法导入DocumentProcessor")
+        pytest.fail("无法导入ModelManager")

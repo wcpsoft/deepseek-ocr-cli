@@ -43,6 +43,7 @@ class DocumentProcessor:
         prompt=None,
         base_size=1024,
         image_size=640,
+        *,
         crop_mode=True,
         debug=False,
     ):

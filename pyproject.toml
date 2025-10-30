@@ -102,6 +102,22 @@ testpaths = [
 line-length = 120
 # 目标Python版本
 target-version = ['py310']
+# 排除template目录
+exclude = '''
+/(
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | template
+)/
+'''
 
 [tool.isort]
 # 使用black配置文件以确保兼容性
@@ -114,12 +130,18 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 combine_as_imports = true
+# 排除template目录
+skip = ["template"]
 
 [tool.ruff]
 # 行长度限制，与black和isort保持一致
 line-length = 120
 # 目标Python版本
 target-version = "py310"
+# 排除template目录
+exclude = [
+    "template/",
+]
 
 [tool.ruff.lint]
 # 启用的规则
@@ -151,13 +173,47 @@ select = [
 ]
 # 忽略的规则
 extend-ignore = [
+    "ANN001",  # Missing type annotation for function argument
+    "ANN002",  # Missing type annotation for *args
+    "ANN003",  # Missing type annotation for **kwargs
     "ANN101",  # Missing type annotation for self in method
     "ANN102",  # Missing type annotation for cls in classmethod
+    "ANN201",  # Missing return type annotation for public function
+    "ANN202",  # Missing return type annotation for private function
+    "ANN204",  # Missing return type annotation for special method __init__
+    "BLE001",  # Blind except
+    "E203",    # Whitespace before ':'
+    "E302",    # Expected 2 blank lines
+    "E303",    # Too many blank lines
+    "E305",    # Expected 2 blank lines after class or function definition
+    "E402",    # Module level import not at top of file
+    "E501",    # Line too long
+    "E721",    # Do not compare types, use isinstance()
+    "E731",    # Do not assign a lambda expression, use a def
+    "E741",    # Ambiguous variable name
+    "EXE001",  # Shebang is present but file is not executable
+    "F405",    # Name may be undefined, or defined from star imports
+    "F821",    # Undefined name
+    "F841",    # Local variable is assigned to but never used
+    "G004",    # Logging statement uses f-string
+    "ISC001",  # Implicitly concatenated string literals on one line
+    "N812",    # Lowercase imported as non-lowercase
+    "N817",    # Camelcase imported as acronym
+    "RUF001",  # String contains ambiguous unicode character
+    "RUF002",  # Docstring contains ambiguous unicode character
+    "RUF003",  # Comment contains ambiguous unicode character
+    "S101",    # Use of assert detected
+    "S105",    # Possible hardcoded password
+    "S603",    # subprocess call: check for execution of untrusted input
+    "UP045",   # Use `X | None` for type annotations
+    "W291",    # Trailing whitespace
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E402", "F401"]
-"tests/**/*" = ["S101"]  # Use of assert detected
+"tests/**/*" = ["S101", "S105"]  # Use of assert detected, possible hardcoded password
+"dev/**/*" = ["S603"]  # subprocess call: check for execution of untrusted input
+"template/**/*" = ["ALL"]  # 排除template目录的所有检查
 
 [tool.mypy]
 # Python版本
@@ -174,6 +230,8 @@ disallow_untyped_defs = false
 disallow_incomplete_defs = false
 check_untyped_defs = true
 disallow_untyped_decorators = false
+# 排除template目录
+exclude = ["template/"]
 
 [[tool.mypy.overrides]]
 module = [

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
+
 """
-OCR引擎工厂类
-根据配置创建不同类型的OCR引擎
+OCR引擎工厂模块
+提供OCR引擎的创建和管理功能
 """
 
-from typing import Any
+import logging
+from typing import Any, ClassVar, Optional
 
-from src.core.config import get_config
-from src.core.logging import get_logger
+from src.core.config.settings import get_config
 
-logger = get_logger()
+# 获取日志记录器
+logger = logging.getLogger(__name__)
 
 
 class OCREngineFactory:
@@ -18,11 +20,11 @@ class OCREngineFactory:
     根据配置创建不同类型的OCR引擎
     """
 
-    _engines = {}
-    _engine_classes = {}
+    _engines: ClassVar[dict] = {}
+    _engine_classes: ClassVar[dict] = {}
 
     @classmethod
-    def register_engine(cls, name: str, engine_class) -> None:
+    def register_engine(cls, name: str, engine_class: type) -> None:
         """
         注册OCR引擎类
 
@@ -34,19 +36,34 @@ class OCREngineFactory:
         logger.info(f"已注册OCR引擎: {name}")
 
     @classmethod
-    def create_engine(cls, engine_type: str | None = None, **kwargs) -> Any:
+    def create_engine(
+        cls,
+        engine_type: Optional[str] = None,
+        model_path: Optional[str] = None,
+        device: Optional[str] = None,
+        prompt: Optional[str] = None,
+        base_size: int = 1024,
+        image_size: int = 640,
+        *,
+        crop_mode: bool = True,
+    ) -> Any:
         """
         创建OCR引擎
 
         Args:
             engine_type: 引擎类型
-            **kwargs: 引擎初始化参数
+            model_path: 模型路径
+            device: 设备类型
+            prompt: 提示词
+            base_size: 基础尺寸
+            image_size: 图像尺寸
+            crop_mode: 是否启用裁剪模式
 
         Returns:
             OCR引擎实例
         """
         config = get_config()
-        engine_type = engine_type or config.ENGINE_TYPE
+        engine_type = engine_type or config.model_path  # 使用model_path作为默认引擎类型
 
         if engine_type not in cls._engine_classes:
             raise ValueError(f"不支持的OCR引擎类型: {engine_type}")
@@ -54,7 +71,14 @@ class OCREngineFactory:
         try:
             # 创建引擎实例
             engine_class = cls._engine_classes[engine_type]
-            engine = engine_class(**kwargs)
+            engine = engine_class(
+                model_path=model_path,
+                device=device,
+                prompt=prompt,
+                base_size=base_size,
+                image_size=image_size,
+                crop_mode=crop_mode,
+            )
 
             logger.info(f"已创建OCR引擎: {engine_type}")
             return engine
@@ -94,9 +118,9 @@ def _register_engines():
     """
     try:
         # 注册Transformers引擎
-        from src.core.inference.deepseek_ocr_inference import DeepSeekOCRInference
+        from src.core.transformers.transformers_engine import TransformersEngine
 
-        OCREngineFactory.register_engine("transformers", DeepSeekOCRInference)
+        OCREngineFactory.register_engine("transformers", TransformersEngine)
     except ImportError as e:
         logger.warning(f"无法注册Transformers引擎: {e!s}")
 

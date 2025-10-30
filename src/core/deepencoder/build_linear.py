@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class MLProj(nn.Module):
+class MlpProjector(nn.Module):
     """
     MLP投影器
     用于将视觉特征投影到语言模型的嵌入空间

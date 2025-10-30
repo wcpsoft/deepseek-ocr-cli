@@ -4,8 +4,9 @@ Transformers引擎单元测试
 """
 
 import sys
+import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -15,7 +16,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 
-def test_transformers_engine_initialization():
+def test_transformers_engine_initialization() -> None:
     """测试Transformers引擎初始化"""
     with patch.dict(
         "sys.modules",
@@ -41,7 +42,7 @@ def test_transformers_engine_initialization():
 
 @patch("src.core.transformers.transformers_engine.Path")
 @patch("builtins.open", create=True)
-def test_transformers_engine_process(mock_open, mock_path):
+def test_transformers_engine_process(mock_open: Mock, mock_path: Mock) -> None:
     """测试Transformers引擎处理"""
     with patch.dict(
         "sys.modules",
@@ -68,26 +69,30 @@ def test_transformers_engine_process(mock_open, mock_path):
         mock_image = MagicMock(spec=Image.Image)
         mock_image.size = (640, 640)
 
-        # 模拟处理过程
-        with patch("src.core.transformers.transformers_engine.EnhancedOCRResultProcessor") as mock_processor:
-            mock_processor_instance = MagicMock()
-            mock_processor.return_value = mock_processor_instance
+        # 创建临时目录
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
 
-            # 模拟Path.resolve()返回Path对象
-            mock_path_instance = MagicMock()
-            mock_path_instance.resolve.return_value = mock_path_instance
-            mock_path_instance.__str__ = MagicMock(return_value="/tmp")
-            mock_path_instance.mkdir = MagicMock()
-            mock_path.return_value = mock_path_instance
+            # 模拟处理过程
+            with patch("src.core.transformers.transformers_engine.EnhancedOCRResultProcessor") as mock_processor:
+                mock_processor_instance = MagicMock()
+                mock_processor.return_value = mock_processor_instance
 
-            # 调用处理方法
-            engine.process([mock_image], "/tmp")
+                # 模拟Path.resolve()返回Path对象
+                mock_path_instance = MagicMock()
+                mock_path_instance.resolve.return_value = mock_path_instance
+                mock_path_instance.__str__ = MagicMock(return_value=str(temp_path))
+                mock_path_instance.mkdir = MagicMock()
+                mock_path.return_value = mock_path_instance
 
-            # 验证结果处理器被创建
-            mock_processor.assert_called_once_with("/tmp")
+                # 调用处理方法
+                engine.process([mock_image], str(temp_path))
+
+                # 验证结果处理器被创建
+                mock_processor.assert_called_once_with(str(temp_path))
 
 
-def test_transformers_engine_process_without_initialization():
+def test_transformers_engine_process_without_initialization() -> None:
     """测试未初始化时的处理方法"""
     with patch.dict(
         "sys.modules",
@@ -114,8 +119,12 @@ def test_transformers_engine_process_without_initialization():
         # 为图像添加size属性以避免比较错误
         mock_image.size = (640, 640)
 
-        # 模拟模型初始化失败的情况
-        with patch.object(engine, "initialize", side_effect=RuntimeError("Transformers引擎初始化失败")):
-            # 处理应该触发初始化错误
-            with pytest.raises(RuntimeError, match="Transformers引擎初始化失败"):
-                engine.process([mock_image], "/tmp")
+        # 创建临时目录
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            # 模拟模型初始化失败的情况
+            with patch.object(engine, "initialize", side_effect=RuntimeError("Transformers引擎初始化失败")):
+                # 处理应该触发初始化错误
+                with pytest.raises(RuntimeError, match="Transformers引擎初始化失败"):
+                    engine.process([mock_image], str(temp_path))
