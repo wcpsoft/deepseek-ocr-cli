@@ -165,7 +165,7 @@ def test_ocr_engine_factory_create_engine_with_parameters() -> None:
                 prompt="测试提示词",
                 base_size=512,
                 image_size=320,
-                crop_mode=False
+                crop_mode=False,
             )
             assert engine is not None
         finally:

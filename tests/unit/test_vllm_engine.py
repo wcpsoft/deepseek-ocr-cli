@@ -231,7 +231,7 @@ def test_vllm_engine_initialize_success() -> None:
 
         # 创建vLLM引擎实例
         engine = VLLMEngine()
-        
+
         # 模拟初始化成功
         with patch.object(engine, "initialize", return_value=True):
             result = engine.initialize()
@@ -253,7 +253,7 @@ def test_vllm_engine_initialize_failure() -> None:
 
         # 创建vLLM引擎实例
         engine = VLLMEngine()
-        
+
         # 模拟初始化失败
         with patch.object(engine, "initialize", return_value=False):
             result = engine.initialize()

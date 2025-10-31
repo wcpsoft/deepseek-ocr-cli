@@ -13,8 +13,6 @@ if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
 # 导入FastAPI应用
-from src.core.api.main import app
-
 
 if __name__ == "__main__":
     import uvicorn

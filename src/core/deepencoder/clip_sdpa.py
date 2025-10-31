@@ -161,7 +161,7 @@ class CLIPVisionEmbeddings(nn.Module):
             patch_embeds = patch_embeds
         else:
             patch_embeds = self.patch_embedding(pixel_values)
-            
+
         # 确保patch_embeds不为None再进行操作
         if patch_embeds is not None:
             patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
@@ -444,7 +444,7 @@ class VitModel(nn.Module):
 
         for p in self.parameters():
             # 为参数添加自定义属性
-            setattr(p, 'micro_dp', True)
+            p.micro_dp = True
 
     def set_input_tensor(self, input_tensor):
         """

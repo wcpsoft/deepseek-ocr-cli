@@ -4,7 +4,6 @@
 测试模型管理器的各项功能
 """
 
-import json
 import os
 import sys
 import tempfile
@@ -61,13 +60,13 @@ def test_model_manager_custom_models() -> None:
 
             # 添加自定义模型
             manager.add_custom_model("test-model", "test/repo", "huggingface")
-            
+
             # 验证自定义模型已添加
             custom_models = manager.list_custom_models()
             assert "test-model" in custom_models
             assert custom_models["test-model"]["repo_id"] == "test/repo"
             assert custom_models["test-model"]["source"] == "huggingface"
-            
+
             # 测试移除自定义模型
             manager.remove_custom_model("test-model")
             custom_models = manager.list_custom_models()
@@ -125,7 +124,7 @@ def test_model_manager_download_models() -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             manager = ModelManager(str(temp_path))
-            
+
             # 验证默认模型列表
             downloaded_models = manager.list_downloaded_models()
             assert isinstance(downloaded_models, list)
@@ -142,16 +141,16 @@ def test_model_manager_clean_py_files() -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             manager = ModelManager(str(temp_path))
-            
+
             # 创建测试模型目录
             model_name = "test-model"
             model_path = temp_path / model_name
             model_path.mkdir()
-            
+
             # 创建一个Python文件
             py_file = model_path / "test.py"
             py_file.write_text("# 测试文件")
-            
+
             # 验证清理功能
             result = manager.clean_model_py_files(model_name)
             assert result is True

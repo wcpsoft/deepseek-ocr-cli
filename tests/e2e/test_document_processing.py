@@ -73,13 +73,13 @@ def test_pdf_processing(samples_dir: Path) -> None:
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            
+
             # 实际运行处理
             processor.process(str(pdf_files[0]), str(output_dir))
-            
+
             # 验证输出目录存在
             assert output_dir.exists()
-            
+
             # 验证生成了结果文件
             result_files = list(output_dir.glob("*/result.md"))
             assert len(result_files) > 0
@@ -108,13 +108,13 @@ def test_image_processing(samples_dir: Path) -> None:
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            
+
             # 实际运行处理
             processor.process(str(image_files[0]), str(output_dir))
-            
+
             # 验证输出目录存在
             assert output_dir.exists()
-            
+
             # 验证生成了结果文件
             result_files = list(output_dir.glob("*/result.md"))
             assert len(result_files) > 0
@@ -147,13 +147,13 @@ def test_document_conversion(samples_dir: Path) -> None:
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            
+
             # 实际运行处理
             processor.process(str(doc_files[0]), str(output_dir))
-            
+
             # 验证输出目录存在
             assert output_dir.exists()
-            
+
             # 验证生成了结果文件
             result_files = list(output_dir.glob("*/result.md"))
             assert len(result_files) > 0
@@ -195,10 +195,10 @@ def test_document_processor_initialization() -> None:
         # 测试不同模式的初始化
         processor_auto = DocumentProcessor(mode="auto", prompt=DEFAULT_OCR_PROMPT)
         assert processor_auto.mode == "auto"
-        
+
         processor_transformers = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
         assert processor_transformers.mode == "transformers"
-        
+
         processor_vllm = DocumentProcessor(mode="vllm", prompt=DEFAULT_OCR_PROMPT)
         assert processor_vllm.mode == "vllm"
 
@@ -218,15 +218,15 @@ def test_convert_to_images(samples_dir: Path) -> None:
             + list(samples_dir.glob("*.jpeg"))
             + list(samples_dir.glob("*.png"))
         )
-        
+
         if not supported_files:
             pytest.skip("未找到支持的示例文件")
 
         processor = DocumentProcessor()
-        
+
         # 测试转换功能
         images = processor.convert_to_images(str(supported_files[0]))
-        
+
         # 验证返回了图像列表
         assert isinstance(images, list)
         assert len(images) > 0

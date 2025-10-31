@@ -49,7 +49,7 @@ class PDFConverter:
     def save_images(self, images: list[Image.Image], output_dir: Path, img_format: str = "JPEG"):
         """保存图像到指定目录"""
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         for i, image in enumerate(images):
             # 为每种格式设置适当的文件扩展名
             if img_format.upper() in ["JPEG", "JPG"]:
@@ -58,7 +58,7 @@ class PDFConverter:
                 ext = "png"
             else:
                 ext = img_format.lower()
-                
+
             image_path = output_dir / f"page_{i+1:03d}.{ext}"
             image.save(image_path, format=img_format, quality=95 if img_format.upper() in ["JPEG", "JPG"] else None)
             logger.info(f"已保存图像: {image_path}")
