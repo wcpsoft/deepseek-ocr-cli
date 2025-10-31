@@ -423,7 +423,12 @@ def _setup_logging(args):
 
 def _handle_ipdb_debugging(args):
     """处理ipdb调试"""
+    # 只有在明确指定--ipdb参数时才启用ipdb调试模式
     if args.ipdb:
+        # 设置IPDB环境变量
+        import os
+        os.environ["IPDB"] = "TRUE"
+        
         try:
             import ipdb
             ipdb.set_trace()

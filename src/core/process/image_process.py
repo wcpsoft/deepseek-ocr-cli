@@ -166,33 +166,25 @@ class DeepseekOCRProcessor(ProcessorMixin):
     def __init__(
         self,
         tokenizer=None,
-        candidate_resolutions: tuple[tuple[int, int], ...] = ((1024, 1024),),
-        patch_size: int = 16,
-        downsample_ratio: int = 4,
+        *,
         image_mean: tuple[float, float, float] = (0.5, 0.5, 0.5),
         image_std: tuple[float, float, float] = (0.5, 0.5, 0.5),
-        *,
         normalize: bool = True,
         image_token: str = "<image>",
         pad_token: str = "<｜▁pad▁｜>",
-        add_special_token: bool = False,
-        sft_format: str = "deepseek",
-        mask_prompt: bool = True,
         ignore_id: int = -100,
         **kwargs,
     ):
         logger.debug("开始初始化DeepseekOCRProcessor")
 
-        # self.candidate_resolutions = candidate_resolutions # placeholder no use
         self.image_size = IMAGE_SIZE
         self.base_size = BASE_SIZE
-        # self.patch_size = patch_size
         self.patch_size = 16
         self.image_mean = image_mean
         self.image_std = image_std
         self.normalize = normalize
-        # self.downsample_ratio = downsample_ratio
         self.downsample_ratio = 4
+        self.ignore_id = ignore_id
 
         self.image_transform = ImageTransform(mean=image_mean, std=image_std, normalize=normalize)
         logger.debug("ImageTransform初始化完成")
@@ -200,73 +192,23 @@ class DeepseekOCRProcessor(ProcessorMixin):
         # 使用延迟加载的tokenizer
         self.tokenizer = tokenizer or get_tokenizer()
         logger.debug(f"tokenizer初始化完成，类型: {type(self.tokenizer)}")
-        # self.tokenizer = add_special_token(tokenizer)
         self.tokenizer.padding_side = "left"  # must set this，padding side with make a difference in batch inference
 
         # add the pad_token as special token to use 'tokenizer.pad_token' and 'tokenizer.pad_token_id'
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({"pad_token": pad_token})
 
-        # add image token
-        # image_token_id = self.tokenizer.vocab.get(image_token)
-        # if image_token_id is None:
-        #     special_tokens = [image_token]
-        #     special_tokens_dict = {"additional_special_tokens": special_tokens}
-        #     self.tokenizer.add_special_tokens(special_tokens_dict)
         self.image_token_id = self.tokenizer.vocab.get(image_token)
         logger.debug(f"image_token_id: {self.image_token_id}")
 
-        # add five special tokens for grounding-related tasks
-        # <|ref|>, <|/ref|>, <|det|>, <|/det|>, <|grounding|>
-        # special_tokens = ['<|ref|>', '<|/ref|>', '<|det|>', '<|/det|>', '<|grounding|>']
-        # special_tokens_dict = {"additional_special_tokens": special_tokens}
-
-        # special_tokens = ['<image>','<|ref|>', '<|/ref|>', '<|det|>', '<|/det|>',
-        #                   '<|grounding|>', '<td>', '</td>', '<tr>', '</tr>']
-        # special_tokens_dict = {"additional_special_tokens": special_tokens}
-        # self.tokenizer.add_special_tokens(special_tokens_dict)
-
-        # add special tokens for SFT data
-        # special_tokens = ["<|User|>", "<|Assistant|>"]
-        # special_tokens_dict = {"additional_special_tokens": special_tokens}
-        # self.tokenizer.add_special_tokens(special_tokens_dict)
-
         self.image_token = image_token
         self.pad_token = pad_token
-        self.add_special_token = add_special_token
-        self.sft_format = sft_format
-        self.mask_prompt = mask_prompt
-        self.ignore_id = ignore_id
 
         super().__init__(
             self.tokenizer,
             **kwargs,
         )
         logger.debug("DeepseekOCRProcessor初始化完成")
-
-    # def select_best_resolution(self, image_size):
-    #     # used for cropping
-    #     original_width, original_height = image_size
-    #     best_fit = None
-    #     max_effective_resolution = 0
-    #     min_wasted_resolution = float("inf")
-
-    #     for width, height in self.candidate_resolutions:
-    #         scale = min(width / original_width, height / original_height)
-    #         downscaled_width, downscaled_height = int(
-    #             original_width * scale), int(original_height * scale)
-    #         effective_resolution = min(downscaled_width * downscaled_height,
-    #                                    original_width * original_height)
-    #         wasted_resolution = (width * height) - effective_resolution
-
-    #         if effective_resolution > max_effective_resolution or (
-    #                 effective_resolution == max_effective_resolution
-    #                 and wasted_resolution < min_wasted_resolution):
-    #             max_effective_resolution = effective_resolution
-    #             min_wasted_resolution = wasted_resolution
-    #             best_fit = (width, height)
-
-    #     return best_fit
 
     @property
     def bos_id(self):

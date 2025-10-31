@@ -93,13 +93,7 @@ class ModelInitializer:
                     if src_path not in sys.path:
                         sys.path.insert(0, src_path)
 
-                    # 将模型代码路径添加到Python路径
-                    model_code_path = os.path.join(project_root, "models", "template")
-                    if model_code_path not in sys.path:
-                        sys.path.insert(0, model_code_path)
-
                     logger.info(f"已添加src路径到Python路径: {src_path}")
-                    logger.info(f"已添加模型代码路径到Python路径: {model_code_path}")
 
                 # 对于本地模型，不需要trust_remote_code，因为我们使用的是本地代码
                 # 对于远程模型，使用传入的trust_remote_code参数
@@ -179,13 +173,7 @@ class ModelInitializer:
                 if src_path not in sys.path:
                     sys.path.insert(0, src_path)
 
-                # 将模型代码路径添加到Python路径
-                model_code_path = os.path.join(project_root, "models", "template")
-                if model_code_path not in sys.path:
-                    sys.path.insert(0, model_code_path)
-
                 logger.info(f"已添加src路径到Python路径: {src_path}")
-                logger.info(f"已添加模型代码路径到Python路径: {model_code_path}")
 
             # vLLM相关导入（延迟导入，避免在不支持的平台上报错）
             try:

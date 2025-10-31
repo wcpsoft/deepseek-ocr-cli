@@ -18,6 +18,7 @@ INPUT_FILE=""
 OUTPUT_DIR="output"
 MODE="auto"
 DEBUG=false
+IPDB=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -33,9 +34,13 @@ while [[ $# -gt 0 ]]; do
             DEBUG=true
             shift
             ;;
+        --ipdb)
+            IPDB=true
+            shift
+            ;;
         -*)
             log_error "未知选项: $1"
-            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [输入文件] [输出目录]"
+            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [--ipdb] [输入文件] [输出目录]"
             exit 1
             ;;
         *)
@@ -94,7 +99,7 @@ fi
 
 # 如果没有提供输入文件，则退出
 if [ -z "$INPUT_FILE" ]; then
-    echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] <输入文件> [输出目录]"
+    echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [--ipdb] <输入文件> [输出目录]"
     echo "示例: ./dev/run.sh samples/1.pdf output"
     # 显示推荐的推理模式（如果有的话）
     if [ -n "$RECOMMENDED_MODE" ] && [ "$RECOMMENDED_MODE" != "auto" ]; then
@@ -133,6 +138,10 @@ log_info "推理模式: $FINAL_MODE"
 ARGS=("$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE")
 if [ "$DEBUG" = true ]; then
     ARGS+=(--debug)
+fi
+
+if [ "$IPDB" = true ]; then
+    ARGS+=(--ipdb)
 fi
 
 python3 -m src.cli.main "${ARGS[@]}"

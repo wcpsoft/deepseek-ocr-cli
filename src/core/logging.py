@@ -111,9 +111,20 @@ def is_debug_mode() -> bool:
     return os.environ.get("DEBUG", "").upper() == "TRUE"
 
 
+def is_ipdb_mode() -> bool:
+    """
+    检查是否启用了ipdb调试模式
+
+    Returns:
+        bool: 是否启用了ipdb调试模式
+    """
+    return os.environ.get("IPDB", "").upper() == "TRUE"
+
+
 def debug_trace():
     """调试跟踪函数"""
-    if not is_debug_mode():
+    # 只有在ipdb模式下才进入调试器
+    if not is_ipdb_mode():
         return
 
     try:

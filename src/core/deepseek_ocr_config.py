@@ -120,19 +120,6 @@ def _register_configs():
 _register_configs()
 
 
-class DeepseekV2Model:
-    """
-    DeepSeek V2模型类占位符
-    """
-
-    def __init__(self):
-        pass
-
-
-class DeepseekV2ForCausalLM:
-    """
-    DeepSeek V2因果语言模型类占位符
-    """
-
-    def __init__(self):
-        pass
+# 确保这些类在模块级别可用
+DeepseekV2Model = None
+DeepseekV2ForCausalLM = None

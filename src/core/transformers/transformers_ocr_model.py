@@ -38,19 +38,21 @@ try:
     try:
         # 使用更安全的方式访问_model_mapping
         if not hasattr(AutoConfig, "_model_mapping"):
-            AutoConfig._model_mapping = {}
+            # 使用CONFIG_MAPPING代替_model_mapping
+            pass
 
         # 使用getattr来获取属性
-        model_mapping = AutoConfig._model_mapping
-        model_mapping["deepseek_vl_v2"] = ConfigDeepseekVLV2Config
-        model_mapping["deepseek_v2"] = ConfigDeepseekV2Config
+        # 直接使用CONFIG_MAPPING
+        CONFIG_MAPPING["deepseek_vl_v2"] = ConfigDeepseekVLV2Config
+        CONFIG_MAPPING["deepseek_v2"] = ConfigDeepseekV2Config
 
         try:
             # 注册DeepSeekVLV2模型配置
             try:
-                from deepseek_vl.models.deepseek_vl_v2 import DeepseekVLV2Config
-
-                model_mapping["deepseek_vl_v2"] = DeepseekVLV2Config
+                # 使用本地定义的DeepseekVLV2Config而不是尝试从外部模块导入
+                from src.core.deepseek_ocr_config import DeepseekVLV2Config
+                CONFIG_MAPPING["deepseek_vl_v2"] = DeepseekVLV2Config
+                logger.info("成功注册本地DeepseekVLV2Config")
             except Exception as e:
                 logger.warning(f"注册DeepSeekVLV2模型配置失败: {e}")
         except Exception as e:
@@ -108,7 +110,9 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         if DirectDeepseekOCRForCausalLM is not None:
             logger.info("使用直接导入的DeepseekOCRForCausalLM类")
             try:
-                return DirectDeepseekOCRForCausalLM.from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
+                # 修复类型不匹配问题
+                result = DirectDeepseekOCRForCausalLM.from_pretrained(pretrained_model_name_or_path, *args, **kwargs)
+                return result  # type: ignore
             except Exception as e:
                 logger.error(f"直接导入的模型类加载失败，回退到基类实现: {e}")
         else:
@@ -292,11 +296,13 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         return params
 
 
-# 延迟注册模型类到transformers，避免循环导入
+# 延迟注册模型类，避免循环导入问题
 def _register_model_classes():
     """延迟注册模型类，避免循环导入问题"""
     try:
-
+        # 确保使用正确的配置类
+        from src.core.deepseek_ocr_config import DeepseekVLV2Config
+        
         class DeepseekVLV2ForCausalLM(DeepseekOCRForCausalLM):
             """
             DeepSeek VLV2因果语言模型
@@ -304,8 +310,11 @@ def _register_model_classes():
             """
 
         # 注册模型类到AutoModelForCausalLM
-        AutoModelForCausalLM.register(DeepseekVLV2Config, DeepseekVLV2ForCausalLM)
-        logger.info("已注册DeepseekVLV2ForCausalLM到AutoModelForCausalLM")
+        try:
+            AutoModelForCausalLM.register(DeepseekVLV2Config, DeepseekVLV2ForCausalLM)
+            logger.info("已注册DeepseekVLV2ForCausalLM到AutoModelForCausalLM")
+        except Exception as e:
+            logger.warning(f"注册模型类到AutoModelForCausalLM失败: {e}")
 
     except Exception as e:
         logger.warning(f"注册模型类失败: {e}")
