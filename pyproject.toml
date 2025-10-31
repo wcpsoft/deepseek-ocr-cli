@@ -69,6 +69,7 @@ deepseek-ocr = "cli.main:main"
 deepseek-ocr-download = "cli.download_models:main"
 deepseek-ocr-detect-gpu = "dev.detect_gpu:main"
 deepseek-ocr-debug = "dev.debug:main"
+deepseek-ocr-code-check = "dev.auto_check_code_style:main"
 
 [project.urls]
 Homepage = "https://github.com/wcpsoft/deepseek-ocr-cli"

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # 引入公共函数
 source "$(dirname "$0")/common.sh"
 
@@ -35,7 +37,7 @@ install_all_deps
 
 # 运行代码质量检查
 log_info "运行代码质量检查..."
-if ! run_quality_check; then
+if ! ./dev/auto_check_code_style.sh --check-only; then
     log_error "代码质量检查失败，终止测试"
     exit 1
 fi

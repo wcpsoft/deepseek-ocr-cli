@@ -224,17 +224,17 @@ vllm_engine.initialize()
 
 #### 自动化脚本
 
-项目提供了自动化脚本用于代码格式化和质量检查：
+项目提供了统一的自动化脚本用于代码格式化和质量检查：
 
 ```bash
-# 代码格式化（按正确顺序执行所有工具）
-./dev/format.sh
-
-# 代码质量检查（按正确顺序执行所有检查）
-./dev/check_quality.sh
+# 代码质量检查（检查但不修复问题）
+./dev/auto_check_code_style.sh --check-only
 
 # 自动修复代码质量问题
-./dev/fix.sh
+./dev/auto_check_code_style.sh --fix
+
+# 默认行为：检查问题并在发现问题时提示如何修复
+./dev/auto_check_code_style.sh
 ```
 
 #### Pre-commit钩子
