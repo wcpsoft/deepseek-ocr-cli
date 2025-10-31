@@ -392,11 +392,3 @@ class ModelManager:
             logger.info(f"已清理 {len(py_files)} 个Python文件")
 
         return True
-
-
-
-
-
-
-
-

@@ -37,10 +37,8 @@ try:
     from vllm.multimodal.parse import (
         ImageEmbeddingItems,
         ImageProcessorItems,
-        MultiModalDataItems,
-    )
-    from vllm.multimodal.parse import (
         ImageSize as VLLMImageSize,
+        MultiModalDataItems,
     )
     from vllm.multimodal.processing import (
         BaseMultiModalProcessor,

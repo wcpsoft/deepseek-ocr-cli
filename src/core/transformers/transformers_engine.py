@@ -300,7 +300,23 @@ class TransformersEngine(BaseOCREngine):
 
     def cleanup(self) -> None:
         """清理资源"""
-        # Transformers引擎不需要特殊清理
+        # 清理设备缓存
+        try:
+            import torch
+            from src.core.utils.device_manager import get_optimal_device
+            
+            optimal_device = get_optimal_device()
+            device_type = optimal_device.type
+            
+            if device_type == "cuda" and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            elif device_type == "mps" and hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"清理设备缓存时出错: {e}")
+            
         self.is_initialized = False
 
 

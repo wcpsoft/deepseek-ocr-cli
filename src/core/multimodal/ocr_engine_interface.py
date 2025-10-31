@@ -222,5 +222,8 @@ class BaseOCREngine(OCREngineInterface):
         # 清理GPU内存
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        # 清理MPS内存
+        elif hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
 
         logger.info("OCR引擎资源已清理")

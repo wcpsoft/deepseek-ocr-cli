@@ -571,21 +571,23 @@ class DeepseekOCRProcessor(ProcessorMixin):
     ):
         """Tokenize text with <image> tags."""
         import math
+
         from PIL import ImageOps
-        
+
         logger.debug("开始tokenize_with_images处理")
-        
+
         # 初始化变量
         images_list, images_crop_list, images_seq_mask, images_spatial_crop = [], [], [], []
         image_shapes = []
         num_image_tokens = []
         tokenized_str = []
-        
+
         # 使用默认提示词
         from src.core.config import PROMPT
+
         conversation = PROMPT
         text_splits = conversation.split(self.image_token)
-        
+
         # 处理每个图像和对应的文本分割
         for text_sep, image in zip(text_splits, images):
             logger.debug(f"处理图像，大小: {image.size}")
@@ -605,15 +607,16 @@ class DeepseekOCRProcessor(ProcessorMixin):
                     images_crop_raw, crop_ratio = dynamic_preprocess(image, image_size=IMAGE_SIZE)
                 else:
                     crop_ratio = [1, 1]
-            
+
             logger.debug(f"裁剪比例: {crop_ratio}")
 
             # 处理全局视图
             if IMAGE_SIZE <= 640 and not cropping:
                 image = image.resize((IMAGE_SIZE, IMAGE_SIZE))
 
-            global_view = ImageOps.pad(image, (BASE_SIZE, BASE_SIZE),
-                                    color=tuple(int(x * 255) for x in self.image_transform.mean))
+            global_view = ImageOps.pad(
+                image, (BASE_SIZE, BASE_SIZE), color=tuple(int(x * 255) for x in self.image_transform.mean)
+            )
             images_list.append(self.image_transform(global_view))
 
             # 记录高度/宽度裁剪数量
@@ -633,7 +636,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
             tokenized_image += [self.image_token_id]
             if num_width_tiles > 1 or num_height_tiles > 1:
                 tokenized_image += ([self.image_token_id] * (num_queries * num_width_tiles) + [self.image_token_id]) * (
-                            num_queries * num_height_tiles)
+                    num_queries * num_height_tiles
+                )
             tokenized_str += tokenized_image
             images_seq_mask += [True] * len(tokenized_image)
             num_image_tokens.append(len(tokenized_image))
@@ -653,7 +657,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
         # 验证长度
         assert len(tokenized_str) == len(
-            images_seq_mask), f"tokenize_with_images func: tokenized_str's length {len(tokenized_str)} is not equal to images_seq_mask's length {len(images_seq_mask)}"
+            images_seq_mask
+        ), f"tokenize_with_images func: tokenized_str's length {len(tokenized_str)} is not equal to images_seq_mask's length {len(images_seq_mask)}"
 
         # 创建masked_tokenized_str
         masked_tokenized_str = []
@@ -664,9 +669,10 @@ class DeepseekOCRProcessor(ProcessorMixin):
                 masked_tokenized_str.append(self.ignore_id)
 
         # 验证所有长度
-        assert len(tokenized_str) == len(images_seq_mask) == len(masked_tokenized_str), \
-            (f"tokenized_str's length {len(tokenized_str)}, input_ids' length {len(masked_tokenized_str)}, "
-             f"images_seq_mask's length {len(images_seq_mask)}, are not equal")
+        assert len(tokenized_str) == len(images_seq_mask) == len(masked_tokenized_str), (
+            f"tokenized_str's length {len(tokenized_str)}, input_ids' length {len(masked_tokenized_str)}, "
+            f"images_seq_mask's length {len(images_seq_mask)}, are not equal"
+        )
 
         # 创建张量
         input_ids = torch.LongTensor(tokenized_str)
@@ -713,7 +719,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
                 image_shapes,
             ]
         ]
-        
+
         logger.debug("tokenize_with_images处理完成")
         return result
 

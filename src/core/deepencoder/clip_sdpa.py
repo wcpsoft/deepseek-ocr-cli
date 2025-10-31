@@ -25,7 +25,7 @@ except ImportError:
 
 
 class LayerNormfp32(torch.nn.LayerNorm):
-    """Subclass torch's LayerNorm to handle fp16."""
+    """继承torch的LayerNorm以处理fp16。"""
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """
@@ -53,15 +53,15 @@ def get_abs_pos(abs_pos: torch.Tensor, tgt_size: int) -> torch.Tensor:
     Returns:
         调整后的绝对位置编码
     """
-    # abs_pos: L, C
-    # tgt_size: M
-    # return: M, C
+    # abs_pos: 位置编码，L:序列长度, C:通道数
+    # tgt_size: 目标尺寸，M:目标序列长度
+    # return: 调整后的位置编码，M:目标序列长度, C:通道数
 
-    # print(tgt_size)
-    # print(abs_pos.shape)
-    # exit()
+    # 打印目标尺寸
+    # 打印位置编码的形状
+    # 退出程序
     dim = abs_pos.size(-1)
-    # print(dim)
+    # 打印维度
     abs_pos_new = abs_pos.squeeze(0)
     cls_token, old_pos_embed = abs_pos_new[:1], abs_pos_new[1:]
 
@@ -154,24 +154,24 @@ class CLIPVisionEmbeddings(nn.Module):
         batch_size = pixel_values.shape[0]
         # patch_embeds = self.patch_embedding(
         #     pixel_values
-        # )  # shape = [*, width, grid, grid]
+        # )  # 形状 = [*, width, grid, grid]，其中*表示批次维度，width表示通道数，grid表示网格大小
 
         if patch_embeds is not None:
             patch_embeds = patch_embeds
         else:
             patch_embeds = self.patch_embedding(pixel_values)
             # print(111111)
-        # shape = [*, width, grid, grid]
-        # patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
+        # 形状 = [*, width, grid, grid]，其中*表示批次维度，width表示通道数，grid表示网格大小
+        # patch_embeds = patch_embeds.flatten(2).transpose(1, 2)，将张量展平并转置
 
         patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
         class_embeds = self.class_embedding.expand(batch_size, 1, -1)
         embeddings = torch.cat([class_embeds, patch_embeds], dim=1)
 
-        # x = torch.cat([cls_token, x], dim=1)
+        # x = torch.cat([cls_token, x], dim=1)  # 将分类标记与输入张量连接
         embeddings = embeddings + get_abs_pos(self.position_embedding(self.position_ids), embeddings.size(1))
-        # embeddings = embeddings + self.position_embedding(self.position_ids)
+        # embeddings = embeddings + self.position_embedding(self.position_ids)  # 添加位置编码
         return embeddings
 
 
@@ -214,55 +214,6 @@ class NoTPFeedForward(nn.Module):
         return output
 
 
-# from optimus.flash_attn_interface import flash_attn_qkvpacked_func
-
-
-# class NoTPAttention(nn.Module):
-#     def __init__(self, cfg):
-#         super().__init__()
-#         self.num_heads = cfg.num_attention_heads
-#         self.n_local_heads = cfg.num_attention_heads
-#         self.head_dim = cfg.hidden_size // cfg.num_attention_heads
-#         self.max_seq_len = cfg.seq_length
-#         self.use_flash_attention = cfg.use_flash_attn
-
-#         self.qkv_proj = torch.nn.Linear(cfg.hidden_size, cfg.hidden_size * 3, bias=True)
-#         self.out_proj = torch.nn.Linear(cfg.hidden_size, cfg.hidden_size, bias=True)
-
-#         # self.core_attention = CoreAttention(cfg, AttnType.self_attn)
-
-#         self.attn_drop = cfg.attention_dropout
-
-#     def forward(
-#             self,
-#             x: torch.Tensor,
-#     ):
-#         bsz, seqlen, _ = x.shape
-#         xqkv = self.qkv_proj(x)
-#         xqkv = xqkv.view(bsz, seqlen, 3, self.num_heads, self.head_dim)
-
-#         if self.use_flash_attention:
-#             output = flash_attn_qkvpacked_func(xqkv)
-#             output = output.view(bsz, seqlen, -1)
-#         else:
-#             xq, xk, xv = torch.split(xqkv, 1, dim=2)
-#             xq = xq.squeeze(2)
-#             xk = xk.squeeze(2)
-#             xv = xv.squeeze(2)
-#             # xq, xk, xv = xqkv[:, :, 0, ...], xqkv[:, :, 1, ...], xqkv[:, :, 2, ...]
-
-#             # （B, num_head, S, head_size)
-#             xq = xq.permute(0, 2, 1, 3)
-#             xk = xk.permute(0, 2, 1, 3)
-#             xv = xv.permute(0, 2, 1, 3)
-
-#             output = torch.nn.functional.scaled_dot_product_attention(xq, xk, xv, attn_mask=None)
-#             utput = output.permute(0, 2, 1, 3).view(bsz, seqlen, -1)
-#         output = self.out_proj(output)
-#         return output
-
-
-# from optimus.flash_attn_interface import flash_attn_qkvpacked_func
 
 
 class NoTPAttention(torch.nn.Module):
@@ -318,7 +269,7 @@ class NoTPAttention(torch.nn.Module):
             xq = xq.squeeze(2)
             xk = xk.squeeze(2)
             xv = xv.squeeze(2)
-            # （B, num_head, S, head_size)
+            # （B:批次大小, num_head:注意力头数, S:序列长度, head_size:头维度)
             xq = xq.permute(0, 2, 1, 3)
             xk = xk.permute(0, 2, 1, 3)
             xv = xv.permute(0, 2, 1, 3)
@@ -575,9 +526,6 @@ def build_clip_l():
 
 if __name__ == "__main__":
 
-    # 注释掉无法导入的模块
-    # from mmgpt.model.vision_encoder.sam_b import build_sam_vit_b
-
     vit_model_cfg = EasyDict(
         num_layers=24,
         hidden_size=1024,
@@ -597,26 +545,13 @@ if __name__ == "__main__":
         recompute_list=[],
     )
 
-    # 注释掉无法导入的模块
-    # sam_model = build_sam_vit_b()
-
     vision_model = VitModel(
         cfg=vit_model_cfg,
         freeze_embed=False,
         freeze_pre_norm=False,
     )
 
-    # model = VitModel(1344)
-    # x = torch.zeros(2, 3, 224, 224)
     x = torch.zeros(2, 3, 1024, 1024)
 
     with torch.no_grad():
-        # y = vision_model(x)
-        # patch_embed = sam_model(x)
-        # print(patch_embed.shape)
-        # y = vision_model(x, patch_embed)
-        # print(y.shape)
-
-        # image_feature = torch.add(y[:, 1:], patch_embed.flatten(2).permute(0, 2, 1))
-        # print(image_feature.shape)
         pass

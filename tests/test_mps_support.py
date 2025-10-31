@@ -96,8 +96,6 @@ def test_processor_comparison() -> None:
         try:
             from src.core.process.image_process import (
                 DeepseekOCRProcessor,
-            )
-            from src.core.process.image_process import (
                 DeepseekOCRProcessor as MPSDeepseekOCRProcessor,
             )
 

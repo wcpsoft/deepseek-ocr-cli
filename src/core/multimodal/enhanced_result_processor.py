@@ -46,7 +46,7 @@ class EnhancedOCRResultProcessor:
         # 使用日志系统替代print语句
         logger.debug(f"添加结果: 图像索引={image_index}, 结果长度={len(result) if result else 0}")
         logger.debug(f"结果内容: {result}")
-        
+
         # 过滤空结果
         if self.filter_empty_results and (not result or not isinstance(result, str) or len(result.strip()) == 0):
             logger.debug(f"图像 {image_index} OCR识别返回空结果，已过滤")

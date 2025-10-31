@@ -19,6 +19,7 @@ OUTPUT_DIR="output"
 MODE="auto"
 DEBUG=false
 IPDB=false
+SKIP_QUALITY_CHECK=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,9 +39,13 @@ while [[ $# -gt 0 ]]; do
             IPDB=true
             shift
             ;;
+        --skip-quality-check)
+            SKIP_QUALITY_CHECK=true
+            shift
+            ;;
         -*)
             log_error "未知选项: $1"
-            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [--ipdb] [输入文件] [输出目录]"
+            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [--ipdb] [--skip-quality-check] [输入文件] [输出目录]"
             exit 1
             ;;
         *)
@@ -80,6 +85,14 @@ RECOMMENDED_MODE=$(python3 dev/detect_gpu.py | grep "推荐的推理模式:" | c
 log_info "安装项目依赖..."
 # 使用更精确的依赖安装方式，避免跨平台依赖冲突
 install_all_deps
+
+# 添加质量检查（除非跳过）
+if [ "$SKIP_QUALITY_CHECK" = false ]; then
+    log_info "运行代码质量检查..."
+    if ! ./dev/check_quality.sh; then
+        log_warn "代码质量检查失败，但继续执行OCR处理"
+    fi
+fi
 
 # 检查是否需要下载模型
 if [ "$DOWNLOAD_MODELS" = true ]; then

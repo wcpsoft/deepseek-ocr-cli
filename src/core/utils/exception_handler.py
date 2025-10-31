@@ -95,20 +95,37 @@ class ExceptionHandler:
                     "GPU内存不足，请尝试减小图像尺寸或使用CPU模式",
                     {"memory_info": memory_info, "original_error": str(e)},
                 ) from e
-
-            except MemoryError as e:
-                # 处理系统内存不足
-                memory_info = ExceptionHandler._get_memory_info()
-                logger.error(f"系统内存不足: {e!s}")
-                logger.error(f"内存信息: {memory_info}")
-
-                # 抛出内存不足异常
-                raise OCRMemoryError(
-                    "系统内存不足，请尝试减小图像尺寸或关闭其他程序",
-                    {"memory_info": memory_info, "original_error": str(e)},
-                ) from e
-
             except Exception as e:
+                # 检查是否是MPS相关的内存错误
+                error_msg = str(e).lower()
+                if ("mps" in error_msg and "memory" in error_msg) or "out of memory" in error_msg:
+                    # 处理MPS内存不足
+                    memory_info = ExceptionHandler._get_memory_info()
+                    logger.error(f"内存不足: {e!s}")
+                    logger.error(f"内存信息: {memory_info}")
+
+                    # 清理MPS内存
+                    if hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():
+                        torch.mps.empty_cache()
+
+                    # 抛出内存不足异常
+                    raise OCRMemoryError(
+                        "内存不足，请尝试减小图像尺寸或使用CPU模式",
+                        {"memory_info": memory_info, "original_error": str(e)},
+                    ) from e
+
+                # 处理系统内存不足
+                if isinstance(e, MemoryError):
+                    memory_info = ExceptionHandler._get_memory_info()
+                    logger.error(f"系统内存不足: {e!s}")
+                    logger.error(f"内存信息: {memory_info}")
+
+                    # 抛出内存不足异常
+                    raise OCRMemoryError(
+                        "系统内存不足，请尝试减小图像尺寸或关闭其他程序",
+                        {"memory_info": memory_info, "original_error": str(e)},
+                    ) from e
+
                 # 处理其他异常
                 error_type = type(e).__name__
                 error_msg = str(e)
@@ -174,6 +191,65 @@ class ExceptionHandler:
                 )
 
             memory_info["gpu_memory"] = gpu_memory
+        # MPS内存信息
+        elif hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():
+            # 注意：PyTorch可能不直接提供MPS内存信息API
+            # 这里返回一个基本的信息结构
+            memory_info["mps_memory"] = {
+                "device": "mps",
+                "status": "available",
+                "note": "PyTorch不直接提供MPS内存信息API",
+            }
+
+        return memory_info
+
+    @staticmethod
+    def get_memory_info() -> dict:
+        """
+        获取内存信息
+
+        Returns:
+            内存信息字典
+        """
+        memory_info = {}
+
+        # 系统内存
+        memory = psutil.virtual_memory()
+        memory_info["system_memory"] = {
+            "total": f"{memory.total / (1024**3):.2f} GB",
+            "available": f"{memory.available / (1024**3):.2f} GB",
+            "percent": f"{memory.percent}%",
+            "used": f"{memory.used / (1024**3):.2f} GB",
+        }
+
+        # GPU内存
+        if torch.cuda.is_available():
+            gpu_memory = []
+            for i in range(torch.cuda.device_count()):
+                gpu_mem = torch.cuda.get_device_properties(i).total_memory
+                gpu_reserved = torch.cuda.memory_reserved(i)
+                gpu_allocated = torch.cuda.memory_allocated(i)
+
+                gpu_memory.append(
+                    {
+                        "device": i,
+                        "total": f"{gpu_mem / (1024**3):.2f} GB",
+                        "reserved": f"{gpu_reserved / (1024**3):.2f} GB",
+                        "allocated": f"{gpu_allocated / (1024**3):.2f} GB",
+                        "free": f"{(gpu_mem - gpu_allocated) / (1024**3):.2f} GB",
+                    }
+                )
+
+            memory_info["gpu_memory"] = gpu_memory
+        # MPS内存信息
+        elif hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():
+            # 注意：PyTorch可能不直接提供MPS内存信息API
+            # 这里返回一个基本的信息结构
+            memory_info["mps_memory"] = {
+                "device": "mps",
+                "status": "available",
+                "note": "PyTorch不直接提供MPS内存信息API",
+            }
 
         return memory_info
 
@@ -206,6 +282,11 @@ class ExceptionHandler:
                 if available_gpu_memory_gb < required_memory_gb:
                     logger.warning(f"GPU {i} 可用内存不足: {available_gpu_memory_gb:.2f} GB < {required_memory_gb} GB")
                     return False
+        # 检查MPS内存（简化检查）
+        elif hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():
+            # 对于MPS设备，我们只做基本的系统内存检查
+            # 因为PyTorch不直接提供MPS内存信息API
+            logger.info("MPS设备可用，使用系统内存检查")
 
         return True
 

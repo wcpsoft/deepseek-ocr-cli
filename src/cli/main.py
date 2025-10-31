@@ -427,14 +427,17 @@ def _handle_ipdb_debugging(args):
     if args.ipdb:
         # 设置IPDB环境变量
         import os
+
         os.environ["IPDB"] = "TRUE"
-        
+
         try:
             import ipdb
+
             ipdb.set_trace()
         except ImportError:
             try:
                 import pdb
+
                 pdb.set_trace()
             except ImportError:
                 print("错误: 未安装ipdb或pdb，无法启动调试模式")
@@ -444,7 +447,7 @@ def _execute_ocr_strategy(args):
     """执行OCR策略"""
     # 处理ipdb调试
     _handle_ipdb_debugging(args)
-    
+
     # 创建上下文并执行策略
     context = OCRContext(args)
 

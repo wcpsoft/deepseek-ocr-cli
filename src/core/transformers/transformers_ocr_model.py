@@ -16,8 +16,6 @@ from transformers import (
 
 from src.core.deepseek_ocr_config import (
     DeepseekV2Config as ConfigDeepseekV2Config,
-)
-from src.core.deepseek_ocr_config import (
     DeepseekVLV2Config as ConfigDeepseekVLV2Config,
 )
 from src.core.logging import get_logger
@@ -51,6 +49,7 @@ try:
             try:
                 # 使用本地定义的DeepseekVLV2Config而不是尝试从外部模块导入
                 from src.core.deepseek_ocr_config import DeepseekVLV2Config
+
                 CONFIG_MAPPING["deepseek_vl_v2"] = DeepseekVLV2Config
                 logger.info("成功注册本地DeepseekVLV2Config")
             except Exception as e:
@@ -302,7 +301,7 @@ def _register_model_classes():
     try:
         # 确保使用正确的配置类
         from src.core.deepseek_ocr_config import DeepseekVLV2Config
-        
+
         class DeepseekVLV2ForCausalLM(DeepseekOCRForCausalLM):
             """
             DeepSeek VLV2因果语言模型

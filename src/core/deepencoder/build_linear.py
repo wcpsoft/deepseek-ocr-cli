@@ -180,7 +180,6 @@ class MlpProjector(nn.Module):
             w = h = int(wxh**0.5)
             x = x.view(batch_size, w, h, channels)
             x = x.permute(0, 3, 1, 2)
-            # import ipdb; ipdb.set_trace()
             patches = x.unfold(2, 2, 2).unfold(3, 2, 2)
             batch_size, channels, h_patches, w_patches, _, _ = patches.size()
             # 在通道维度上拼接
@@ -242,13 +241,13 @@ class MlpProjector(nn.Module):
                 x = F.pad(x, (0, 0, 0, pad, 0, pad), "constant", 0)
 
             """4合1拼接"""
-            x = x.permute(0, 3, 1, 2)  # B, C, H, W
+            x = x.permute(0, 3, 1, 2)  # B:批次大小, C:通道数, H:高度, W:宽度
             x = F.unfold(
                 x,
                 kernel_size=self.cfg.downsample_ratio,
                 stride=self.cfg.downsample_ratio,
                 padding=0,
-            )  # B, C*4, HW // 4
+            )  # B:批次大小, C*4:通道数乘以4, HW // 4:高度宽度除以4
             x = x.permute(0, 2, 1)
 
         # 只有在需要时才返回self.layers(x)
