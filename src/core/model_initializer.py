@@ -5,9 +5,10 @@
 """
 
 import logging
+from typing import Any, Optional, Tuple, Union
+
 import torch
 import torch.nn as nn
-from typing import Any, Optional, Tuple, Union
 
 # 导入日志模块
 from src.core.logging import get_logger
@@ -36,20 +37,21 @@ class ModelInitializer:
         try:
             # 使用ModelManager处理模型加载，避免重复实现
             from src.core.models.model_manager import ModelManager
-            
+
             logger.info("使用ModelManager初始化Transformers模型和分词器")
             model_manager = ModelManager(model_path)
             model, tokenizer = model_manager.load_model_and_tokenizer(trust_remote_code=trust_remote_code)
-            
+
             # 移动模型到适当的设备
             model_manager.setup_device()
             model_manager.move_model_to_device()
-            
+
             logger.info("Transformers模型和分词器初始化完成")
             return model, tokenizer
         except Exception as e:
             logger.error(f"初始化Transformers模型和分词器失败: {e!s}")
             import traceback
+
             logger.error(f"错误堆栈: {traceback.format_exc()}")
             raise RuntimeError(f"初始化Transformers模型和分词器失败: {e!s}") from e
 
@@ -69,29 +71,30 @@ class ModelInitializer:
         try:
             # 使用ModelManager处理模型加载，避免重复实现
             from src.core.models.model_manager import ModelManager
-            
+
             logger.info("使用ModelManager初始化vLLM模型")
             model_manager = ModelManager(model_path)
             # 注意：这里需要特殊处理vLLM模型
             # 由于vLLM的特殊性，我们直接调用模型工厂
             from src.core.models.model_factory import create_ocr_model
-            
+
             # 检查是否是本地路径
             is_remote_repo = model_manager._is_remote_repo(model_path)
             local_files_only = not is_remote_repo
-            
+
             model = create_ocr_model(
                 model_type="vllm",
                 model_path=model_path,
                 trust_remote_code=trust_remote_code,
                 local_files_only=local_files_only,
             )
-            
+
             logger.info("vLLM模型初始化完成")
             return model
         except Exception as e:
             logger.error(f"初始化vLLM模型失败: {e!s}")
             import traceback
+
             logger.error(f"错误堆栈: {traceback.format_exc()}")
             raise RuntimeError(f"初始化vLLM模型失败: {e!s}") from e
 
@@ -110,7 +113,7 @@ class ModelInitializer:
         try:
             # 使用专门的设备管理工具
             from src.core.utils.device_manager import get_optimal_device
-            
+
             # 如果没有指定设备，自动选择最优设备
             if device is None:
                 device = get_optimal_device()

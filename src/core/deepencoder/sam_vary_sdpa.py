@@ -43,6 +43,7 @@ def get_abs_pos(abs_pos: torch.Tensor, tgt_size: int) -> torch.Tensor:
 
 class MLPBlock(nn.Module):
     """MLP块，用于Transformer中的前馈网络。"""
+
     def __init__(
         self,
         embedding_dim: int,
@@ -62,6 +63,7 @@ class MLPBlock(nn.Module):
 # 原始来源: https://github.com/facebookresearch/ConvNeXt/blob/d1fa8f6fef0a165b27399986cc2bdacc92777e40/models/convnext.py#L119
 class LayerNorm2d(nn.Module):
     """二维层归一化。"""
+
     def __init__(self, num_channels: int, eps: float = 1e-6) -> None:
         super().__init__()
         self.weight = nn.Parameter(torch.ones(num_channels))

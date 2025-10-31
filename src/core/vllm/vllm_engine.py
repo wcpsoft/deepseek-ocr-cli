@@ -129,6 +129,7 @@ class VLLMEngine(BaseOCREngine):
         except Exception as e:
             logger.error(f"vLLM引擎初始化失败: {e}")
             import traceback
+
             logger.error(f"错误堆栈: {traceback.format_exc()}")
             return False
 
@@ -151,6 +152,7 @@ class VLLMEngine(BaseOCREngine):
         except Exception as e:
             logger.error(f"图像处理失败: {e}")
             import traceback
+
             logger.error(f"错误堆栈: {traceback.format_exc()}")
             raise
 
@@ -161,13 +163,14 @@ class VLLMEngine(BaseOCREngine):
             self.model = None
         if self.tokenizer is not None:
             self.tokenizer = None
-            
+
         # 清理设备缓存
         try:
             import torch
+
             optimal_device = get_optimal_device()
             device_type = optimal_device.type
-            
+
             if device_type == "cuda" and torch.cuda.is_available():
                 torch.cuda.empty_cache()
             elif device_type == "mps" and hasattr(torch.mps, "empty_cache") and torch.backends.mps.is_available():

@@ -214,8 +214,6 @@ class NoTPFeedForward(nn.Module):
         return output
 
 
-
-
 class NoTPAttention(torch.nn.Module):
     """
     无张量并行注意力机制
