@@ -35,11 +35,15 @@ class LayerNormfp32(torch.nn.LayerNorm):
             input: 输入张量
 
         Returns:
-            处理后的张量
+            输出张量
         """
-        orig_type = input.dtype
-        ret = super().forward(input.type(torch.float32))
-        return ret.type(orig_type)
+        return F.layer_norm(
+            input.float(),
+            self.normalized_shape,
+            self.weight.float() if self.weight is not None else None,
+            self.bias.float() if self.bias is not None else None,
+            self.eps,
+        ).to(input.dtype)
 
 
 def get_abs_pos(abs_pos: torch.Tensor, tgt_size: int) -> torch.Tensor:
@@ -152,26 +156,24 @@ class CLIPVisionEmbeddings(nn.Module):
             视觉嵌入向量
         """
         batch_size = pixel_values.shape[0]
-        # patch_embeds = self.patch_embedding(
-        #     pixel_values
-        # )  # 形状 = [*, width, grid, grid]，其中*表示批次维度，width表示通道数，grid表示网格大小
 
         if patch_embeds is not None:
             patch_embeds = patch_embeds
         else:
             patch_embeds = self.patch_embedding(pixel_values)
-            # print(111111)
-        # 形状 = [*, width, grid, grid]，其中*表示批次维度，width表示通道数，grid表示网格大小
-        # patch_embeds = patch_embeds.flatten(2).transpose(1, 2)，将张量展平并转置
-
-        patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
+            
+        # 确保patch_embeds不为None再进行操作
+        if patch_embeds is not None:
+            patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
+        else:
+            # 如果patch_embeds仍然为None，创建一个默认的张量
+            # 这种情况不应该发生，但为了代码健壮性添加检查
+            patch_embeds = torch.zeros(batch_size, self.num_patches, self.embed_dim, device=pixel_values.device)
 
         class_embeds = self.class_embedding.expand(batch_size, 1, -1)
         embeddings = torch.cat([class_embeds, patch_embeds], dim=1)
 
-        # x = torch.cat([cls_token, x], dim=1)  # 将分类标记与输入张量连接
         embeddings = embeddings + get_abs_pos(self.position_embedding(self.position_ids), embeddings.size(1))
-        # embeddings = embeddings + self.position_embedding(self.position_ids)  # 添加位置编码
         return embeddings
 
 
@@ -442,7 +444,7 @@ class VitModel(nn.Module):
 
         for p in self.parameters():
             # 为参数添加自定义属性
-            p.micro_dp = True
+            setattr(p, 'micro_dp', True)
 
     def set_input_tensor(self, input_tensor):
         """

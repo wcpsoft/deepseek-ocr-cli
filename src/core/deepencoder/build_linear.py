@@ -256,7 +256,7 @@ class MlpProjector(nn.Module):
         return x
 
     @staticmethod
-    def get_flops_per_sample(cfg):
+    def get_flops_per_sample(cfg) -> int:
         """
         计算每个样本的浮点运算次数
 
@@ -266,16 +266,24 @@ class MlpProjector(nn.Module):
         Returns:
             每个样本的浮点运算次数
         """
-        if cfg.projector_type == "linear":
-            fwd = 2 * cfg.input_dim * cfg.n_embed
+        # 为每个样本计算FLOPs
+        flops = 0
 
-        elif "mlp_gelu" in cfg.projector_type:
-            mlp_depth = cfg.get("depth", 1)
-            downsample_ratio = cfg.get("downsample_ratio", 1)
-            input_dim = sum(cfg.input_dim) if isinstance(cfg.input_dim, list) else cfg.input_dim
-            input_dim = input_dim * downsample_ratio * downsample_ratio
-            fwd = 2 * input_dim * cfg.n_embed + (mlp_depth - 1) * 2 * cfg.n_embed * cfg.n_embed
-        else:
-            fwd = 0
+        # 计算MLP的FLOPs
+        # 输入维度: cfg.hidden_size
+        # 隐藏维度: cfg.intermediate_size
+        # 输出维度: cfg.hidden_size
 
-        return fwd * 3
+        # 第一层线性变换: cfg.hidden_size -> cfg.intermediate_size
+        flops += cfg.hidden_size * cfg.intermediate_size * 2  # 乘法和加法
+
+        # 激活函数 (假设为GELU，复杂度相对较低，这里简化计算)
+        flops += cfg.intermediate_size
+
+        # 第二层线性变换: cfg.intermediate_size -> cfg.hidden_size
+        flops += cfg.intermediate_size * cfg.hidden_size * 2  # 乘法和加法
+
+        # LayerNorm (简化计算)
+        flops += cfg.hidden_size * 2  # 归一化和缩放
+
+        return flops

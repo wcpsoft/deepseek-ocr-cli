@@ -16,7 +16,7 @@ GENERAL_DESCRIBE_PROMPT = "<image>\nDescribe this image in detail."
 LOCALIZE_PROMPT_TEMPLATE = "<image>\nLocate <|ref|>{}<|/ref|> in the image."
 
 # 提示词映射字典，便于管理和扩展
-PROMPT_MAP = {
+PROMPT_TEMPLATES = {
     "default": DEFAULT_OCR_PROMPT,
     "free": FREE_OCR_PROMPT,
     "document": DOCUMENT_OCR_PROMPT,
@@ -26,17 +26,18 @@ PROMPT_MAP = {
 }
 
 
-def get_prompt(prompt_type: str = "default", custom_text: str = None) -> str:
+def get_prompt(prompt_type: str = "default", custom_text: str | None = None) -> str:
     """
     获取指定类型的提示词
 
     Args:
-        prompt_type: 提示词类型，默认为'default'
-        custom_text: 自定义文本，用于LOCALIZE_PROMPT_TEMPLATE
+        prompt_type: 提示词类型
+        custom_text: 自定义文本
 
     Returns:
-        对应类型的提示词
+        提示词字符串
     """
-    if prompt_type == "localize" and custom_text:
-        return LOCALIZE_PROMPT_TEMPLATE.format(custom_text)
-    return PROMPT_MAP.get(prompt_type, DEFAULT_OCR_PROMPT)
+    if custom_text:
+        return custom_text
+
+    return PROMPT_TEMPLATES.get(prompt_type, DEFAULT_OCR_PROMPT)

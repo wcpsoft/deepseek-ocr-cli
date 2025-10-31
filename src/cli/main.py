@@ -445,6 +445,21 @@ def _handle_ipdb_debugging(args):
 
 def _execute_ocr_strategy(args):
     """执行OCR策略"""
+    # 调试模式
+    if args.debug:
+        try:
+            import ipdb
+
+            ipdb.set_trace()
+        except ImportError:
+            try:
+                import pdb
+
+                pdb.set_trace()
+            except ImportError:
+                print("错误: 未安装ipdb或pdb，无法启动调试模式")
+                sys.exit(1)
+
     # 处理ipdb调试
     _handle_ipdb_debugging(args)
 

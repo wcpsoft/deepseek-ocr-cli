@@ -122,23 +122,23 @@ def is_ipdb_mode() -> bool:
 
 
 def debug_trace():
-    """调试跟踪函数"""
-    # 只有在ipdb模式下才进入调试器
-    if not is_ipdb_mode():
-        return
-
-    try:
-        import ipdb
-
-        ipdb.set_trace()
-    except ImportError:
+    """
+    调试跟踪函数
+    在启用调试模式时设置断点
+    """
+    if os.getenv("DEBUG", "").upper() in ("TRUE", "1", "YES", "ON"):
         try:
-            import pdb
+            import ipdb
 
-            pdb.set_trace()
+            ipdb.set_trace()
         except ImportError:
-            # 如果都没有安装，只打印消息
-            print("调试模式已启用，但未安装调试器 (ipdb 或 pdb)")
+            try:
+                import pdb
+
+                pdb.set_trace()
+            except ImportError:
+                # 如果都没有安装，只打印消息
+                print("警告: 未安装ipdb或pdb，无法启动调试模式")
 
 
 def debug_wrapper(func):
