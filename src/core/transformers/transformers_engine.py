@@ -197,7 +197,7 @@ class TransformersEngine(BaseOCREngine):
             raise RuntimeError(f"图像处理失败: {e!s}") from e
 
     @debug_wrapper
-    def process(self, images: list[Image.Image], output_dir: str) -> None:  # noqa: C901
+    def process(self, images: list[Image.Image], output_dir: str) -> None:
         """
         使用Transformers引擎处理图像
 

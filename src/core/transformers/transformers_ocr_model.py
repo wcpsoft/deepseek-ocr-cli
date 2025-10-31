@@ -16,6 +16,8 @@ from transformers import (
 
 from src.core.deepseek_ocr_config import (
     DeepseekV2Config as ConfigDeepseekV2Config,
+)
+from src.core.deepseek_ocr_config import (
     DeepseekVLV2Config as ConfigDeepseekVLV2Config,
 )
 from src.core.logging import get_logger

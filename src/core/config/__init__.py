@@ -20,12 +20,12 @@ PROMPT = DEFAULT_OCR_PROMPT
 __all__ = [
     "BASE_SIZE",
     "CROP_MODE",
+    "DEFAULT_OCR_PROMPT",
     "IMAGE_SIZE",
     "MAX_CROPS",
     "MIN_CROPS",
     "PRINT_NUM_VIS_TOKENS",
     "PROMPT",
-    "DEFAULT_OCR_PROMPT",
     "get_config",
     "get_prompt",
     "get_tokenizer",

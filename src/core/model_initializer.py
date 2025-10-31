@@ -4,8 +4,7 @@
 统一管理模型和分词器的初始化
 """
 
-import logging
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -99,7 +98,7 @@ class ModelInitializer:
             raise RuntimeError(f"初始化vLLM模型失败: {e!s}") from e
 
     @staticmethod
-    def move_model_to_device(model: Union[nn.Module, Any], device: torch.device | None = None) -> Union[nn.Module, Any]:
+    def move_model_to_device(model: nn.Module | Any, device: torch.device | None = None) -> nn.Module | Any:
         """
         将模型移到指定设备 - 委托给专门的工具处理
 

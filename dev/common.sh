@@ -193,9 +193,9 @@ run_format() {
     fi
     
     # 3. ruff（代码检查和修复）
-    log_info "运行ruff进行代码检查..."
+    log_info "运行ruff进行代码检查和自动修复..."
     if [ -n "$SRC_DIRS" ]; then
-        python -m ruff check $SRC_DIRS --exclude template/
+        python -m ruff check --fix $SRC_DIRS --exclude template/
     else
         log_warn "未找到源代码目录"
     fi
@@ -236,7 +236,7 @@ run_quality_check() {
     # 3. ruff检查
     log_info "运行ruff进行代码质量检查..."
     if ! python -m ruff check $SRC_DIRS --exclude template/; then
-        log_error "ruff检查失败，请修复代码质量问题"
+        log_error "ruff检查失败，可通过运行 'dev/format.sh' 脚本自动修复大部分问题"
         return 1
     fi
     

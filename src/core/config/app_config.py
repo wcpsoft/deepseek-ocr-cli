@@ -6,8 +6,7 @@
 
 import logging
 import os
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import yaml
 
@@ -30,7 +29,7 @@ class AppConfig:
         if self._config is None:
             self._config = self._load_config()
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """
         加载应用程序配置
 
@@ -51,7 +50,7 @@ class AppConfig:
                 return {}
 
             # 加载配置文件
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
             logger.info(f"成功加载配置文件: {config_path}")
@@ -61,7 +60,7 @@ class AppConfig:
             logger.error(f"加载配置文件失败: {e}")
             return {}
 
-    def get_model_config(self, model_name: str) -> Optional[Dict[str, Any]]:
+    def get_model_config(self, model_name: str) -> Optional[dict[str, Any]]:
         """
         获取指定模型的配置
 
@@ -77,7 +76,7 @@ class AppConfig:
         model_config = self._config.get("model_config", {})
         return model_config.get(model_name, {})
 
-    def get_auto_map_config(self, model_name: str) -> Optional[Dict[str, str]]:
+    def get_auto_map_config(self, model_name: str) -> Optional[dict[str, str]]:
         """
         获取指定模型的auto_map配置
 
@@ -120,7 +119,7 @@ def get_app_config() -> AppConfig:
     return _app_config
 
 
-def get_model_auto_map(model_name: str) -> Optional[Dict[str, str]]:
+def get_model_auto_map(model_name: str) -> Optional[dict[str, str]]:
     """
     获取指定模型的auto_map配置
 

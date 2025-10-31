@@ -232,6 +232,9 @@ vllm_engine.initialize()
 
 # 代码质量检查（按正确顺序执行所有检查）
 ./dev/check_quality.sh
+
+# 自动修复代码质量问题
+./dev/fix.sh
 ```
 
 #### Pre-commit钩子

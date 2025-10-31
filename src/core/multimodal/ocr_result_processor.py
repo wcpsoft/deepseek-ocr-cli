@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from src.core.logging import get_logger
-from src.core.utils.exception_handler import OCRError as OCRException, SafeExecution
+from src.core.utils.exception_handler import OCRError as OCRException
+from src.core.utils.exception_handler import SafeExecution
 
 logger = get_logger()
 
