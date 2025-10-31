@@ -51,14 +51,12 @@ def test_ocr_engine_factory_create_engine() -> None:
         original_engine_classes = OCREngineFactory._engine_classes.copy()
 
         try:
-            factory = OCREngineFactory()
-
             # 测试创建vLLM引擎
-            vllm_engine = factory.create_engine("vllm")
+            vllm_engine = OCREngineFactory.create_engine("vllm")
             assert vllm_engine is not None
 
             # 测试创建Transformers引擎
-            transformers_engine = factory.create_engine("transformers")
+            transformers_engine = OCREngineFactory.create_engine("transformers")
             assert transformers_engine is not None
         finally:
             # 恢复原始状态
@@ -69,14 +67,19 @@ def test_ocr_engine_factory_invalid_engine_type() -> None:
     """测试创建不支持的引擎类型"""
     from src.core.factory.ocr_engine_factory import OCREngineFactory
 
-    factory = OCREngineFactory()
+    # 保存原始注册的引擎类
+    original_engine_classes = OCREngineFactory._engine_classes.copy()
 
-    # 测试创建不支持的引擎类型
     try:
-        factory.create_engine("invalid_engine")
-        raise AssertionError("应该抛出ValueError异常")
-    except ValueError:
-        pass  # 期望的异常
+        # 测试创建不支持的引擎类型
+        try:
+            OCREngineFactory.create_engine("invalid_engine")
+            raise AssertionError("应该抛出ValueError异常")
+        except ValueError:
+            pass  # 期望的异常
+    finally:
+        # 恢复原始状态
+        OCREngineFactory._engine_classes = original_engine_classes
 
 
 def test_ocr_engine_factory_get_available_engines() -> None:
@@ -102,10 +105,8 @@ def test_ocr_engine_factory_get_available_engines() -> None:
         original_engine_classes = OCREngineFactory._engine_classes.copy()
 
         try:
-            factory = OCREngineFactory()
-
             # 获取可用引擎
-            available_engines = factory.get_available_engines()
+            available_engines = OCREngineFactory.get_available_engines()
 
             # 验证至少包含vLLM和Transformers引擎
             assert "vllm" in available_engines
@@ -130,14 +131,43 @@ def test_ocr_engine_factory_is_engine_available() -> None:
         original_engine_classes = OCREngineFactory._engine_classes.copy()
 
         try:
-            factory = OCREngineFactory()
-
             # 测试可用引擎
-            assert factory.is_engine_available("vllm") is True
-            assert factory.is_engine_available("transformers") is True
+            assert OCREngineFactory.is_engine_available("vllm") is True
+            assert OCREngineFactory.is_engine_available("transformers") is True
 
             # 测试不可用引擎
-            assert factory.is_engine_available("invalid_engine") is False
+            assert OCREngineFactory.is_engine_available("invalid_engine") is False
+        finally:
+            # 恢复原始状态
+            OCREngineFactory._engine_classes = original_engine_classes
+
+
+def test_ocr_engine_factory_create_engine_with_parameters() -> None:
+    """测试创建引擎时传递参数"""
+    with patch.dict(
+        "sys.modules",
+        {
+            "src.core.vllm.vllm_engine": MagicMock(),
+            "src.core.transformers.transformers_engine": MagicMock(),
+        },
+    ):
+        from src.core.factory.ocr_engine_factory import OCREngineFactory
+
+        # 保存原始注册的引擎类
+        original_engine_classes = OCREngineFactory._engine_classes.copy()
+
+        try:
+            # 测试创建引擎时传递参数
+            engine = OCREngineFactory.create_engine(
+                engine_type="vllm",
+                model_path="/test/model",
+                device="cuda",
+                prompt="测试提示词",
+                base_size=512,
+                image_size=320,
+                crop_mode=False
+            )
+            assert engine is not None
         finally:
             # 恢复原始状态
             OCREngineFactory._engine_classes = original_engine_classes

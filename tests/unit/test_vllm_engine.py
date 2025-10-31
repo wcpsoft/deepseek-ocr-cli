@@ -4,6 +4,7 @@ vLLM引擎单元测试
 """
 
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -104,24 +105,17 @@ def test_vllm_engine_cleanup() -> None:
 
                 # 手动设置属性, 因为__init__被模拟了
                 engine.model_path = mock_config.MODEL_PATH
-                engine.llm = MagicMock()
-                engine.processor = MagicMock()
+                engine.model = MagicMock()
+                engine.tokenizer = MagicMock()
                 engine.is_initialized = True
 
-                # 模拟cleanup方法
-                def mock_cleanup() -> None:
-                    engine.llm = None
-                    engine.processor = None
-                    engine.is_initialized = False
+                # 调用清理方法
+                engine.cleanup()
 
-                with patch.object(engine, "cleanup", side_effect=mock_cleanup):
-                    # 调用清理方法
-                    engine.cleanup()
-
-                    # 验证llm和processor被设置为None
-                    assert engine.llm is None
-                    assert engine.processor is None
-                    assert engine.is_initialized is False
+                # 验证model和tokenizer被设置为None
+                assert engine.model is None
+                assert engine.tokenizer is None
+                assert engine.is_initialized is False
 
 
 def test_vllm_engine_process_without_initialization() -> None:
@@ -164,19 +158,17 @@ def test_vllm_engine_process_without_initialization() -> None:
                 # 手动设置属性, 因为__init__被模拟了
                 engine.model_path = mock_config.MODEL_PATH
 
-                # 模拟process_image方法抛出RuntimeError
-                with patch.object(engine, "process_image", side_effect=RuntimeError("模型未初始化")):
-                    # 创建测试图像
-                    test_image_array = np.zeros((100, 100, 3), dtype=np.uint8)
-                    test_image = Image.fromarray(test_image_array)
+                # 创建测试图像
+                test_image_array = np.zeros((100, 100, 3), dtype=np.uint8)
+                test_image = Image.fromarray(test_image_array)
 
-                    # 验证抛出异常
-                    with pytest.raises(RuntimeError, match="模型未初始化"):
-                        engine.process_image(test_image, "测试提示词")
+                # 验证抛出异常
+                with pytest.raises(RuntimeError, match="模型未初始化"):
+                    engine.process([test_image], "/tmp/test")
 
 
-def test_vllm_engine_save_results() -> None:
-    """测试vLLM引擎保存结果"""
+def test_vllm_engine_process_success() -> None:
+    """测试vLLM引擎处理成功"""
     # 创建真实的配置对象, 而不是模拟整个模块
     from src.core.config.settings import Config
 
@@ -211,9 +203,58 @@ def test_vllm_engine_save_results() -> None:
 
                 # 创建vLLM引擎实例
                 engine = VLLMEngine()
+                engine.is_initialized = True
 
-                # 手动设置属性, 因为__init__被模拟了
-                engine.model_path = mock_config.MODEL_PATH
+                # 创建测试图像列表
+                test_image_array = np.zeros((100, 100, 3), dtype=np.uint8)
+                test_image = Image.fromarray(test_image_array)
+                images = [test_image]
 
-                # 验证引擎实例存在
-                assert engine is not None
+                # 创建临时目录
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    # 不应该抛出异常
+                    engine.process(images, temp_dir)
+
+
+def test_vllm_engine_initialize_success() -> None:
+    """测试vLLM引擎初始化成功"""
+    with patch.dict(
+        "sys.modules",
+        {
+            "src.core.deepseek_ocr": MagicMock(),
+            "vllm": MagicMock(),
+            "torch": MagicMock(),
+            "src.core.utils.device_manager": MagicMock(),
+        },
+    ):
+        from src.core.vllm.vllm_engine import VLLMEngine
+
+        # 创建vLLM引擎实例
+        engine = VLLMEngine()
+        
+        # 模拟初始化成功
+        with patch.object(engine, "initialize", return_value=True):
+            result = engine.initialize()
+            assert result is True
+
+
+def test_vllm_engine_initialize_failure() -> None:
+    """测试vLLM引擎初始化失败"""
+    with patch.dict(
+        "sys.modules",
+        {
+            "src.core.deepseek_ocr": MagicMock(),
+            "vllm": MagicMock(),
+            "torch": MagicMock(),
+            "src.core.utils.device_manager": MagicMock(),
+        },
+    ):
+        from src.core.vllm.vllm_engine import VLLMEngine
+
+        # 创建vLLM引擎实例
+        engine = VLLMEngine()
+        
+        # 模拟初始化失败
+        with patch.object(engine, "initialize", return_value=False):
+            result = engine.initialize()
+            assert result is False

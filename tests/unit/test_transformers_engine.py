@@ -128,3 +128,80 @@ def test_transformers_engine_process_without_initialization() -> None:
                 # 处理应该触发初始化错误
                 with pytest.raises(RuntimeError, match="Transformers引擎初始化失败"):
                     engine.process([mock_image], str(temp_path))
+
+
+def test_transformers_engine_process_image_success() -> None:
+    """测试图像处理成功的情况"""
+    with patch.dict(
+        "sys.modules",
+        {
+            "src.core.deepseek_ocr": MagicMock(),
+            "transformers": MagicMock(),
+            "src.cli.utils": MagicMock(),
+            "torch": MagicMock(),
+        },
+    ):
+        from PIL import Image
+
+        from src.core.transformers.transformers_engine import TransformersEngine
+
+        # 创建Transformers引擎实例
+        engine = TransformersEngine()
+        engine.is_initialized = True
+        engine.image_handler = MagicMock()
+        engine.device = MagicMock()
+        engine.tokenizer = MagicMock()
+        engine.model = MagicMock()
+
+        # 创建模拟图像
+        mock_image = MagicMock(spec=Image.Image)
+        mock_image.size = (640, 640)
+
+        # 模拟图像处理过程
+        mock_processed_data = [MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+        engine.image_handler.process_image.return_value = mock_processed_data
+        engine.image_handler.extract_tensors.return_value = (MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        
+        # 模拟模型生成过程
+        mock_outputs = MagicMock()
+        mock_outputs.shape = [1, 100]
+        engine.model.generate.return_value = mock_outputs
+        
+        # 模拟tokenizer解码
+        engine.tokenizer.eos_token_id = 0
+        engine.tokenizer.decode.return_value = "测试OCR结果"
+
+        # 调用处理图像方法
+        result = engine.process_image(mock_image, "测试提示词")
+        
+        # 验证结果
+        assert result == "测试OCR结果"
+
+
+def test_transformers_engine_process_image_not_initialized() -> None:
+    """测试未初始化时处理图像"""
+    with patch.dict(
+        "sys.modules",
+        {
+            "src.core.deepseek_ocr": MagicMock(),
+            "transformers": MagicMock(),
+            "src.cli.utils": MagicMock(),
+        },
+    ):
+        from PIL import Image
+
+        from src.core.transformers.transformers_engine import TransformersEngine
+
+        # 创建Transformers引擎实例
+        engine = TransformersEngine()
+        engine.is_initialized = False
+        
+        # 创建模拟图像
+        mock_image = MagicMock(spec=Image.Image)
+        mock_image.size = (640, 640)
+
+        # 模拟初始化失败
+        with patch.object(engine, "initialize", return_value=False):
+            # 处理应该触发初始化错误
+            with pytest.raises(RuntimeError, match="Transformers引擎初始化失败"):
+                engine.process_image(mock_image, "测试提示词")

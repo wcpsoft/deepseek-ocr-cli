@@ -66,15 +66,23 @@ def test_pdf_processing(samples_dir: Path) -> None:
             pytest.skip("未找到PDF示例文件")
 
         # 创建临时输出目录
-        with tempfile.TemporaryDirectory():
-            # output_dir = Path(temp_dir) / "output"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "output"
 
             # 处理第一个PDF文件
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            # 不实际运行处理, 只测试初始化
-            assert processor is not None
+            
+            # 实际运行处理
+            processor.process(str(pdf_files[0]), str(output_dir))
+            
+            # 验证输出目录存在
+            assert output_dir.exists()
+            
+            # 验证生成了结果文件
+            result_files = list(output_dir.glob("*/result.md"))
+            assert len(result_files) > 0
 
     except ImportError as e:
         pytest.fail(f"文档处理器初始化测试失败: {e}")
@@ -93,15 +101,23 @@ def test_image_processing(samples_dir: Path) -> None:
             pytest.skip("未找到图像示例文件")
 
         # 创建临时输出目录
-        with tempfile.TemporaryDirectory():
-            # output_dir = Path(temp_dir) / "output"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "output"
 
             # 处理第一张图像
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            # 不实际运行处理, 只测试初始化
-            assert processor is not None
+            
+            # 实际运行处理
+            processor.process(str(image_files[0]), str(output_dir))
+            
+            # 验证输出目录存在
+            assert output_dir.exists()
+            
+            # 验证生成了结果文件
+            result_files = list(output_dir.glob("*/result.md"))
+            assert len(result_files) > 0
 
     except ImportError as e:
         pytest.fail(f"文档处理器初始化测试失败: {e}")
@@ -124,14 +140,23 @@ def test_document_conversion(samples_dir: Path) -> None:
             pytest.skip("未找到文档示例文件")
 
         # 创建临时输出目录
-        with tempfile.TemporaryDirectory():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "output"
 
             # 处理第一个文档文件
             from src.core.config import DEFAULT_OCR_PROMPT
 
             processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
-            # 不实际运行处理, 只测试初始化
-            assert processor is not None
+            
+            # 实际运行处理
+            processor.process(str(doc_files[0]), str(output_dir))
+            
+            # 验证输出目录存在
+            assert output_dir.exists()
+            
+            # 验证生成了结果文件
+            result_files = list(output_dir.glob("*/result.md"))
+            assert len(result_files) > 0
 
     except ImportError as e:
         pytest.fail(f"文档处理器初始化测试失败: {e}")
@@ -159,3 +184,52 @@ def test_model_manager_import() -> None:
         assert ModelManager is not None
     except ImportError:
         pytest.fail("无法导入ModelManager")
+
+
+def test_document_processor_initialization() -> None:
+    """测试文档处理器初始化"""
+    try:
+        from src.cli.document_processor import DocumentProcessor
+        from src.core.config import DEFAULT_OCR_PROMPT
+
+        # 测试不同模式的初始化
+        processor_auto = DocumentProcessor(mode="auto", prompt=DEFAULT_OCR_PROMPT)
+        assert processor_auto.mode == "auto"
+        
+        processor_transformers = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+        assert processor_transformers.mode == "transformers"
+        
+        processor_vllm = DocumentProcessor(mode="vllm", prompt=DEFAULT_OCR_PROMPT)
+        assert processor_vllm.mode == "vllm"
+
+    except ImportError as e:
+        pytest.fail(f"文档处理器初始化测试失败: {e}")
+
+
+def test_convert_to_images(samples_dir: Path) -> None:
+    """测试文档转换为图像功能"""
+    try:
+        from src.cli.document_processor import DocumentProcessor
+
+        # 检查samples目录中是否存在任何支持的文件
+        supported_files = (
+            list(samples_dir.glob("*.pdf"))
+            + list(samples_dir.glob("*.jpg"))
+            + list(samples_dir.glob("*.jpeg"))
+            + list(samples_dir.glob("*.png"))
+        )
+        
+        if not supported_files:
+            pytest.skip("未找到支持的示例文件")
+
+        processor = DocumentProcessor()
+        
+        # 测试转换功能
+        images = processor.convert_to_images(str(supported_files[0]))
+        
+        # 验证返回了图像列表
+        assert isinstance(images, list)
+        assert len(images) > 0
+
+    except ImportError as e:
+        pytest.fail(f"文档处理器转换测试失败: {e}")
