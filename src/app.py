@@ -12,6 +12,10 @@ project_root = Path(__file__).resolve().parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
+# 配置警告过滤器
+from src.core.warnings_config import configure_warnings
+configure_warnings()
+
 # 从main.py导入应用实例
 from src.core.api.main import app
 

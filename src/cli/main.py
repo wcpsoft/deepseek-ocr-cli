@@ -18,6 +18,7 @@ from src.core.logging import get_logger, setup_logging
 from src.core.multimodal.ocr_engine_interface import OCREngineInterface
 from src.core.service.ocr_service import OCRService
 from src.core.utils.exception_handler import OCRError as OCRException
+from src.core.warnings_config import configure_warnings
 
 # 添加项目根目录到Python路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -362,6 +363,9 @@ def main():
     主函数
     """
     try:
+        # 配置警告过滤器
+        configure_warnings()
+        
         # 解析参数
         args = parse_arguments()
 

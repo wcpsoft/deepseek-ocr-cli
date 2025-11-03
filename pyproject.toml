@@ -93,6 +93,8 @@ filterwarnings = [
     "ignore::UserWarning:.*Unable to register.*factory.*",
     "ignore::UserWarning:.*computation placer already registered.*",
     "ignore::UserWarning:.*User provided device_type of 'cuda', but CUDA is not available.*",
+    # 过滤transformers库的get_max_cache弃用警告
+    "ignore::FutureWarning:.*get_max_cache.*is deprecated.*",
 ]
 testpaths = [
     "tests",
