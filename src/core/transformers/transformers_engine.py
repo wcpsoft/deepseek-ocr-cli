@@ -287,15 +287,18 @@ class TransformersEngine(BaseOCREngine):
                     # 使用process_image方法处理图像
                     result = self.process_image(image, self.prompt)
                     logger.info(f"第 {i+1} 张图像OCR识别完成")
+                    logger.debug(f"OCR结果: {result}")
 
                     # 检查结果是否有效
                     if result and isinstance(result, str) and len(result.strip()) > 0:
+                        logger.debug(f"结果有效，长度: {len(result.strip())}")
                         # 添加结果和元数据
                         metadata = {
                             "image_size": f"{image.size[0]}x{image.size[1]}",
                             "temp_file": str(temp_image_path.name),
                         }
                         result_processor.add_result(i, result.strip(), metadata)
+                        logger.debug(f"结果已添加到处理器")
                     else:
                         logger.warning(f"第 {i+1} 张图像OCR识别返回空结果或默认结果")
                         result_processor.add_error(

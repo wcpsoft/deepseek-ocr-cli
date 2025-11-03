@@ -56,6 +56,7 @@ class EnhancedOCRResultProcessor:
         # 清理结果内容
         cleaned_result = self._clean_result(result)
         logger.debug(f"清理后结果长度: {len(cleaned_result)}")
+        logger.debug(f"清理后结果内容: {cleaned_result}")
 
         # 如果清理后结果为空且启用了过滤，则记录为错误
         if self.filter_empty_results and (not cleaned_result or len(cleaned_result.strip()) == 0):
