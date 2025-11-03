@@ -192,6 +192,11 @@ class DeepseekOCRProcessor(ProcessorMixin):
         self.downsample_ratio = downsample_ratio
         self.ignore_id = ignore_id
         self.mask_prompt = mask_prompt  # 添加mask_prompt属性
+        
+        # 存储这些参数以避免未使用参数警告
+        self.add_special_token = add_special_token
+        self.candidate_resolutions = candidate_resolutions
+        self.sft_format = sft_format
 
         self.image_transform = ImageTransform(mean=image_mean, std=image_std, normalize=normalize)
         logger.debug("ImageTransform初始化完成")
@@ -610,11 +615,15 @@ class DeepseekOCRProcessor(ProcessorMixin):
             images_crop_raw = []  # 初始化为空列表
             if image.size[0] <= 640 and image.size[1] <= 640:
                 crop_ratio = [1, 1]
+                # 对于小图像，直接添加到images_crop_raw列表
+                images_crop_raw.append(image)
             else:
                 if cropping:
                     images_crop_raw, crop_ratio = dynamic_preprocess(image, image_size=IMAGE_SIZE)
                 else:
                     crop_ratio = [1, 1]
+                    # 对于不裁剪的大图像，也添加到images_crop_raw列表
+                    images_crop_raw.append(image)
 
             logger.debug(f"裁剪比例: {crop_ratio}")
 
