@@ -126,7 +126,7 @@ class OCRService:
                 prompts = [config.prompt] * len(loaded_images)
 
             # 创建批量处理器
-            self.batch_processor = BatchOCRProcessor(self.output_dir, stop_on_error)
+            self.batch_processor = BatchOCRProcessor(self.output_dir, stop_on_error=stop_on_error)
 
             # 处理图像
             success = self._process_batch_with_engine(loaded_images, prompts, output_filename)

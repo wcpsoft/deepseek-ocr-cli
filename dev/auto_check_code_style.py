@@ -32,7 +32,7 @@ def main():
 
     # 执行脚本并传递所有参数
     try:
-        result = subprocess.run([str(script_path)] + sys.argv[1:], check=True)
+        result = subprocess.run([str(script_path), *sys.argv[1:]], check=True)
         sys.exit(result.returncode)
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)

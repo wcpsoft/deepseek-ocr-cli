@@ -6,7 +6,7 @@ OCR引擎工厂模块
 """
 
 import logging
-from typing import Any, ClassVar, Optional
+from typing import ClassVar, Optional
 
 from src.core.config.settings import get_config
 
@@ -46,7 +46,7 @@ class OCREngineFactory:
         image_size: int = 640,
         *,
         crop_mode: bool = True,
-    ) -> Any:
+    ):
         """
         创建OCR引擎
 

@@ -170,21 +170,28 @@ class DeepseekOCRProcessor(ProcessorMixin):
         image_mean: tuple[float, float, float] = (0.5, 0.5, 0.5),
         image_std: tuple[float, float, float] = (0.5, 0.5, 0.5),
         normalize: bool = True,
-        image_token: str = "<image>",
-        pad_token: str = "<｜▁pad▁｜>",
+        image_token: str = "<image>",  # noqa: S107
+        pad_token: str = "<｜▁pad▁｜>",  # noqa: S107
         ignore_id: int = -100,
+        add_special_token: bool = False,  # 添加这个参数以匹配配置文件
+        candidate_resolutions: list[list[int]] | None = None,  # 添加这个参数以匹配配置文件
+        downsample_ratio: int = 4,  # 添加downsample_ratio参数以匹配配置文件
+        mask_prompt: bool = True,  # 添加mask_prompt参数以匹配原始代码
+        patch_size: int = 16,  # 添加patch_size参数以匹配配置文件
+        sft_format: bool | None = None,  # 添加sft_format参数以匹配配置文件
         **kwargs,
     ):
         logger.debug("开始初始化DeepseekOCRProcessor")
 
         self.image_size = IMAGE_SIZE
         self.base_size = BASE_SIZE
-        self.patch_size = 16
+        self.patch_size = patch_size  # 使用传入的patch_size参数
         self.image_mean = image_mean
         self.image_std = image_std
         self.normalize = normalize
-        self.downsample_ratio = 4
+        self.downsample_ratio = downsample_ratio
         self.ignore_id = ignore_id
+        self.mask_prompt = mask_prompt  # 添加mask_prompt属性
 
         self.image_transform = ImageTransform(mean=image_mean, std=image_std, normalize=normalize)
         logger.debug("ImageTransform初始化完成")
@@ -562,9 +569,10 @@ class DeepseekOCRProcessor(ProcessorMixin):
                     if isinstance(item, torch.Tensor):
                         logger.debug(f"result[0][{i}]张量形状: {item.shape}")
 
-    def tokenize_with_images(
+    def tokenize_with_images(  # noqa: C901
         self,
         images: list,
+        *,
         bos: bool = True,
         eos: bool = True,
         cropping: bool = True,
@@ -589,7 +597,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         text_splits = conversation.split(self.image_token)
 
         # 处理每个图像和对应的文本分割
-        for text_sep, image in zip(text_splits, images):
+        for text_sep, image in zip(text_splits, images, strict=False):
             logger.debug(f"处理图像，大小: {image.size}")
             image_shapes.append(image.size)
 
@@ -696,14 +704,14 @@ class DeepseekOCRProcessor(ProcessorMixin):
         if len(images_list) == 0:
             pixel_values = torch.zeros((1, 3, self.base_size, self.base_size))
             images_spatial_crop_tensor = torch.zeros((1, 1), dtype=torch.long)
-            images_crop = torch.zeros((1, 3, self.image_size, self.image_size)).unsqueeze(0)
+            images_crop = torch.zeros((1, 3, self.image_size, self.image_size))
         else:
             pixel_values = torch.stack(images_list, dim=0)
             images_spatial_crop_tensor = torch.tensor(images_spatial_crop, dtype=torch.long)
             if images_crop_list:
-                images_crop = torch.stack(images_crop_list, dim=0).unsqueeze(0)
+                images_crop = torch.stack(images_crop_list, dim=0)
             else:
-                images_crop = torch.zeros((1, 3, self.image_size, self.image_size)).unsqueeze(0)
+                images_crop = torch.zeros((1, 3, self.image_size, self.image_size))
 
         input_ids = input_ids.unsqueeze(0)
 

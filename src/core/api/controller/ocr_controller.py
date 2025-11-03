@@ -55,7 +55,13 @@ class OCRController:
             shutil.copyfileobj(file.file, f)
 
         # 启动后台OCR任务
-        asyncio.create_task(self.ocr_service.process_pdf(job_id, pdf_path, output_dir, prompt))
+        task = asyncio.create_task(self.ocr_service.process_pdf(job_id, pdf_path, output_dir, prompt))
+
+        # 确保任务被引用以避免被垃圾回收
+        if not hasattr(self, "_background_tasks"):
+            self._background_tasks = set()
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
         # 立即返回任务信息
         return OCRResponse(

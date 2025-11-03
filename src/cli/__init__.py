@@ -9,9 +9,9 @@ __version__ = "1.0.0"
 __author__ = "Rxzhang"
 
 # 导出主要类
-from .document_processor import DocumentProcessor
-from .model_manager import ModelManager
-from .pdf_converter import PDFConverter
+from src.cli.document_processor import DocumentProcessor
+from src.cli.model_manager import ModelManager
+from src.cli.pdf_converter import PDFConverter
 
 __all__ = [
     "DocumentProcessor",

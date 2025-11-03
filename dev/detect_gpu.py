@@ -5,6 +5,7 @@ GPU检测脚本
 """
 
 import platform
+import shutil
 import subprocess
 
 
@@ -13,20 +14,24 @@ def detect_gpu():
     system = platform.system()
 
     # 检查NVIDIA GPU
-    try:
-        result = subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            return "nvidia"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    nvidia_smi_path = shutil.which("nvidia-smi")
+    if nvidia_smi_path:
+        try:
+            result = subprocess.run([nvidia_smi_path], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                return "nvidia"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
 
     # 检查AMD GPU (ROCm)
-    try:
-        result = subprocess.run(["rocm-smi"], capture_output=True, text=True, timeout=10)
-        if result.returncode == 0:
-            return "amd"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+    rocm_smi_path = shutil.which("rocm-smi")
+    if rocm_smi_path:
+        try:
+            result = subprocess.run([rocm_smi_path], capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                return "amd"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
 
     # 检查Apple Silicon (MPS)
     if system == "Darwin" and platform.processor() == "arm":

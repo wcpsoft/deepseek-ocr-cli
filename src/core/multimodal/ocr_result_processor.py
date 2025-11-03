@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from src.core.logging import get_logger
+from src.core.multimodal.enhanced_result_processor import EnhancedOCRResultProcessor
 from src.core.utils.exception_handler import OCRError as OCRException
 from src.core.utils.exception_handler import SafeExecution
 
 logger = get_logger()
 
 
-class OCRResultProcessor:
+class OCRResultProcessor(EnhancedOCRResultProcessor):
     """
     OCR结果处理器
     负责OCR结果的保存和处理
@@ -27,10 +28,9 @@ class OCRResultProcessor:
         Args:
             output_dir: 输出目录路径
         """
-        self.output_dir = Path(output_dir)
+        # 调用父类初始化，禁用空结果过滤以保持原有行为
+        super().__init__(output_dir, filter_empty_results=False)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.results = []
-        self.errors = []
 
     def add_result(self, image_index: int, result: str) -> None:
         """
@@ -40,58 +40,12 @@ class OCRResultProcessor:
             image_index: 图像索引
             result: OCR结果
         """
+        # 调用父类方法，但保持原有的行为
         if result and isinstance(result, str) and len(result.strip()) > 0:
-            self.results.append((image_index, result.strip()))
+            super().add_result(image_index, result.strip())
         else:
             logger.warning(f"图像 {image_index} OCR识别返回空结果或默认结果")
-            self.errors.append((image_index, "OCR识别未返回有效结果"))
-
-    def add_error(self, image_index: int, error: str) -> None:
-        """
-        添加错误信息
-
-        Args:
-            image_index: 图像索引
-            error: 错误信息
-        """
-        logger.error(f"图像 {image_index} 处理失败: {error}")
-        self.errors.append((image_index, error))
-
-    def has_valid_results(self) -> bool:
-        """
-        检查是否有有效的OCR结果
-
-        Returns:
-            是否有有效结果
-        """
-        return len(self.results) > 0
-
-    def has_errors(self) -> bool:
-        """
-        检查是否有错误
-
-        Returns:
-            是否有错误
-        """
-        return len(self.errors) > 0
-
-    def get_error_count(self) -> int:
-        """
-        获取错误数量
-
-        Returns:
-            错误数量
-        """
-        return len(self.errors)
-
-    def get_result_count(self) -> int:
-        """
-        获取结果数量
-
-        Returns:
-            结果数量
-        """
-        return len(self.results)
+            self.add_error(image_index, "OCR识别未返回有效结果")
 
     def save_results(self, filename: str = "result.mmd") -> str | None:
         """
@@ -108,12 +62,12 @@ class OCRResultProcessor:
             return None
 
         # 按图像索引排序结果
-        sorted_results = sorted(self.results, key=lambda x: x[0])
+        sorted_results = sorted(self.results, key=lambda x: x["index"])
 
         # 构建内容
         content = ""
-        for _, result in sorted_results:
-            content += result + "\n"
+        for result in sorted_results:
+            content += result["result"] + "\n"
 
         # 写入文件
         result_file = self.output_dir / filename
@@ -140,13 +94,13 @@ class OCRResultProcessor:
             return None
 
         # 按图像索引排序错误
-        sorted_errors = sorted(self.errors, key=lambda x: x[0])
+        sorted_errors = sorted(self.errors, key=lambda x: x["index"])
 
         # 构建错误报告
         content = "OCR处理错误报告\n"
         content += "=" * 50 + "\n"
-        for image_index, error in sorted_errors:
-            content += f"图像 {image_index}: {error}\n"
+        for error in sorted_errors:
+            content += f"图像 {error['index']}: {error['error']}\n"
 
         # 写入文件
         error_file = self.output_dir / filename

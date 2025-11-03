@@ -127,18 +127,10 @@ def debug_trace():
     在启用调试模式时设置断点
     """
     if os.getenv("DEBUG", "").upper() in ("TRUE", "1", "YES", "ON"):
-        try:
-            import ipdb
+        # 使用统一的调试工具
+        from src.core.utils.debug_utils import set_debugger_trace
 
-            ipdb.set_trace()
-        except ImportError:
-            try:
-                import pdb
-
-                pdb.set_trace()
-            except ImportError:
-                # 如果都没有安装，只打印消息
-                print("警告: 未安装ipdb或pdb，无法启动调试模式")
+        set_debugger_trace()
 
 
 def debug_wrapper(func):

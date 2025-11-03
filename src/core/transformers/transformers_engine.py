@@ -197,6 +197,42 @@ class TransformersEngine(BaseOCREngine):
             raise RuntimeError(f"图像处理失败: {e!s}") from e
 
     @debug_wrapper
+    def process_batch(self, images: list[Image.Image], prompts: list[str]) -> list[str]:
+        """
+        批量处理图像
+
+        Args:
+            images: 图像列表
+            prompts: 提示词列表
+
+        Returns:
+            OCR结果列表
+        """
+        debug_trace()
+        logger.debug(f"开始process_batch方法，图像数量: {len(images) if images else 0}, 提示词数量: {len(prompts) if prompts else 0}")
+        
+        if not self.is_initialized:
+            logger.debug("模型未初始化，开始初始化")
+            if not self.initialize():
+                raise RuntimeError("Transformers引擎初始化失败")
+            logger.debug("初始化完成")
+
+        if len(images) != len(prompts):
+            raise ValueError("图像数量和提示词数量不匹配")
+
+        results = []
+        for i, (image, prompt) in enumerate(zip(images, prompts, strict=False)):
+            logger.debug(f"处理第 {i+1} 张图像")
+            try:
+                result = self.process_image(image, prompt)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"处理第 {i+1} 张图像时发生错误: {e!s}")
+                results.append(f"处理失败: {e!s}")
+
+        return results
+
+    @debug_wrapper
     def process(self, images: list[Image.Image], output_dir: str) -> None:
         """
         使用Transformers引擎处理图像

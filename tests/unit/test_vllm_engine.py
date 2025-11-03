@@ -164,7 +164,7 @@ def test_vllm_engine_process_without_initialization() -> None:
 
                 # 验证抛出异常
                 with pytest.raises(RuntimeError, match="模型未初始化"):
-                    engine.process([test_image], "/tmp/test")
+                    engine.process([test_image], tempfile.gettempdir() + "/test")
 
 
 def test_vllm_engine_process_success() -> None:

@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.core.api.controller.ocr_controller import OCRController
+from src.core.config.app_config import AppConfig
 
 
 def create_app():
@@ -431,4 +432,12 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 从app.yaml加载配置
+    config_manager = AppConfig()
+    config = config_manager._config or {}
+    server_config = config.get("server", {})
+
+    host = server_config.get("host", "127.0.0.1")
+    port = server_config.get("port", 8000)
+
+    uvicorn.run(app, host=host, port=port)

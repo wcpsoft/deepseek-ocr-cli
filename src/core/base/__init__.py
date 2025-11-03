@@ -3,6 +3,6 @@
 OCR引擎抽象基类模块
 """
 
-from .ocr_engine import BaseOCREngine
+from src.core.base.ocr_engine import BaseOCREngine
 
 __all__ = ["BaseOCREngine"]

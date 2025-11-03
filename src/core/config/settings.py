@@ -56,9 +56,7 @@ def get_tokenizer():
         # 检查是否是本地路径，如果是则只使用本地文件
         # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
         is_remote_repo = (
-            MODEL_PATH.startswith(("http://", "https://"))
-            or MODEL_PATH.startswith("deepseek-ai/")
-            or MODEL_PATH.startswith("huggingface.co/")
+            MODEL_PATH.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
             or "/" not in MODEL_PATH  # 单个名称可能是远程仓库名
             or (not os.path.exists(MODEL_PATH) and not os.path.exists(os.path.expanduser(MODEL_PATH)))
         )
@@ -116,9 +114,7 @@ class Config:
             # 检查是否是本地路径，如果是则只使用本地文件
             # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
             is_remote_repo = (
-                self.model_path.startswith(("http://", "https://"))
-                or self.model_path.startswith("deepseek-ai/")
-                or self.model_path.startswith("huggingface.co/")
+                self.model_path.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
                 or "/" not in self.model_path  # 单个名称可能是远程仓库名
                 or (not os.path.exists(self.model_path) and not os.path.exists(os.path.expanduser(self.model_path)))
             )

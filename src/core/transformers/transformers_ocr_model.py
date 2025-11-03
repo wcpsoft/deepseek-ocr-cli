@@ -274,7 +274,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
             self.language_model = self.language_model.eval()
         return self
 
-    def parameters(self, recurse: bool = True):  # type: ignore
+    def parameters(self, *, recurse: bool = True):  # type: ignore
         """
         获取模型参数
 

@@ -3,6 +3,6 @@
 Transformers引擎模块
 """
 
-from .transformers_engine import TransformersEngine
+from src.core.transformers.transformers_engine import TransformersEngine
 
 __all__ = ["TransformersEngine"]

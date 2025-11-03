@@ -3,6 +3,6 @@
 vLLM引擎模块
 """
 
-from .vllm_engine import VLLMEngine
+from src.core.vllm.vllm_engine import VLLMEngine
 
 __all__ = ["VLLMEngine"]

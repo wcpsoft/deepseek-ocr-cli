@@ -22,87 +22,10 @@ def debug_trace():
     在启用调试模式时设置断点
     """
     if DEBUG_MODE:
-        # 检查是否安装了ipdb
-        try:
-            import ipdb
-
-            ipdb.set_trace()
-        except ImportError:
-            try:
-                import pdb
-
-                pdb.set_trace()
-            except ImportError:
-                print("警告: 未安装ipdb或pdb，无法启动调试模式")
+        # 调试模式下的处理
+        print("调试模式已启用")
     else:
         print("调试模式未启用，请设置环境变量 DEBUG=TRUE")
-
-
-def debug_wrapper(func):
-    """
-    调试装饰器
-    在启用调试模式时自动设置断点
-
-    Args:
-        func: 要装饰的函数
-
-    Returns:
-        装饰后的函数
-    """
-
-    def wrapper(*args, **kwargs):
-        if DEBUG_MODE:
-            print(f"进入函数: {func.__name__}")
-            # 检查是否安装了ipdb
-            try:
-                import ipdb
-
-                ipdb.set_trace()
-            except ImportError:
-                try:
-                    import pdb
-
-                    pdb.set_trace()
-                except ImportError:
-                    print("警告: 未安装ipdb或pdb，无法启动调试模式")
-
-        try:
-            result = func(*args, **kwargs)
-
-            if DEBUG_MODE:
-                print(f"函数 {func.__name__} 执行完成")
-                # 检查是否安装了ipdb
-                try:
-                    import ipdb
-
-                    ipdb.set_trace()
-                except ImportError:
-                    try:
-                        import pdb
-
-                        pdb.set_trace()
-                    except ImportError:
-                        print("警告: 未安装ipdb或pdb，无法启动调试模式")
-
-            return result
-        except Exception as e:
-            if DEBUG_MODE:
-                print(f"函数 {func.__name__} 发生异常: {e}")
-                # 检查是否安装了ipdb
-                try:
-                    import ipdb
-
-                    ipdb.set_trace()
-                except ImportError:
-                    try:
-                        import pdb
-
-                        pdb.set_trace()
-                    except ImportError:
-                        print("警告: 未安装ipdb或pdb，无法启动调试模式")
-            raise
-
-    return wrapper
 
 
 # 主调试功能

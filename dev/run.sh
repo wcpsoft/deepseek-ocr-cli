@@ -86,14 +86,6 @@ log_info "安装项目依赖..."
 # 使用更精确的依赖安装方式，避免跨平台依赖冲突
 install_all_deps
 
-# 添加质量检查（除非跳过）
-if [ "$SKIP_QUALITY_CHECK" = false ]; then
-    log_info "运行代码质量检查..."
-    if ! ./dev/check_quality.sh; then
-        log_warn "代码质量检查失败，但继续执行OCR处理"
-    fi
-fi
-
 # 检查是否需要下载模型
 if [ "$DOWNLOAD_MODELS" = true ]; then
     log_info "下载模型..."

@@ -12,9 +12,23 @@ project_root = Path(__file__).resolve().parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-# 导入FastAPI应用
+# 从main.py导入应用实例
+from src.core.api.main import app
+
+# 导入配置管理器
+from src.core.config.app_config import AppConfig
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("src.app:app", host="0.0.0.0", port=8000, reload=True)
+    # 从app.yaml加载配置
+    config_manager = AppConfig()
+    config = config_manager._config or {}
+    server_config = config.get("server", {})
+
+    host = server_config.get("host", "127.0.0.1")
+    port = server_config.get("port", 8000)
+    reload = server_config.get("reload", True)
+
+    # 运行从src/core/api/main.py导入的应用实例
+    uvicorn.run(app, host=host, port=port, reload=reload)

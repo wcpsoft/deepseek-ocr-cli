@@ -426,42 +426,21 @@ def _handle_ipdb_debugging(args):
     # 只有在明确指定--ipdb参数时才启用ipdb调试模式
     if args.ipdb:
         # 设置IPDB环境变量
-        import os
-
         os.environ["IPDB"] = "TRUE"
-
-        try:
-            import ipdb
-
-            ipdb.set_trace()
-        except ImportError:
-            try:
-                import pdb
-
-                pdb.set_trace()
-            except ImportError:
-                print("错误: 未安装ipdb或pdb，无法启动调试模式")
+    # 注意：不在这里调用set_debugger_trace()，而是在需要的地方调用
 
 
 def _execute_ocr_strategy(args):
     """执行OCR策略"""
-    # 调试模式
-    if args.debug:
-        try:
-            import ipdb
-
-            ipdb.set_trace()
-        except ImportError:
-            try:
-                import pdb
-
-                pdb.set_trace()
-            except ImportError:
-                print("错误: 未安装ipdb或pdb，无法启动调试模式")
-                sys.exit(1)
-
+    
     # 处理ipdb调试
     _handle_ipdb_debugging(args)
+    
+    # 如果启用了ipdb调试，在这里进入调试器
+    if args.ipdb:
+        # 使用统一的调试工具
+        from src.core.utils.debug_utils import set_debugger_trace
+        set_debugger_trace()
 
     # 创建上下文并执行策略
     context = OCRContext(args)
