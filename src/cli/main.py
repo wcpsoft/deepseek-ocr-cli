@@ -127,7 +127,7 @@ class ImageOCRStrategy(OCRStrategy):
                 return 1
 
             # 处理图像
-            result = self.service.process_image(self.args.input)
+            result = self.service.process_image(self.args.input, prompt=self.args.prompt)
 
             # 输出结果
             if result:
@@ -172,7 +172,7 @@ class DocumentOCRStrategy(OCRStrategy):
                 return 1
 
             # 处理文档
-            result = self.service.process_document(self.args.input, output_filename="result.mmd", stop_on_error=True)
+            result = self.service.process_document(self.args.input, output_filename="result.mmd", prompt=self.args.prompt, stop_on_error=True)
 
             # 输出结果
             if result["success"]:
@@ -224,7 +224,8 @@ class BatchOCRStrategy(OCRStrategy):
             image_paths = self._get_image_list()
 
             # 处理图像
-            result = self.service.process_images(image_paths, output_filename="result.mmd", stop_on_error=True)
+            prompts = [self.args.prompt] * len(image_paths)
+            result = self.service.process_images(image_paths, prompts=prompts, output_filename="result.mmd", stop_on_error=True)
 
             # 输出结果
             if result["success"]:

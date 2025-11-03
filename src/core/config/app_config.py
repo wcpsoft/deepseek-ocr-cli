@@ -8,6 +8,7 @@ import logging
 import os
 from typing import Any, Optional
 
+import torch
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,27 @@ class AppConfig:
         except Exception as e:
             logger.error(f"加载配置文件失败: {e}")
             return {}
+
+    def get_device_config(self, device_type: str) -> dict[str, Any]:
+        """
+        获取指定设备类型的配置
+
+        Args:
+            device_type: 设备类型 (cuda, mps, cpu)
+
+        Returns:
+            设备配置字典
+        """
+        if not self._config:
+            return {}
+
+        device_configs = self._config.get("device_config", {})
+        
+        # 获取设备配置，如果不存在则返回CPU配置作为默认值
+        device_config = device_configs.get(device_type, device_configs.get("cpu", {}))
+        
+        logger.debug(f"获取设备配置: {device_type} -> {device_config}")
+        return device_config
 
     def get_model_config(self, model_name: str) -> Optional[dict[str, Any]]:
         """
@@ -117,6 +139,23 @@ def get_app_config() -> AppConfig:
         AppConfig: 应用程序配置实例
     """
     return _app_config
+
+
+def get_device_config(device_type: str) -> dict[str, Any]:
+    """
+    获取指定设备类型的配置
+
+    Args:
+        device_type: 设备类型 (cuda, mps, cpu)
+
+    Returns:
+        设备配置字典
+    """
+    # 确保device_type是字符串
+    if isinstance(device_type, torch.device):
+        device_type = device_type.type
+    
+    return _app_config.get_device_config(device_type)
 
 
 def get_model_auto_map(model_name: str) -> Optional[dict[str, str]]:

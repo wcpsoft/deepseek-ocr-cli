@@ -217,20 +217,54 @@ def get_mps_compatible_dtype(dtype: torch.dtype) -> torch.dtype:
 
 def configure_mps_environment() -> None:
     """
-    配置MPS环境设置
+    配置MPS环境，设置必要的环境变量和警告过滤
+    
+    这个函数应该在应用启动时调用，以确保MPS环境正确配置
     """
-    logger.info("配置MPS环境设置")
-
-    # 设置MPS相关的环境变量
     import os
-
+    import warnings
+    
+    # 设置PyTorch MPS fallback环境变量
+    # 这使得MPS不支持的操作可以回退到CPU执行
     os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-
+    
+    # 设置PyTorch允许非确定性算法
+    os.environ["PYTORCH_ALLOW_NON_DETERMINISTIC_ALGO"] = "1"
+    
+    # 配置警告过滤
+    warnings.filterwarnings(
+        "ignore",
+        message="The operator.*is not currently supported on the MPS backend.*",
+        category=UserWarning,
+        module="torch"
+    )
+    
+    # 过滤Flash Attention相关警告
+    warnings.filterwarnings(
+        "ignore",
+        message="Flash Attention is disabled.*",
+        category=UserWarning
+    )
+    
+    # 过滤MPS内存相关警告
+    warnings.filterwarnings(
+        "ignore",
+        message=".*not supported on MPS.*",
+        category=UserWarning
+    )
+    
+    # 过滤bfloat16相关警告
+    warnings.filterwarnings(
+        "ignore",
+        message=".*bfloat16.*",
+        category=UserWarning
+    )
+    
     # 设置MPS内存分配策略（仅在MPS设备可用时）
     if is_mps_device() and hasattr(torch.mps, "empty_cache"):
         logger.debug("设置MPS内存缓存清理")
         torch.mps.empty_cache()
-
+    
     logger.info("MPS环境配置完成")
 
 

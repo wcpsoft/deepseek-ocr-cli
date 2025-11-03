@@ -7,6 +7,18 @@ DeepSeek OCR配置类
 from transformers import PretrainedConfig
 
 
+# 默认生成配置
+DEFAULT_GENERATION_CONFIG = {
+    "max_new_tokens": 8192,
+    "do_sample": False,
+    "temperature": 0.0,
+    "top_p": 0.7,
+    "top_k": 50,
+    "frequency_penalty": 0.0,
+    "no_repeat_ngram_size": 35,
+}
+
+
 class DeepseekVLV2Config(PretrainedConfig):
     """
     DeepSeek VLV2模型配置类

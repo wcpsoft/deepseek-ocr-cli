@@ -78,18 +78,39 @@ def dynamic_preprocess(
     image_size=640,
     *,
     use_thumbnail=False,
+    candidate_resolutions=None,
 ):
+    """
+    动态预处理图像，将其分割成多个块
+    
+    Args:
+        image: PIL图像对象
+        min_num: 最小块数
+        max_num: 最大块数
+        image_size: 图像大小
+        use_thumbnail: 是否使用缩略图
+        candidate_resolutions: 候选分辨率列表，如果提供则使用这些分辨率而不是自动计算
+    
+    Returns:
+        处理后的图像列表和目标宽高比
+    """
     orig_width, orig_height = image.size
     aspect_ratio = orig_width / orig_height
 
-    # calculate the existing image aspect ratio
-    target_ratios = {
-        (i, j)
-        for n in range(min_num, max_num + 1)
-        for i in range(1, n + 1)
-        for j in range(1, n + 1)
-        if i * j <= max_num and i * j >= min_num
-    }
+    # 如果提供了候选分辨率，使用它们而不是自动计算
+    if candidate_resolutions is not None:
+        target_ratios = set(tuple(res) for res in candidate_resolutions)
+        logger.debug(f"使用提供的候选分辨率: {candidate_resolutions}")
+    else:
+        # calculate the existing image aspect ratio
+        target_ratios = {
+            (i, j)
+            for n in range(min_num, max_num + 1)
+            for i in range(1, n + 1)
+            for j in range(1, n + 1)
+            if i * j <= max_num and i * j >= min_num
+        }
+    
     # logger.debug(target_ratios)
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
@@ -193,7 +214,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         self.ignore_id = ignore_id
         self.mask_prompt = mask_prompt  # 添加mask_prompt属性
         
-        # 存储这些参数以避免未使用参数警告
+        # 使用这些参数而不是仅仅存储它们
         self.add_special_token = add_special_token
         self.candidate_resolutions = candidate_resolutions
         self.sft_format = sft_format

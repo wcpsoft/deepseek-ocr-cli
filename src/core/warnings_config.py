@@ -22,6 +22,14 @@ def configure_warnings():
         module="transformers.*"
     )
     
+    # 过滤RoPE embeddings过渡警告
+    warnings.filterwarnings(
+        "ignore",
+        message="The attention layers in this model are transitioning from computing the RoPE embeddings internally.*",
+        category=FutureWarning,
+        module="transformers.*"
+    )
+    
     # 过滤图像处理器未使用参数的警告
     warnings.filterwarnings(
         "ignore",

@@ -7,6 +7,19 @@ server:
   port: 8000
   reload: true
 
+# 设备配置
+device_config:
+  # 不同设备类型的autocast配置
+  cuda:
+    autocast: "cuda"
+    dtype: "bfloat16"
+  mps:
+    autocast: "mps"
+    dtype: "float16"
+  cpu:
+    autocast: null  # CPU不使用autocast
+    dtype: null
+
 model_config:
   # DeepSeek VLV2模型配置
   deepseek_vl_v2:

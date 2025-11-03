@@ -763,6 +763,10 @@ class DeepseekOCRForCausalLM(DeepseekV2ForCausalLM):
         test_compress=False,
         save_results=False,
         eval_mode=False,
+        temperature=0.0,
+        max_new_tokens=8192,
+        no_repeat_ngram_size=20,
+        use_cache=True,
     ):
         self.disable_torch_init()
 
@@ -966,12 +970,12 @@ class DeepseekOCRForCausalLM(DeepseekV2ForCausalLM):
                         images_spatial_crop=images_spatial_crop,
                         # do_sample=False,
                         # num_beams = 1,
-                        temperature=0.0,
+                        temperature=temperature,
                         eos_token_id=tokenizer.eos_token_id,
                         streamer=streamer,
-                        max_new_tokens=8192,
-                        no_repeat_ngram_size=20,
-                        use_cache=True,
+                        max_new_tokens=max_new_tokens,
+                        no_repeat_ngram_size=no_repeat_ngram_size,
+                        use_cache=use_cache,
                     )
 
         else:
@@ -984,11 +988,11 @@ class DeepseekOCRForCausalLM(DeepseekV2ForCausalLM):
                         images_spatial_crop=images_spatial_crop,
                         # do_sample=False,
                         # num_beams = 1,
-                        temperature=0.0,
+                        temperature=temperature,
                         eos_token_id=tokenizer.eos_token_id,
-                        max_new_tokens=8192,
-                        no_repeat_ngram_size=35,
-                        use_cache=True,
+                        max_new_tokens=max_new_tokens,
+                        no_repeat_ngram_size=no_repeat_ngram_size,
+                        use_cache=use_cache,
                     )
 
         if "<image>" in conversation[0]["content"] and eval_mode:

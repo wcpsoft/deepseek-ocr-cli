@@ -151,6 +151,7 @@ class OCRService:
         self,
         document_path: str,
         output_filename: str = "result.mmd",
+        prompt: str | None = None,
         *,
         stop_on_error: bool = True,
     ) -> dict[str, Any]:
@@ -160,6 +161,7 @@ class OCRService:
         Args:
             document_path: 文档路径
             output_filename: 输出文件名
+            prompt: 提示词
             stop_on_error: 是否在遇到错误时停止处理
 
         Returns:
@@ -170,7 +172,11 @@ class OCRService:
             images = self._convert_document_to_images(document_path)
 
             # 处理图像
-            return self.process_images(images, output_filename=output_filename, stop_on_error=stop_on_error)
+            if prompt is not None:
+                prompts = [prompt] * len(images)
+                return self.process_images(images, prompts=prompts, output_filename=output_filename, stop_on_error=stop_on_error)
+            else:
+                return self.process_images(images, output_filename=output_filename, stop_on_error=stop_on_error)
 
         except Exception as e:
             logger.error(f"处理文档时发生错误: {e!s}")

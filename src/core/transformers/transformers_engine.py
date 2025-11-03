@@ -14,6 +14,7 @@ from src.core.base.ocr_engine import BaseOCREngine
 
 # 导入配置
 from src.core.config.settings import DEFAULT_OCR_PROMPT, MODEL_PATH
+from src.core.config.app_config import get_device_config
 from src.core.logging import debug_trace, debug_wrapper
 from src.core.models.model_manager import ModelManager
 from src.core.multimodal.enhanced_result_processor import EnhancedOCRResultProcessor
@@ -110,7 +111,7 @@ class TransformersEngine(BaseOCREngine):
             raise RuntimeError("图像处理器未初始化")
 
         # 确保设备已设置
-        device = self.device or get_optimal_device()
+        device = self.device or get_device_config()
 
         try:
             # 使用图像处理器处理图像和提示词
@@ -154,19 +155,42 @@ class TransformersEngine(BaseOCREngine):
                     logger.error("模型没有generate方法，无法进行生成")
                     raise RuntimeError("模型没有generate方法，无法进行生成")
 
-                # 生成结果 - 使用正确的参数格式
-                logger.debug("开始模型生成")
-                outputs = self.model.generate(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    max_new_tokens=generation_config.get("max_new_tokens", 8192),
-                    do_sample=generation_config.get("do_sample", False),
-                    pad_token_id=(self.tokenizer.eos_token_id if self.tokenizer is not None else 0),
-                    # 传递图像特征给模型 - 使用正确的格式
-                    images=[(images_crop, pixel_values)],
-                    images_seq_mask=images_seq_mask.unsqueeze(0),
-                    images_spatial_crop=images_spatial_crop,
-                )
+                # 根据设备类型选择合适的上下文管理器和数据类型
+                device_type = device.type if isinstance(device, torch.device) else "cpu"
+                
+                # 从app.yaml获取设备配置
+                device_config = get_device_config(device_type)
+                
+                # 准备生成参数
+                generate_kwargs = {
+                    "input_ids": input_ids,
+                    "attention_mask": attention_mask,
+                    "max_new_tokens": generation_config.get("max_new_tokens"),
+                    "do_sample": generation_config.get("do_sample"),
+                    "temperature": generation_config.get("temperature"),
+                    "top_p": generation_config.get("top_p"),
+                    "top_k": generation_config.get("top_k"),
+                    "pad_token_id": (self.tokenizer.eos_token_id if self.tokenizer is not None else 0),
+                    "images": [(images_crop, pixel_values)],
+                    "images_seq_mask": images_seq_mask.unsqueeze(0),
+                    "images_spatial_crop": images_spatial_crop,
+                }
+                
+                # 根据设备类型选择执行方式
+                if device_config.get("autocast") and device_config.get("dtype"):
+                    # 获取数据类型
+                    dtype_map = {
+                        "float16": torch.float16,
+                        "bfloat16": torch.bfloat16,
+                        "float32": torch.float32,
+                    }
+                    dtype = dtype_map.get(device_config["dtype"], torch.float32)
+                    
+                    with torch.autocast(device_config["autocast"], dtype=dtype):
+                        outputs = self.model.generate(**generate_kwargs)
+                else:
+                    # 不使用autocast
+                    outputs = self.model.generate(**generate_kwargs)
                 logger.debug("模型生成完成")
 
                 # 解码输出

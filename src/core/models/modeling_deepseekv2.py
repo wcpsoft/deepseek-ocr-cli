@@ -351,8 +351,8 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 
-# 从transformers.models.llama.modeling_llama.apply_rotary_pos_emb复制
-def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=1):
+# 从transformers.models.llama.modeling_llama.apply_rotary_pos_emb复制，并更新以支持新的API
+def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, position_embeddings=None, unsqueeze_dim=1):
     """将旋转位置嵌入应用到查询和键张量。
 
     Args:
@@ -360,8 +360,11 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=1):
         k (`torch.Tensor`): 键张量。
         cos (`torch.Tensor`): 旋转嵌入的余弦部分。
         sin (`torch.Tensor`): 旋转嵌入的正弦部分。
-        position_ids (`torch.LongTensor`):
+        position_ids (`torch.LongTensor`, *可选*):
             与查询和键张量对应的token的位置索引。例如，当使用KV-cache时，这可以用来传递偏移的位置id。
+            注意：此参数已弃用，推荐使用position_embeddings。
+        position_embeddings (`Tuple[torch.Tensor, torch.Tensor]`, *可选*):
+            预计算的余弦和正弦位置嵌入。当提供此参数时，将忽略position_ids。
         unsqueeze_dim (`int`, *可选*, 默认为1):
             'unsqueeze_dim'参数指定沿哪个维度对cos[position_ids]和sin[position_ids]进行unsqueeze，以便它们能够正确地广播到q和k的维度。例如，注意
             cos[position_ids]和sin[position_ids]的形状为[batch_size, seq_len, head_dim]。那么，如果q和
@@ -371,10 +374,19 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids, unsqueeze_dim=1):
     Returns:
         `tuple(torch.Tensor)` 包含使用旋转位置嵌入旋转的查询和键张量。
     """
-    cos = cos[position_ids].unsqueeze(unsqueeze_dim)
-    sin = sin[position_ids].unsqueeze(unsqueeze_dim)
-
-    # print()
+    # 使用新的API，优先使用position_embeddings而不是position_ids
+    if position_embeddings is not None:
+        cos, sin = position_embeddings
+        # 确保cos和sin的形状与q和k兼容
+        if cos.dim() == 3 and sin.dim() == 3:
+            # 形状为 [batch_size, seq_len, head_dim]
+            cos = cos.unsqueeze(unsqueeze_dim)
+            sin = sin.unsqueeze(unsqueeze_dim)
+    elif position_ids is not None:
+        cos = cos[position_ids].unsqueeze(unsqueeze_dim)
+        sin = sin[position_ids].unsqueeze(unsqueeze_dim)
+    else:
+        raise ValueError("必须提供position_ids或position_embeddings中的一个")
 
     b, h, s, d = q.shape
     q = q.view(b, h, s, d // 2, 2).transpose(4, 3).reshape(b, h, s, d)
@@ -807,10 +819,7 @@ class DeepseekV2Attention(nn.Module):
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor, ...]]]:
-        if "padding_mask" in kwargs:
-            warnings.warn(
-                "传递`padding_mask`已弃用，将在v4.37中移除。请确保使用`attention_mask`替代。"
-            )
+
         bsz, q_len, _ = hidden_states.size()
 
         if self.q_lora_rank is None:
@@ -840,7 +849,15 @@ class DeepseekV2Attention(nn.Module):
             cos, sin = position_embeddings
         else:
             cos, sin = self.rotary_emb(q_pe, seq_len=kv_seq_len)
-        q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids)
+        
+        # 使用新的API，优先使用position_embeddings而不是position_ids
+        # 只有当position_embeddings为None时才使用position_ids
+        if position_embeddings is not None:
+            # 当使用position_embeddings时，不需要position_ids
+            q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=None, position_embeddings=position_embeddings)
+        else:
+            # 当没有position_embeddings时，使用position_ids
+            q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=position_ids, position_embeddings=None)
 
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos}  # 特定于RoPE模型
@@ -923,13 +940,7 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        if "padding_mask" in kwargs:
-            warnings.warn(
-                "传递`padding_mask`已弃用，将在v4.37中移除。请确保使用`attention_mask`替代。"
-            )
 
-            # 用padding_mask覆盖attention_mask
-            attention_mask = kwargs.pop("padding_mask")
 
         output_attentions = False
 
@@ -966,7 +977,15 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
             cos, sin = position_embeddings
         else:
             cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids)
+        
+        # 使用新的API，优先使用position_embeddings而不是position_ids
+        # 只有当position_embeddings为None时才使用position_ids
+        if position_embeddings is not None:
+            # 当使用position_embeddings时，不需要position_ids
+            q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=None, position_embeddings=position_embeddings)
+        else:
+            # 当没有position_embeddings时，使用position_ids
+            q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=position_ids, position_embeddings=None)
 
         query_states = k_pe.new_empty(bsz, self.num_heads, q_len, self.q_head_dim)
         query_states[:, :, :, : self.qk_nope_head_dim] = q_nope
@@ -1244,6 +1263,7 @@ class DeepseekV2DecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         **kwargs,
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
@@ -1259,11 +1279,9 @@ class DeepseekV2DecoderLayer(nn.Module):
             如果设置为 `True`，`past_key_values` 键值状态将被返回并可用于加速解码（参见
             `past_key_values`）。
             past_key_value (`Tuple(torch.FloatTensor)`, *optional*): cached past key and value projection states
+            position_embeddings (`Tuple[torch.Tensor, torch.Tensor]`, *optional*):
+                预计算的余弦和正弦位置嵌入。当提供此参数时，将忽略position_ids。
         """
-        if "padding_mask" in kwargs:
-            warnings.warn(
-                "传递`padding_mask`已弃用，将在v4.37中移除。请确保使用`attention_mask`替代。"
-            )
         residual = hidden_states
 
         hidden_states = self.input_layernorm(hidden_states)
@@ -1276,6 +1294,7 @@ class DeepseekV2DecoderLayer(nn.Module):
             past_key_value=past_key_value,
             output_attentions=output_attentions,
             use_cache=use_cache,
+            position_embeddings=position_embeddings,
             **kwargs,
         )
         hidden_states = residual + hidden_states
@@ -1482,6 +1501,7 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
         # 获取设备信息
         device = input_ids.device if input_ids is not None else inputs_embeds.device
         
+        # 生成position_ids仅用于向后兼容，优先使用position_embeddings
         if position_ids is None:
             position_ids = torch.arange(
                 past_key_values_length,
@@ -1501,7 +1521,6 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
                 # 生成position_embeddings
                 qk_rope_head_dim = getattr(first_attn_layer, 'qk_rope_head_dim', 64)  # 默认值64
                 dummy_x = torch.zeros(1, seq_len, 1, qk_rope_head_dim, device=device)
-                position_ids = torch.arange(seq_len, device=device).unsqueeze(0)
                 
                 # 尝试不同的调用方式
                 try:
