@@ -433,8 +433,9 @@ class DeepseekOCRModel(DeepseekV2Model):
                         global_features = self.projector(global_features)
 
                         print('=====================')
-                        print('BASE: ', global_features.shape)
-                        print('PATCHES: ', local_features.shape)
+                        print(f'图像特征提取完成:')
+                        print(f'  - 全局特征张量形状: {global_features.shape}')
+                        print(f'  - 局部特征张量形状: {local_features.shape}')
                         print('=====================')
 
                         _, hw, n_dim = global_features.shape
@@ -476,8 +477,9 @@ class DeepseekOCRModel(DeepseekV2Model):
                         global_features = torch.cat((global_features_2[:, 1:], global_features_1.flatten(2).permute(0, 2, 1)), dim=-1) 
                         global_features = self.projector(global_features)
                         print('=====================')
-                        print('BASE: ', global_features.shape)
-                        print('NO PATCHES')
+                        print(f'图像特征提取完成:')
+                        print(f'  - 全局特征张量形状: {global_features.shape}')
+                        print(f'  - 无局部特征')
                         print('=====================')
                         _, hw, n_dim = global_features.shape
                         h = w = int(hw ** 0.5)
