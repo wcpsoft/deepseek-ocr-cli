@@ -375,6 +375,11 @@ def main():
 
         # 设置日志
         _setup_logging(args)
+        
+        # 设置MPS回退环境变量，解决MPS设备不支持某些操作的问题
+        if detect_mps_environment():
+            os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+            logger.info("检测到MPS环境，已启用CPU回退模式")
 
         # 创建上下文并执行策略
         _execute_ocr_strategy(args)

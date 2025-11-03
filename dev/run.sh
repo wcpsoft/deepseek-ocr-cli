@@ -149,6 +149,16 @@ if [ "$IPDB" = true ]; then
     ARGS+=(--ipdb)
 fi
 
+# 检测MPS环境并设置环境变量
+if [[ "$FINAL_MODE" == "transformers" ]]; then
+    # 检测是否在MPS环境下
+    if python3 -c "import torch; print(torch.backends.mps.is_available() and torch.backends.mps.is_built())" | grep -q "True"; then
+        log_info "检测到MPS环境，设置CPU回退模式和内存管理"
+        export PYTORCH_ENABLE_MPS_FALLBACK=1
+        export PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0
+    fi
+fi
+
 python3 -m src.cli.main "${ARGS[@]}"
 
 echo "========================================="
