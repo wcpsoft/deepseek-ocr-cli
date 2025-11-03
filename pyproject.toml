@@ -42,7 +42,7 @@ dependencies = [
     "python-multipart",
     "tqdm",
     "psutil",
-    "transformers>=4.37.0,<4.47.1",
+    "transformers",
     "PyYAML",
 ]
 
