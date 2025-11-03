@@ -44,4 +44,4 @@ htmlcov/
 .env
 .venv
 
-models
+/models
