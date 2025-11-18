@@ -39,7 +39,7 @@ class TransformersEngine(BaseOCREngine):
         crop_mode: bool = True,
         model_manager: Optional[ModelManager] = None,
         image_handler: Optional[ImageHandler] = None,
-        device_manager: Optional[Any] = None,
+        device_manager: Any,
     ):
         """
         初始化Transformers引擎
@@ -57,8 +57,8 @@ class TransformersEngine(BaseOCREngine):
         """
         super().__init__(model_path, prompt, base_size, image_size, device, crop_mode=crop_mode)
 
-        # 使用注入的依赖或创建默认实例
-        self.model_manager = model_manager or ModelManager(model_path or MODEL_PATH)
+        # 直接使用注入的依赖
+        self.model_manager = model_manager
         self.image_handler = image_handler
         self.device_manager = device_manager
 
@@ -74,20 +74,11 @@ class TransformersEngine(BaseOCREngine):
             self.processor = self.model_manager.load_processor()
 
             # 使用 DeviceManager 设置设备和移动模型
-            if self.device_manager:
-                self.device = self.device_manager.get_optimal_device()
-                if self.model:
-                    self.device_manager.move_model_to_device(self.model)
-                    if hasattr(self.model, 'eval'):
-                        self.model.eval()
-            else:
-                # 回退到原来的设备设置方式
-                from src.core.utils.device_manager import get_optimal_device
-                self.device = get_optimal_device()
-                if self.model and hasattr(self.model, "to"):
-                    self.model = self.model.to(self.device)
-                    if hasattr(self.model, "eval"):
-                        self.model = self.model.eval()
+            self.device = self.device_manager.get_optimal_device()
+            if self.model:
+                self.device_manager.move_model_to_device(self.model)
+                if hasattr(self.model, 'eval'):
+                    self.model.eval()
 
             # 初始化图像处理器（使用依赖注入）
             if not self.image_handler and self.tokenizer:

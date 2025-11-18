@@ -108,7 +108,7 @@ class ImageHandler:
             logger.error(f"处理图像时发生错误: {e!s}")
             raise
 
-    def extract_tensors(self, processed_data: Any, device: torch.device, device_manager: Optional[Any] = None) -> tuple[torch.Tensor, ...]:
+    def extract_tensors(self, processed_data: Any, device: torch.device, device_manager: Any) -> tuple[torch.Tensor, ...]:
         """
         从处理后的数据中提取张量并移到指定设备
 
@@ -150,17 +150,10 @@ class ImageHandler:
                 image_shapes = []
 
             # 使用 DeviceManager 统一移动张量到设备
-            if device_manager and hasattr(device_manager, 'move_tensor_to_device'):
-                input_ids = device_manager.move_tensor_to_device(input_ids, device)
-                pixel_values = device_manager.move_tensor_to_device(pixel_values, device)
-                images_crop = device_manager.move_tensor_to_device(images_crop, device)
-                images_spatial_crop = device_manager.move_tensor_to_device(images_spatial_crop, device)
-            else:
-                # 回退到原来的方式
-                input_ids = input_ids.to(device)
-                pixel_values = pixel_values.to(device)
-                images_crop = images_crop.to(device)
-                images_spatial_crop = images_spatial_crop.to(device)
+            input_ids = device_manager.move_tensor_to_device(input_ids, device)
+            pixel_values = device_manager.move_tensor_to_device(pixel_values, device)
+            images_crop = device_manager.move_tensor_to_device(images_crop, device)
+            images_spatial_crop = device_manager.move_tensor_to_device(images_spatial_crop, device)
 
             return (
                 input_ids,

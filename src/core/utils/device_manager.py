@@ -121,21 +121,12 @@ class DeviceManager:
         if device is None:
             device = self.get_optimal_device()
 
+        # 简化的数据类型选择逻辑
         if device.type == "mps":
-            # MPS上避免使用bfloat16和float16，使用float32以确保兼容性
-            logger.info("在MPS设备上运行，使用float32数据类型以确保兼容性")
             return torch.float32
-        elif device.type == "cuda":
-            # 在CUDA设备上可以使用bfloat16（如果支持）
-            if torch.cuda.is_bf16_supported():
-                logger.info("在CUDA设备上运行，使用bfloat16数据类型")
-                return torch.bfloat16
-            else:
-                logger.info("在CUDA设备上运行，使用float32数据类型")
-                return torch.float32
+        elif device.type == "cuda" and torch.cuda.is_bf16_supported():
+            return torch.bfloat16
         else:
-            # 在CPU上使用float32
-            logger.info("在CPU设备上运行，使用float32数据类型")
             return torch.float32
 
     def should_use_bfloat16(self, device: torch.device | None = None) -> bool:

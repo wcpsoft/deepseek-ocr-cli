@@ -213,22 +213,3 @@ class ModelPathResolver:
         return None
 
 
-# 便捷函数（向后兼容）
-def is_remote_repo(model_path: str) -> bool:
-    """
-    检查是否为远程仓库（便捷函数）
-
-    .. deprecated::
-        直接使用 ModelPathResolver.is_remote_repo() 替代
-    """
-    return ModelPathResolver.is_remote_repo(model_path)
-
-
-def get_loading_params(model_path: str, trust_remote_code: bool = True) -> dict[str, bool]:
-    """
-    获取加载参数（便捷函数）
-
-    .. deprecated::
-        直接使用 ModelPathResolver.get_loading_params() 替代
-    """
-    return ModelPathResolver.get_loading_params(model_path, trust_remote_code)

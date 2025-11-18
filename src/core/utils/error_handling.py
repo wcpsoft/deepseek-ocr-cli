@@ -243,9 +243,8 @@ def safe_execute(
 class ErrorCollector:
     """错误收集器，用于批量处理时的错误收集"""
 
-    def __init__(self, max_errors: int = 100):
+    def __init__(self):
         self.errors: List[OCRException] = []
-        self.max_errors = max_errors
 
     def add_error(self, error: Union[str, Exception], context: Optional[Dict[str, Any]] = None):
         """添加错误"""
@@ -255,10 +254,6 @@ class ErrorCollector:
             error = OCRException(str(error), cause=error, context=context)
 
         self.errors.append(error)
-
-        # 限制错误数量
-        if len(self.errors) > self.max_errors:
-            self.errors.pop(0)
 
     def has_errors(self) -> bool:
         """是否有错误"""
@@ -290,9 +285,3 @@ class ErrorCollector:
         return "\n".join(result)
 
 
-# 便捷的装饰器别名
-ocr_error_handler = handle_ocr_error
-model_error_handler = handle_model_error
-image_error_handler = handle_image_error
-device_error_handler = handle_device_error
-config_error_handler = handle_config_error

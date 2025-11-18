@@ -48,7 +48,7 @@ class OCREngineFactory:
         crop_mode: bool = True,
         model_manager: Optional[Any] = None,
         image_handler: Optional[Any] = None,
-        device_manager: Optional[Any] = None,
+        device_manager: Any,
     ):
         """
         创建OCR引擎
