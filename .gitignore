@@ -43,5 +43,5 @@ htmlcov/
 # Environment files
 .env
 .venv
-
+CLAUDE.md
 /models

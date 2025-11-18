@@ -25,131 +25,85 @@ from src.core.models.conversation import get_conv_template
 from src.core.models.deepencoder import MlpProjector, build_clip_l, build_sam_vit_b
 from src.core.models.modeling_deepseekv2 import DeepseekV2ForCausalLM, DeepseekV2Model
 from src.core.process.image_process import find_closest_aspect_ratio, dynamic_preprocess
+from src.core.utils.output_processor import (
+    re_match as utils_re_match,
+    extract_coordinates_and_label as utils_extract_coordinates_and_label,
+    draw_bounding_boxes as utils_draw_bounding_boxes,
+    process_image_with_refs as utils_process_image_with_refs,
+    load_image as utils_load_image,
+)
 
 
 def load_image(image_path):
-
-    try:
-        image = Image.open(image_path)
-
-        corrected_image = ImageOps.exif_transpose(image)
-
-        return corrected_image
-
-    except Exception as e:
-        print(f"error: {e}")
-        try:
-            return Image.open(image_path)
-        except:
-            return None
+    """
+    加载图像并处理EXIF方向
+    
+    Args:
+        image_path: 图像路径
+        
+    Returns:
+        处理后的PIL图像对象
+    """
+    return utils_load_image(image_path)
 
 
 def re_match(text):
-    pattern = r"(<\|ref\|>(.*?)<\|/ref\|><\|det\|>(.*?)<\|/det\|>)"
-    matches = re.findall(pattern, text, re.DOTALL)
-
-    # pattern1 = r'<\|ref\|>.*?<\|/ref\|>\n'
-    # new_text1 = re.sub(pattern1, '', text, flags=re.DOTALL)
-
-    mathes_image = []
-    mathes_other = []
-    for a_match in matches:
-        if "<|ref|>image<|/ref|>" in a_match[0]:
-            mathes_image.append(a_match[0])
-        else:
-            mathes_other.append(a_match[0])
-    return matches, mathes_image, mathes_other
+    """
+    使用正则表达式匹配文本中的特定模式
+    
+    Args:
+        text: 待匹配的文本
+        
+    Returns:
+        Tuple[List, List, List]: 匹配结果、图像匹配项和其他匹配项
+    """
+    return utils_re_match(text)
 
 
 def extract_coordinates_and_label(ref_text, image_width, image_height):
-
-    try:
-        label_type = ref_text[1]
-        cor_list = eval(ref_text[2])
-    except Exception as e:
-        print(e)
-        return None
-
-    return (label_type, cor_list)
-
-
-def draw_bounding_boxes(image, refs, ouput_path):
-
-    image_width, image_height = image.size
-
-    img_draw = image.copy()
-    draw = ImageDraw.Draw(img_draw)
-
-    overlay = Image.new("RGBA", img_draw.size, (0, 0, 0, 0))
-    draw2 = ImageDraw.Draw(overlay)
-
-    # try:
-    # except IOError:
-    #     try:
-    #         font = ImageFont.truetype("DejaVuSans.ttf", 20)
-    #     except IOError:
-    font = ImageFont.load_default()
-
-    img_idx = 0
-
-    for i, ref in enumerate(refs):
-        try:
-            result = extract_coordinates_and_label(ref, image_width, image_height)
-            if result:
-                label_type, points_list = result
-
-                color = (np.random.randint(0, 200), np.random.randint(0, 200), np.random.randint(0, 255))
-
-                color_a = color + (20,)
-                for points in points_list:
-                    x1, y1, x2, y2 = points
-
-                    x1 = int(x1 / 999 * image_width)
-                    y1 = int(y1 / 999 * image_height)
-
-                    x2 = int(x2 / 999 * image_width)
-                    y2 = int(y2 / 999 * image_height)
-
-                    if label_type == "image":
-                        try:
-                            cropped = image.crop((x1, y1, x2, y2))
-                            cropped.save(f"{ouput_path}/images/{img_idx}.jpg")
-                        except Exception as e:
-                            print(e)
-                            pass
-                        img_idx += 1
-
-                    try:
-                        if label_type == "title":
-                            draw.rectangle([x1, y1, x2, y2], outline=color, width=4)
-                            draw2.rectangle([x1, y1, x2, y2], fill=color_a, outline=(0, 0, 0, 0), width=1)
-                        else:
-                            draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-                            draw2.rectangle([x1, y1, x2, y2], fill=color_a, outline=(0, 0, 0, 0), width=1)
-                        text_x = x1
-                        text_y = max(0, y1 - 15)
-
-                        text_bbox = draw.textbbox((0, 0), label_type, font=font)
-                        text_width = text_bbox[2] - text_bbox[0]
-                        text_height = text_bbox[3] - text_bbox[1]
-                        draw.rectangle(
-                            [text_x, text_y, text_x + text_width, text_y + text_height], fill=(255, 255, 255, 30)
-                        )
-
-                        draw.text((text_x, text_y), label_type, font=font, fill=color)
-                    except:
-                        pass
-        except:
-            continue
-    img_draw.paste(overlay, (0, 0), overlay)
-    return img_draw
+    """
+    从引用文本中提取坐标和标签
+    
+    Args:
+        ref_text: 引用文本
+        image_width: 图像宽度
+        image_height: 图像高度
+        
+    Returns:
+        Optional[Tuple]: 标签类型和坐标列表
+    """
+    return utils_extract_coordinates_and_label(ref_text, image_width, image_height)
 
 
-def process_image_with_refs(image, ref_texts, output_path):
+def draw_bounding_boxes(image, cor_list, label_type, output_path=None):
+    """
+    在图像上绘制边界框
+    
+    Args:
+        image: PIL图像对象
+        cor_list: 坐标列表
+        label_type: 标签类型
+        output_path: 输出路径，如果为None则不保存
+        
+    Returns:
+        PIL.Image: 绘制了边界框的图像
+    """
+    return utils_draw_bounding_boxes(image, cor_list, label_type, output_path)
 
-    result_image = draw_bounding_boxes(image, ref_texts, output_path)
 
-    return result_image
+def process_image_with_refs(image_path, refs, output_path=None):
+    """
+    处理图像并绘制引用的边界框
+    
+    Args:
+        image_path: 图像路径
+        refs: 引用列表
+        output_path: 输出路径，如果为None则不保存
+        
+    Returns:
+        PIL.Image: 处理后的图像
+    """
+    return utils_process_image_with_refs(image_path, refs, output_path)
 
 
 def normalize_transform(mean, std):
