@@ -8,17 +8,19 @@
 import functools
 import logging
 import traceback
-from typing import Any, Callable, Optional, Type, Union, TypeVar, Dict, List
+from collections.abc import Callable
 from enum import Enum
+from typing import Any, Optional, TypeVar
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ErrorSeverity(Enum):
     """错误严重程度"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -28,8 +30,13 @@ class ErrorSeverity(Enum):
 class OCRException(Exception):
     """OCR 相关异常的基类"""
 
-    def __init__(self, message: str, severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-                 cause: Optional[Exception] = None, context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        severity: ErrorSeverity = ErrorSeverity.MEDIUM,
+        cause: Optional[Exception] = None,
+        context: Optional[dict[str, Any]] = None,
+    ):
         super().__init__(message)
         self.severity = severity
         self.cause = cause
@@ -48,8 +55,7 @@ class OCRException(Exception):
 class ModelLoadError(OCRException):
     """模型加载错误"""
 
-    def __init__(self, message: str, model_path: Optional[str] = None,
-                 cause: Optional[Exception] = None):
+    def __init__(self, message: str, model_path: Optional[str] = None, cause: Optional[Exception] = None):
         context = {"model_path": model_path} if model_path else {}
         super().__init__(message, ErrorSeverity.HIGH, cause, context)
 
@@ -57,8 +63,13 @@ class ModelLoadError(OCRException):
 class ImageProcessError(OCRException):
     """图像处理错误"""
 
-    def __init__(self, message: str, image_path: Optional[str] = None,
-                 operation: Optional[str] = None, cause: Optional[Exception] = None):
+    def __init__(
+        self,
+        message: str,
+        image_path: Optional[str] = None,
+        operation: Optional[str] = None,
+        cause: Optional[Exception] = None,
+    ):
         context = {}
         if image_path:
             context["image_path"] = image_path
@@ -70,8 +81,7 @@ class ImageProcessError(OCRException):
 class DeviceError(OCRException):
     """设备相关错误"""
 
-    def __init__(self, message: str, device: Optional[str] = None,
-                 cause: Optional[Exception] = None):
+    def __init__(self, message: str, device: Optional[str] = None, cause: Optional[Exception] = None):
         context = {"device": device} if device else {}
         super().__init__(message, ErrorSeverity.HIGH, cause, context)
 
@@ -79,8 +89,7 @@ class DeviceError(OCRException):
 class ConfigurationError(OCRException):
     """配置错误"""
 
-    def __init__(self, message: str, config_key: Optional[str] = None,
-                 cause: Optional[Exception] = None):
+    def __init__(self, message: str, config_key: Optional[str] = None, cause: Optional[Exception] = None):
         context = {"config_key": config_key} if config_key else {}
         super().__init__(message, ErrorSeverity.MEDIUM, cause, context)
 
@@ -88,8 +97,9 @@ class ConfigurationError(OCRException):
 class ValidationError(OCRException):
     """数据验证错误"""
 
-    def __init__(self, message: str, field: Optional[str] = None,
-                 value: Optional[Any] = None, cause: Optional[Exception] = None):
+    def __init__(
+        self, message: str, field: Optional[str] = None, value: Optional[Any] = None, cause: Optional[Exception] = None
+    ):
         context = {}
         if field:
             context["field"] = field
@@ -102,9 +112,9 @@ def handle_ocr_error(
     default_return: Any = None,
     re_raise: bool = False,
     log_level: int = logging.ERROR,
-    exception_types: Optional[List[Type[Exception]]] = None,
-    context: Optional[Dict[str, Any]] = None,
-    severity: ErrorSeverity = ErrorSeverity.MEDIUM
+    exception_types: Optional[list[type[Exception]]] = None,
+    context: Optional[dict[str, Any]] = None,
+    severity: ErrorSeverity = ErrorSeverity.MEDIUM,
 ) -> Callable:
     """
     OCR 错误处理装饰器
@@ -120,6 +130,7 @@ def handle_ocr_error(
     Returns:
         装饰器函数
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> T:
@@ -127,7 +138,7 @@ def handle_ocr_error(
                 "function": func.__name__,
                 "module": func.__module__,
                 "args_count": len(args),
-                "kwargs_keys": list(kwargs.keys())
+                "kwargs_keys": list(kwargs.keys()),
             }
             if context:
                 func_context.update(context)
@@ -140,7 +151,7 @@ def handle_ocr_error(
                     raise
 
                 # 构造错误消息
-                error_msg = f"函数 {func.__name__} 执行失败: {str(e)}"
+                error_msg = f"函数 {func.__name__} 执行失败: {e!s}"
 
                 # 记录日志
                 logger.log(log_level, error_msg)
@@ -165,39 +176,58 @@ def handle_ocr_error(
                 return None
 
         return wrapper
+
     return decorator
 
 
-def handle_model_error(default_return: Any = None, re_raise: bool = True) -> Callable:
+def handle_model_error(
+    default_return: Any = None, re_raise: bool = True, context: Optional[dict[str, Any]] = None
+) -> Callable:
     """模型错误处理装饰器"""
+    model_context = {"component": "model"}
+    if context:
+        model_context.update(context)
+
     return handle_ocr_error(
         default_return=default_return,
         re_raise=re_raise,
         exception_types=[ImportError, RuntimeError, ValueError, ModelLoadError],
-        context={"component": "model"},
-        severity=ErrorSeverity.HIGH
+        context=model_context,
+        severity=ErrorSeverity.HIGH,
     )
 
 
-def handle_image_error(default_return: Any = None, re_raise: bool = False) -> Callable:
+def handle_image_error(
+    default_return: Any = None, re_raise: bool = False, context: Optional[dict[str, Any]] = None
+) -> Callable:
     """图像处理错误处理装饰器"""
+    image_context = {"component": "image_processing"}
+    if context:
+        image_context.update(context)
+
     return handle_ocr_error(
         default_return=default_return,
         re_raise=re_raise,
         exception_types=[FileNotFoundError, ValueError, ImageProcessError],
-        context={"component": "image_processing"},
-        severity=ErrorSeverity.MEDIUM
+        context=image_context,
+        severity=ErrorSeverity.MEDIUM,
     )
 
 
-def handle_device_error(default_return: Any = None, re_raise: bool = True) -> Callable:
+def handle_device_error(
+    default_return: Any = None, re_raise: bool = True, context: Optional[dict[str, Any]] = None
+) -> Callable:
     """设备相关错误处理装饰器"""
+    device_context = {"component": "device"}
+    if context:
+        device_context.update(context)
+
     return handle_ocr_error(
         default_return=default_return,
         re_raise=re_raise,
         exception_types=[RuntimeError, DeviceError],
-        context={"component": "device"},
-        severity=ErrorSeverity.HIGH
+        context=device_context,
+        severity=ErrorSeverity.HIGH,
     )
 
 
@@ -208,17 +238,11 @@ def handle_config_error(default_return: Any = None, re_raise: bool = False) -> C
         re_raise=re_raise,
         exception_types=[KeyError, ValueError, ConfigurationError],
         context={"component": "configuration"},
-        severity=ErrorSeverity.MEDIUM
+        severity=ErrorSeverity.MEDIUM,
     )
 
 
-def safe_execute(
-    func: Callable[..., T],
-    *args,
-    default_return: Any = None,
-    log_errors: bool = True,
-    **kwargs
-) -> T:
+def safe_execute(func: Callable[..., T], *args, default_return: Any = None, log_errors: bool = True, **kwargs) -> T:
     """
     安全执行函数，捕获所有异常
 
@@ -236,7 +260,7 @@ def safe_execute(
         return func(*args, **kwargs)
     except Exception as e:
         if log_errors:
-            logger.error(f"安全执行 {func.__name__} 失败: {str(e)}")
+            logger.error(f"安全执行 {func.__name__} 失败: {e!s}")
         return default_return
 
 
@@ -244,9 +268,9 @@ class ErrorCollector:
     """错误收集器，用于批量处理时的错误收集"""
 
     def __init__(self):
-        self.errors: List[OCRException] = []
+        self.errors: list[OCRException] = []
 
-    def add_error(self, error: Union[str, Exception], context: Optional[Dict[str, Any]] = None):
+    def add_error(self, error: str | Exception, context: Optional[dict[str, Any]] = None):
         """添加错误"""
         if isinstance(error, str):
             error = OCRException(error, context=context)
@@ -259,15 +283,15 @@ class ErrorCollector:
         """是否有错误"""
         return len(self.errors) > 0
 
-    def get_errors_by_severity(self, severity: ErrorSeverity) -> List[OCRException]:
+    def get_errors_by_severity(self, severity: ErrorSeverity) -> list[OCRException]:
         """按严重程度获取错误"""
         return [error for error in self.errors if error.severity == severity]
 
-    def get_critical_errors(self) -> List[OCRException]:
+    def get_critical_errors(self) -> list[OCRException]:
         """获取严重错误"""
         return self.get_errors_by_severity(ErrorSeverity.CRITICAL)
 
-    def get_high_errors(self) -> List[OCRException]:
+    def get_high_errors(self) -> list[OCRException]:
         """获取高级错误"""
         return self.get_errors_by_severity(ErrorSeverity.HIGH)
 
@@ -283,5 +307,3 @@ class ErrorCollector:
         for i, error in enumerate(self.errors, 1):
             result.append(f"  {i}. {error}")
         return "\n".join(result)
-
-

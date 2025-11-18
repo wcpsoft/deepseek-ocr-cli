@@ -8,23 +8,24 @@
 - 设备管理
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 import torch
-from unittest.mock import Mock, patch, MagicMock
-from typing import Any, Optional
-
-# 测试错误处理框架
-from src.core.utils.error_handling import (
-    OCRException, ModelLoadError, ImageProcessError, DeviceError, ConfigurationError,
-    handle_ocr_error, handle_model_error, handle_image_error, handle_device_error,
-    ErrorCollector
-)
 
 # 测试重构后的核心组件
 from src.core.models.model_manager import ModelManager
-from src.core.utils.device_manager import DeviceManager
-from src.core.service.ocr_service import OCRService
 from src.core.process.image_handler import ImageHandler
+from src.core.service.ocr_service import OCRService
+from src.core.utils.device_manager import DeviceManager
+
+# 测试错误处理框架
+from src.core.utils.error_handling import (
+    ErrorCollector,
+    OCRException,
+    handle_model_error,
+    handle_ocr_error,
+)
 
 
 class TestErrorHandlingFramework:
@@ -32,6 +33,7 @@ class TestErrorHandlingFramework:
 
     def test_basic_error_handling_decorator(self):
         """测试基本错误处理装饰器"""
+
         @handle_ocr_error(default_return="fallback", re_raise=False)
         def failing_function():
             raise ValueError("测试错误")
@@ -41,6 +43,7 @@ class TestErrorHandlingFramework:
 
     def test_error_handling_with_re_raise(self):
         """测试重新抛出异常的装饰器"""
+
         @handle_ocr_error(re_raise=True)
         def failing_function():
             raise ValueError("测试错误")
@@ -50,6 +53,7 @@ class TestErrorHandlingFramework:
 
     def test_specific_error_types(self):
         """测试特定错误类型装饰器"""
+
         @handle_model_error(re_raise=True)
         def model_failing_function():
             raise ImportError("模型导入失败")
@@ -93,15 +97,15 @@ class TestModelManagerRefactor:
         assert manager.tokenizer is None
         assert manager.processor is None
         # 验证设备属性已被移除
-        assert not hasattr(manager, 'device') or getattr(manager, 'device', None) is None
+        assert not hasattr(manager, "device") or getattr(manager, "device", None) is None
 
     def test_model_manager_removed_device_methods(self):
         """测试 ModelManager 已移除设备管理方法"""
         manager = ModelManager("test_model_path")
 
         # 这些方法应该不存在
-        assert not hasattr(manager, 'setup_device')
-        assert not hasattr(manager, 'move_model_to_device')
+        assert not hasattr(manager, "setup_device")
+        assert not hasattr(manager, "move_model_to_device")
 
     def test_model_manager_info_method(self):
         """测试 ModelManager 信息方法不包含设备信息"""
@@ -114,17 +118,14 @@ class TestModelManagerRefactor:
         assert "has_tokenizer" in info
         assert "has_processor" in info
 
-    @patch('src.core.models.model_manager.ModelPathResolver')
+    @patch("src.core.models.model_manager.ModelPathResolver")
     def test_model_loading_error_handling(self, mock_resolver):
         """测试模型加载的错误处理"""
-        mock_resolver.get_loading_params.return_value = {
-            "trust_remote_code": True,
-            "local_files_only": True
-        }
+        mock_resolver.get_loading_params.return_value = {"trust_remote_code": True, "local_files_only": True}
 
         manager = ModelManager("invalid_model")
 
-        with patch('src.core.models.model_manager.create_ocr_model') as mock_create:
+        with patch("src.core.models.model_manager.create_ocr_model") as mock_create:
             mock_create.side_effect = RuntimeError("模型加载失败")
 
             with pytest.raises(OCRException):
@@ -176,7 +177,7 @@ class TestDeviceManagerExtensions:
 class TestImageHandlerRefactor:
     """测试 ImageHandler 重构"""
 
-    @patch('src.core.process.image_handler.DeepseekOCRProcessor')
+    @patch("src.core.process.image_handler.DeepseekOCRProcessor")
     def test_image_handler_initialization(self, mock_processor_class):
         """测试 ImageHandler 初始化"""
         mock_processor_class.return_value = Mock()
@@ -197,9 +198,7 @@ class TestImageHandlerRefactor:
         images_crop = torch.randn(1, 10, 768)
         images_spatial_crop = torch.randn(1, 10, 768)
 
-        processed_data = [[
-            input_ids, pixel_values, images_crop, images_spatial_crop
-        ]]
+        processed_data = [[input_ids, pixel_values, images_crop, images_spatial_crop]]
 
         # 模拟 DeviceManager
         mock_device_manager = Mock()
@@ -227,9 +226,7 @@ class TestImageHandlerRefactor:
         images_crop = torch.randn(1, 10, 768)
         images_spatial_crop = torch.randn(1, 10, 768)
 
-        processed_data = [[
-            input_ids, pixel_values, images_crop, images_spatial_crop
-        ]]
+        processed_data = [[input_ids, pixel_values, images_crop, images_spatial_crop]]
 
         # 不提供 DeviceManager
         device = torch.device("cpu")
@@ -243,7 +240,7 @@ class TestImageHandlerRefactor:
         """测试图像加载错误处理"""
         handler = ImageHandler(Mock())
 
-        with patch('PIL.Image.open') as mock_open:
+        with patch("PIL.Image.open") as mock_open:
             mock_open.side_effect = FileNotFoundError("图片不存在")
 
             with pytest.raises(OCRException):
@@ -261,7 +258,7 @@ class TestOCRServiceRefactor:
         service = OCRService(mock_engine)
 
         # 测试初始化方法的错误处理
-        with patch.object(mock_engine, 'initialize', side_effect=RuntimeError("引擎初始化失败")):
+        with patch.object(mock_engine, "initialize", side_effect=RuntimeError("引擎初始化失败")):
             result = service.initialize()
             assert result is False
 
@@ -273,7 +270,8 @@ class TestOCRServiceRefactor:
         service = OCRService(mock_engine)
 
         from PIL import Image
-        test_image = Image.new('RGB', (100, 100))
+
+        test_image = Image.new("RGB", (100, 100))
 
         with pytest.raises(OCRException):
             service.process_image(test_image)
@@ -297,7 +295,7 @@ class TestDependencyInjection:
             nonlocal engine_initialized
             if mock_device_manager:
                 device = mock_device_manager.get_optimal_device()
-                if hasattr(mock_model_manager, 'model'):
+                if hasattr(mock_model_manager, "model"):
                     mock_device_manager.move_model_to_device(mock_model_manager.model)
             engine_initialized = True
             return True
@@ -333,6 +331,7 @@ class TestBackwardCompatibility:
 
     def test_error_handling_backwards_compatible(self):
         """测试错误处理的向后兼容性"""
+
         # 装饰器应该能处理没有额外参数的情况
         @handle_ocr_error()
         def simple_function():

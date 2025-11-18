@@ -2,26 +2,24 @@
 错误处理工具的单元测试
 """
 
+from unittest.mock import patch
+
 import pytest
-import logging
-from unittest.mock import patch, MagicMock
-from typing import List, Type
 
 from src.core.utils.error_handling import (
-    OCRException,
-    ModelLoadError,
-    ImageProcessError,
-    DeviceError,
     ConfigurationError,
-    ValidationError,
+    DeviceError,
+    ErrorCollector,
     ErrorSeverity,
-    handle_ocr_error,
-    handle_model_error,
-    handle_image_error,
+    ImageProcessError,
+    ModelLoadError,
+    OCRException,
+    ValidationError,
     handle_device_error,
-    handle_config_error,
+    handle_image_error,
+    handle_model_error,
+    handle_ocr_error,
     safe_execute,
-    ErrorCollector
 )
 
 
@@ -108,6 +106,7 @@ class TestErrorHandlingDecorator:
 
     def test_successful_execution(self):
         """测试成功执行的函数"""
+
         @handle_ocr_error()
         def test_func():
             return "success"
@@ -117,6 +116,7 @@ class TestErrorHandlingDecorator:
 
     def test_exception_with_default_return(self):
         """测试异常时返回默认值"""
+
         @handle_ocr_error(default_return="default")
         def test_func():
             raise ValueError("测试错误")
@@ -126,6 +126,7 @@ class TestErrorHandlingDecorator:
 
     def test_exception_with_re_raise(self):
         """测试异常时重新抛出"""
+
         @handle_ocr_error(re_raise=True)
         def test_func():
             raise ValueError("测试错误")
@@ -135,6 +136,7 @@ class TestErrorHandlingDecorator:
 
     def test_exception_with_specific_types(self):
         """测试特定异常类型的捕获"""
+
         @handle_ocr_error(exception_types=[ValueError])
         def test_func():
             raise KeyError("键错误")
@@ -142,9 +144,10 @@ class TestErrorHandlingDecorator:
         with pytest.raises(KeyError):
             test_func()
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_exception_logging(self, mock_logger):
         """测试异常日志记录"""
+
         @handle_ocr_error()
         def test_func():
             raise ValueError("测试错误")
@@ -154,6 +157,7 @@ class TestErrorHandlingDecorator:
 
     def test_context_in_decorator(self):
         """测试装饰器中的上下文"""
+
         @handle_ocr_error(context={"custom": "value"})
         def test_func():
             raise ValueError("测试错误")
@@ -166,9 +170,10 @@ class TestErrorHandlingDecorator:
 class TestSpecializedDecorators:
     """测试专用装饰器"""
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_model_error_decorator(self, mock_logger):
         """测试模型错误装饰器"""
+
         @handle_model_error()
         def test_func():
             raise ImportError("模块导入失败")
@@ -177,9 +182,10 @@ class TestSpecializedDecorators:
         assert result is None
         mock_logger.error.assert_called_once()
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_image_error_decorator(self, mock_logger):
         """测试图像错误装饰器"""
+
         @handle_image_error(default_return="fallback")
         def test_func():
             raise FileNotFoundError("文件不存在")
@@ -188,9 +194,10 @@ class TestSpecializedDecorators:
         assert result == "fallback"
         mock_logger.error.assert_called_once()
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_device_error_decorator(self, mock_logger):
         """测试设备错误装饰器"""
+
         @handle_device_error(re_raise=True)
         def test_func():
             raise RuntimeError("CUDA 错误")
@@ -205,6 +212,7 @@ class TestSafeExecute:
 
     def test_successful_execution(self):
         """测试成功执行"""
+
         def test_func():
             return "result"
 
@@ -213,15 +221,17 @@ class TestSafeExecute:
 
     def test_exception_handling(self):
         """测试异常处理"""
+
         def test_func():
             raise ValueError("错误")
 
         result = safe_execute(test_func, default_return="default")
         assert result == "default"
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_logging_disabled(self, mock_logger):
         """测试禁用日志记录"""
+
         def test_func():
             raise ValueError("错误")
 
@@ -337,7 +347,7 @@ class TestErrorCollector:
 class TestIntegration:
     """集成测试"""
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_decorator_with_error_collector(self, mock_logger):
         """测试装饰器与错误收集器的集成"""
         collector = ErrorCollector()

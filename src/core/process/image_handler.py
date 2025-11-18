@@ -4,13 +4,12 @@
 专门负责图像的加载、预处理和特征提取
 """
 
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from PIL import Image
 
 from src.core.logging import get_logger
-from src.core.utils.error_handling import handle_image_error, ImageProcessError
 
 logger = get_logger()
 
@@ -108,7 +107,9 @@ class ImageHandler:
             logger.error(f"处理图像时发生错误: {e!s}")
             raise
 
-    def extract_tensors(self, processed_data: Any, device: torch.device, device_manager: Any) -> tuple[torch.Tensor, ...]:
+    def extract_tensors(
+        self, processed_data: Any, device: torch.device, device_manager: Any
+    ) -> tuple[torch.Tensor, ...]:
         """
         从处理后的数据中提取张量并移到指定设备
 

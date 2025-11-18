@@ -6,7 +6,7 @@ OCR引擎工厂模块
 """
 
 import logging
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Optional
 
 from src.core.config.app_config import get_app_config
 

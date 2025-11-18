@@ -16,7 +16,7 @@ class DeviceManager:
     """统一的设备管理器"""
 
     _instance = None
-    _device_logged = False
+    _logged_messages = set()  # 防止重复日志
 
     def __new__(cls):
         if cls._instance is None:
@@ -28,8 +28,18 @@ class DeviceManager:
         # 使用单例模式，避免重复初始化
         if not hasattr(self, "initialized"):
             self.initialized = True
-            self._optimal_device = None
-            self._device_info_logged = False
+
+    def _log_once(self, message: str, level: str = "info") -> None:
+        """
+        只记录一次日志，防止重复
+
+        Args:
+            message: 日志消息
+            level: 日志级别
+        """
+        if message not in self._logged_messages:
+            getattr(logger, level)(message)
+            self._logged_messages.add(message)
 
     def is_mps_available(self) -> bool:
         """
@@ -121,13 +131,13 @@ class DeviceManager:
         if device is None:
             device = self.get_optimal_device()
 
-        # 简化的数据类型选择逻辑
-        if device.type == "mps":
-            return torch.float32
-        elif device.type == "cuda" and torch.cuda.is_bf16_supported():
-            return torch.bfloat16
-        else:
-            return torch.float32
+        # 数据类型选择映射表
+        dtype_map = {
+            "mps": torch.float32,
+            "cuda": torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float32,
+        }
+
+        return dtype_map.get(device.type, torch.float32)
 
     def should_use_bfloat16(self, device: torch.device | None = None) -> bool:
         """
@@ -142,15 +152,13 @@ class DeviceManager:
         if device is None:
             device = self.get_optimal_device()
 
-        if device.type == "mps":
-            # MPS不支持bfloat16
-            return False
-        elif device.type == "cuda":
-            # 在CUDA设备上可以使用bfloat16（如果支持）
-            return torch.cuda.is_bf16_supported()
-        else:
-            # 在CPU上不使用bfloat16
-            return False
+        # bfloat16支持映射表
+        bfloat16_support = {
+            "mps": False,
+            "cuda": torch.cuda.is_bf16_supported(),
+        }
+
+        return bfloat16_support.get(device.type, False)
 
     def move_tensor_to_device(self, tensor: torch.Tensor, device: torch.device | None = None) -> torch.Tensor:
         """

@@ -40,28 +40,20 @@ class ModelPathResolver:
             >>> ModelPathResolver.is_remote_repo("https://huggingface.co/model")
             True
         """
-        if not model_path or not isinstance(model_path, str):
-            # 空路径或无效类型，假定为远程（会触发 HuggingFace 默认行为）
+        # 简化的远程仓库检查逻辑
+        is_invalid = not model_path or not isinstance(model_path, str)
+        if is_invalid:
             return True
 
-        # 检查是否以远程前缀开头
-        if model_path.startswith(ModelPathResolver.REMOTE_PREFIXES):
+        # 远程标识符检查
+        has_remote_prefix = model_path.startswith(ModelPathResolver.REMOTE_PREFIXES)
+        has_no_path_sep = "/" not in model_path and "\\" not in model_path
+        if has_remote_prefix or has_no_path_sep:
             return True
 
-        # 检查是否是简单的仓库名（不包含路径分隔符）
-        # 例如: "bert-base-uncased"
-        if "/" not in model_path and "\\" not in model_path:
-            return True
-
-        # 展开用户路径（~ 符号）
+        # 本地路径存在性检查
         expanded_path = os.path.expanduser(model_path)
-
-        # 检查本地路径是否存在
-        if os.path.exists(expanded_path):
-            return False
-
-        # 路径不存在，假定为远程仓库
-        return True
+        return not os.path.exists(expanded_path)
 
     @staticmethod
     def get_loading_params(model_path: str, trust_remote_code: bool = True) -> dict[str, bool]:
@@ -211,5 +203,3 @@ class ModelPathResolver:
             return os.path.join(cache_root, model_name)
 
         return None
-
-

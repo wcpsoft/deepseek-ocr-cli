@@ -4,25 +4,31 @@
 专门测试重构后引入的错误处理框架
 """
 
-import pytest
 import logging
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
-from src.core.utils.error_handling import (
-    # 异常类
-    OCRException, ModelLoadError, ImageProcessError, DeviceError,
-    ConfigurationError, ValidationError, ErrorSeverity,
+import pytest
 
-    # 装饰器
-    handle_ocr_error, handle_model_error, handle_image_error,
-    handle_device_error, handle_config_error,
-
-    # 工具函数
-    safe_execute, ErrorCollector,
-
-    # 别名
-    ocr_error_handler, model_error_handler, image_error_handler,
-    device_error_handler, config_error_handler
+from src.core.utils.error_handling import (  # 异常类; 装饰器; 工具函数; 别名
+    ConfigurationError,
+    DeviceError,
+    ErrorCollector,
+    ErrorSeverity,
+    ImageProcessError,
+    ModelLoadError,
+    OCRException,
+    ValidationError,
+    config_error_handler,
+    device_error_handler,
+    handle_config_error,
+    handle_device_error,
+    handle_image_error,
+    handle_model_error,
+    handle_ocr_error,
+    image_error_handler,
+    model_error_handler,
+    ocr_error_handler,
+    safe_execute,
 )
 
 
@@ -105,6 +111,7 @@ class TestErrorHandlingDecorators:
 
     def test_handle_ocr_error_default_return(self):
         """测试默认返回值的错误处理"""
+
         @handle_ocr_error(default_return="fallback")
         def failing_function():
             raise ValueError("测试错误")
@@ -114,6 +121,7 @@ class TestErrorHandlingDecorators:
 
     def test_handle_ocr_error_re_raise(self):
         """测试重新抛出异常"""
+
         @handle_ocr_error(re_raise=True)
         def failing_function():
             raise ValueError("测试错误")
@@ -126,6 +134,7 @@ class TestErrorHandlingDecorators:
 
     def test_handle_ocr_error_specific_exceptions(self):
         """测试特定异常类型处理"""
+
         @handle_ocr_error(exception_types=[ValueError])
         def function_with_value_error():
             raise ValueError("值错误")
@@ -144,11 +153,12 @@ class TestErrorHandlingDecorators:
 
     def test_handle_ocr_error_with_context(self):
         """测试带上下文的错误处理"""
+
         @handle_ocr_error(context={"component": "test_component"})
         def failing_function():
             raise ValueError("测试错误")
 
-        with patch('src.core.utils.error_handling.logger') as mock_logger:
+        with patch("src.core.utils.error_handling.logger") as mock_logger:
             failing_function()
 
             # 验证日志记录
@@ -156,9 +166,10 @@ class TestErrorHandlingDecorators:
             call_args = mock_logger.error.call_args[0][0]
             assert "failing_function" in call_args
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_handle_ocr_error_logging(self, mock_logger):
         """测试错误处理日志记录"""
+
         @handle_ocr_error(log_level=logging.WARNING)
         def failing_function():
             raise ValueError("测试错误")
@@ -170,6 +181,7 @@ class TestErrorHandlingDecorators:
 
     def test_specialized_decorators(self):
         """测试专用装饰器"""
+
         # 测试模型错误装饰器
         @handle_model_error()
         def model_function():
@@ -309,6 +321,7 @@ class TestSafeExecute:
 
     def test_safe_execute_success(self):
         """测试成功执行"""
+
         def test_func(x):
             return x * 2
 
@@ -317,15 +330,17 @@ class TestSafeExecute:
 
     def test_safe_execute_with_exception(self):
         """测试异常处理"""
+
         def failing_func():
             raise ValueError("测试错误")
 
         result = safe_execute(failing_func, default_return="fallback")
         assert result == "fallback"
 
-    @patch('src.core.utils.error_handling.logger')
+    @patch("src.core.utils.error_handling.logger")
     def test_safe_execute_logging_disabled(self, mock_logger):
         """测试禁用日志记录"""
+
         def failing_func():
             raise ValueError("测试错误")
 
@@ -338,6 +353,7 @@ class TestDecoratorAliases:
 
     def test_decorator_aliases(self):
         """测试装饰器别名是否正常工作"""
+
         # 这些应该都能正常工作
         @ocr_error_handler(default_return="ocr_fallback")
         def ocr_func():
@@ -376,6 +392,7 @@ class TestIntegrationScenarios:
 
     def test_nested_error_handling(self):
         """测试嵌套错误处理"""
+
         @handle_model_error(re_raise=True)
         def outer_function():
             @handle_image_error(default_return="inner_fallback")
@@ -412,11 +429,12 @@ class TestIntegrationScenarios:
 
     def test_context_propagation(self):
         """测试上下文传播"""
+
         @handle_ocr_error(context={"operation": "test_operation"})
         def test_function():
             raise ValueError("测试错误")
 
-        with patch('src.core.utils.error_handling.logger') as mock_logger:
+        with patch("src.core.utils.error_handling.logger") as mock_logger:
             try:
                 test_function()
             except:

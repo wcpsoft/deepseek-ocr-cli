@@ -5,7 +5,7 @@ Transformers引擎实现
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 from PIL import Image
@@ -14,7 +14,7 @@ from src.core.base.ocr_engine import BaseOCREngine
 from src.core.config.app_config import get_device_config
 
 # 导入配置
-from src.core.config.settings import DEFAULT_OCR_PROMPT, MODEL_PATH
+from src.core.config.settings import DEFAULT_OCR_PROMPT
 from src.core.logging import debug_trace, debug_wrapper
 from src.core.models.model_manager import ModelManager
 from src.core.multimodal.enhanced_result_processor import EnhancedOCRResultProcessor
@@ -77,7 +77,7 @@ class TransformersEngine(BaseOCREngine):
             self.device = self.device_manager.get_optimal_device()
             if self.model:
                 self.device_manager.move_model_to_device(self.model)
-                if hasattr(self.model, 'eval'):
+                if hasattr(self.model, "eval"):
                     self.model.eval()
 
             # 初始化图像处理器（使用依赖注入）

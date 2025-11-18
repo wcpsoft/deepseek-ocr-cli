@@ -4,10 +4,11 @@
 专门测试重构后的设备管理和统一张量操作功能
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 import torch
 import torch.nn as nn
-from unittest.mock import Mock, patch, MagicMock
 
 from src.core.utils.device_manager import DeviceManager
 
@@ -27,7 +28,7 @@ class TestDeviceManagerCoreFunctionality:
         manager = DeviceManager()
 
         # 应该有初始化标记
-        assert hasattr(manager, 'initialized')
+        assert hasattr(manager, "initialized")
         assert manager.initialized is True
 
         # 应该有单例实例
@@ -41,7 +42,7 @@ class TestDeviceManagerCoreFunctionality:
         assert isinstance(device, torch.device)
 
         # 在测试环境中通常是 CPU
-        assert device.type in ['cpu']
+        assert device.type in ["cpu"]
 
     def test_device_manager_dtype_selection(self):
         """测试数据类型选择"""
@@ -233,11 +234,7 @@ class TestModelMovementOperations:
         manager = DeviceManager()
 
         # 创建更复杂的模型
-        model = nn.Sequential(
-            nn.Linear(10, 20),
-            nn.ReLU(),
-            nn.Linear(20, 5)
-        )
+        model = nn.Sequential(nn.Linear(10, 20), nn.ReLU(), nn.Linear(20, 5))
 
         target_device = torch.device("cpu")
         moved_model = manager.move_model_to_device(model, target_device)
@@ -275,7 +272,7 @@ class TestModelMovementOperations:
         model = nn.Linear(5, 1)
 
         # 模拟设备失败
-        with patch.object(model, 'to', side_effect=RuntimeError("设备不可用")):
+        with patch.object(model, "to", side_effect=RuntimeError("设备不可用")):
             # 应该优雅地处理错误
             with pytest.raises(RuntimeError):
                 manager.move_model_to_device(model)
@@ -295,8 +292,8 @@ class TestDeviceCacheManagement:
         """测试 CUDA 设备缓存清理"""
         manager = DeviceManager()
 
-        with patch('torch.cuda.is_available', return_value=True):
-            with patch('torch.cuda.empty_cache') as mock_empty_cache:
+        with patch("torch.cuda.is_available", return_value=True):
+            with patch("torch.cuda.empty_cache") as mock_empty_cache:
                 manager.clear_device_cache()
                 mock_empty_cache.assert_called_once()
 
@@ -305,11 +302,11 @@ class TestDeviceCacheManagement:
         manager = DeviceManager()
 
         # 模拟 MPS 环境
-        with patch('torch.backends.mps.is_available', return_value=True):
+        with patch("torch.backends.mps.is_available", return_value=True):
             mock_mps = Mock()
             mock_mps.empty_cache = Mock()
 
-            with patch('torch.mps', mock_mps):
+            with patch("torch.mps", mock_mps):
                 manager.clear_device_cache()
                 mock_mps.empty_cache.assert_called_once()
 
@@ -339,7 +336,7 @@ class TestDeviceConfiguration:
         assert isinstance(config, dict)
 
         # 应该包含基本配置项
-        expected_keys = ['device_type', 'dtype', 'memory_efficient']
+        expected_keys = ["device_type", "dtype", "memory_efficient"]
         for key in expected_keys:
             assert key in config, f"配置应该包含 {key}"
 
@@ -473,19 +470,23 @@ class TestIntegrationScenarios:
         """测试 ImageHandler 中的张量操作集成"""
         from src.core.process.image_handler import ImageHandler
 
-        with patch('src.core.process.image_handler.DeepseekOCRProcessor'):
+        with patch("src.core.process.image_handler.DeepseekOCRProcessor"):
             mock_tokenizer = Mock()
             handler = ImageHandler(mock_tokenizer)
 
             # 模拟处理后的数据
-            processed_data = [[
-                torch.tensor([[1, 2, 3]]),
-                torch.randn(1, 3, 224, 224),
-                Mock(), Mock(),
-                torch.randn(1, 10, 768),
-                torch.randn(1, 10, 768),
-                [], []
-            ]]
+            processed_data = [
+                [
+                    torch.tensor([[1, 2, 3]]),
+                    torch.randn(1, 3, 224, 224),
+                    Mock(),
+                    Mock(),
+                    torch.randn(1, 10, 768),
+                    torch.randn(1, 10, 768),
+                    [],
+                    [],
+                ]
+            ]
 
             device_manager = DeviceManager()
             device = torch.device("cpu")
@@ -505,13 +506,13 @@ class TestIntegrationScenarios:
         manager = ModelManager("test_model_path")
 
         # 应该没有设备管理方法
-        assert not hasattr(manager, 'setup_device')
-        assert not hasattr(manager, 'move_model_to_device')
+        assert not hasattr(manager, "setup_device")
+        assert not hasattr(manager, "move_model_to_device")
 
         # 设备管理应该由 DeviceManager 负责
         device_manager = DeviceManager()
-        assert hasattr(device_manager, 'get_optimal_device')
-        assert hasattr(device_manager, 'move_model_to_device')
+        assert hasattr(device_manager, "get_optimal_device")
+        assert hasattr(device_manager, "move_model_to_device")
 
 
 if __name__ == "__main__":

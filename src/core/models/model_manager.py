@@ -8,8 +8,8 @@
 from typing import Any
 
 from src.core.logging import get_logger
+from src.core.utils.error_handling import handle_model_error
 from src.core.utils.model_path_utils import ModelPathResolver
-from src.core.utils.error_handling import handle_model_error, ModelLoadError
 
 logger = get_logger()
 

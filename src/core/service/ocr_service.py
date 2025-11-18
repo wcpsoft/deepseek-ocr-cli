@@ -11,12 +11,12 @@ from PIL import Image
 from torch import Tensor
 
 from src.core.config.app_config import get_app_config
-from src.core.utils.error_handling import handle_ocr_error, ImageProcessError, ConfigurationError
 
 # 获取日志记录器
 from src.core.logging import get_logger
 from src.core.multimodal.ocr_engine_interface import OCREngineInterface
 from src.core.multimodal.ocr_result_processor import BatchOCRProcessor
+from src.core.utils.error_handling import handle_ocr_error
 
 logger = get_logger()
 
@@ -130,9 +130,7 @@ class OCRService:
         return {
             "success": success,
             "summary": summary,
-            "output_file": (
-                os.path.join(self.output_dir, output_filename) if summary["has_valid_results"] else None
-            ),
+            "output_file": (os.path.join(self.output_dir, output_filename) if summary["has_valid_results"] else None),
             "error_file": (os.path.join(self.output_dir, "error_report.txt") if summary["has_errors"] else None),
         }
 

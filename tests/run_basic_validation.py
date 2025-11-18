@@ -6,15 +6,14 @@
 """
 
 import sys
-import os
 import time
 import traceback
 from pathlib import Path
-from typing import Dict, List, Any
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
 
 class BasicRefactorValidator:
     """基础重构验证器"""
@@ -25,12 +24,7 @@ class BasicRefactorValidator:
 
     def log_result(self, test_name: str, success: bool, message: str = "", duration: float = 0):
         """记录测试结果"""
-        result = {
-            "test": test_name,
-            "success": success,
-            "message": message,
-            "duration": duration
-        }
+        result = {"test": test_name, "success": success, "message": message, "duration": duration}
         self.results.append(result)
 
         status = "✓" if success else "✗"
@@ -47,15 +41,20 @@ class BasicRefactorValidator:
         try:
             # 测试导入
             from src.core.utils.error_handling import (
-                OCRException, ModelLoadError, ImageProcessError, DeviceError,
-                handle_ocr_error, ErrorCollector
+                DeviceError,
+                ErrorCollector,
+                ImageProcessError,
+                ModelLoadError,
+                OCRException,
+                handle_ocr_error,
             )
+
             self.log_result("错误处理模块导入", True, "成功导入所有错误处理类和装饰器")
 
             # 测试异常创建
             exc = OCRException("测试消息", severity="high")
             success = "high" in str(exc) and "测试消息" in str(exc)
-            self.log_result("异常类创建", success, f"异常字符串: {str(exc)}")
+            self.log_result("异常类创建", success, f"异常字符串: {exc!s}")
 
             # 测试装饰器基本功能
             @handle_ocr_error(default_return="fallback", re_raise=False)
@@ -101,20 +100,20 @@ class BasicRefactorValidator:
 
             # 测试设备检测
             device = manager1.get_optimal_device()
-            success = hasattr(device, 'type')
+            success = hasattr(device, "type")
             self.log_result("设备检测", success, f"检测到设备: {device}")
 
             # 测试张量移动方法存在
-            has_tensor_move = hasattr(manager1, 'move_tensor_to_device')
+            has_tensor_move = hasattr(manager1, "move_tensor_to_device")
             self.log_result("张量移动方法", has_tensor_move, "move_tensor_to_device 方法存在")
 
             # 测试模型移动方法存在
-            has_model_move = hasattr(manager1, 'move_model_to_device')
+            has_model_move = hasattr(manager1, "move_model_to_device")
             self.log_result("模型移动方法", has_model_move, "move_model_to_device 方法存在")
 
             # 测试设备类型标准化
             config = manager1.get_device_config()
-            success = isinstance(config, dict) and 'device_type' in config
+            success = isinstance(config, dict) and "device_type" in config
             self.log_result("设备配置", success, f"配置类型: {type(config)}")
 
             duration = time.time() - start_time
@@ -135,16 +134,12 @@ class BasicRefactorValidator:
             from src.core.utils.model_path_utils import ModelPathResolver
 
             # 测试远程仓库检测
-            local_paths = [
-                "/path/to/local/model",
-                "./models/deepseek-ocr",
-                "./relative/path"
-            ]
+            local_paths = ["/path/to/local/model", "./models/deepseek-ocr", "./relative/path"]
             remote_paths = [
                 "deepseek-ai/deepseek-ocr",
                 "https://huggingface.co/deepseek-ai/deepseek-ocr",
                 "huggingface.co/deepseek-ai/deepseek-ocr",
-                "model-name"  # 没有斜杠的模型名
+                "model-name",  # 没有斜杠的模型名
             ]
 
             all_success = True
@@ -169,15 +164,15 @@ class BasicRefactorValidator:
             # 测试加载参数生成
             for path in local_paths:
                 params = ModelPathResolver.get_loading_params(path)
-                success = isinstance(params, dict) and 'local_files_only' in params
+                success = isinstance(params, dict) and "local_files_only" in params
                 if success:
-                    assert params['local_files_only'] is True, "本地路径应该启用 local_files_only"
+                    assert params["local_files_only"] is True, "本地路径应该启用 local_files_only"
 
             for path in remote_paths:
                 params = ModelPathResolver.get_loading_params(path)
-                success = isinstance(params, dict) and 'local_files_only' in params
+                success = isinstance(params, dict) and "local_files_only" in params
                 if success:
-                    assert params['local_files_only'] is False, "远程路径应该禁用 local_files_only"
+                    assert params["local_files_only"] is False, "远程路径应该禁用 local_files_only"
 
             self.log_result("加载参数生成", True, "正确生成了加载参数")
 
@@ -197,7 +192,7 @@ class BasicRefactorValidator:
         start_time = time.time()
 
         try:
-            from src.core.config.app_config import get_app_config, AppConfig
+            from src.core.config.app_config import AppConfig, get_app_config
 
             # 测试配置获取
             config = get_app_config()
@@ -205,10 +200,10 @@ class BasicRefactorValidator:
             self.log_result("配置实例获取", success, f"配置类型: {type(config)}")
 
             # 测试配置方法
-            has_get = hasattr(config, 'get')
+            has_get = hasattr(config, "get")
             self.log_result("配置get方法", has_get, "get 方法存在")
 
-            has_device_config = hasattr(config, 'get_device_config')
+            has_device_config = hasattr(config, "get_device_config")
             self.log_result("设备配置方法", has_device_config, "get_device_config 方法存在")
 
             # 测试默认配置值
@@ -237,21 +232,27 @@ class BasicRefactorValidator:
             manager = ModelManager("test_path")
 
             # 检查不应该有的方法
-            forbidden_methods = ['setup_device', 'move_model_to_device']
+            forbidden_methods = ["setup_device", "move_model_to_device"]
             has_forbidden = any(hasattr(manager, method) for method in forbidden_methods)
 
-            self.log_result("ModelManager职责分离", not has_forbidden,
-                          "已移除设备管理职责" if not has_forbidden else "仍包含设备管理方法")
+            self.log_result(
+                "ModelManager职责分离",
+                not has_forbidden,
+                "已移除设备管理职责" if not has_forbidden else "仍包含设备管理方法",
+            )
 
             # 验证 DeviceManager 有设备管理方法
             from src.core.utils.device_manager import DeviceManager
 
             device_manager = DeviceManager()
-            required_methods = ['get_optimal_device', 'move_model_to_device', 'move_tensor_to_device']
+            required_methods = ["get_optimal_device", "move_model_to_device", "move_tensor_to_device"]
             has_required = all(hasattr(device_manager, method) for method in required_methods)
 
-            self.log_result("DeviceManager职责完整", has_required,
-                          "包含所有必要的设备管理方法" if has_required else "缺少部分设备管理方法")
+            self.log_result(
+                "DeviceManager职责完整",
+                has_required,
+                "包含所有必要的设备管理方法" if has_required else "缺少部分设备管理方法",
+            )
 
             duration = time.time() - start_time
             self.log_result("职责分离总体验证", True, f"耗时 {duration:.2f}s", duration)
@@ -265,7 +266,7 @@ class BasicRefactorValidator:
         """运行所有验证"""
         print("🚀 开始基础重构验证...")
         print(f"项目根目录: {project_root}")
-        print("="*60)
+        print("=" * 60)
 
         self.start_time = time.time()
 
@@ -287,7 +288,7 @@ class BasicRefactorValidator:
 
         print(f"\n{'='*60}")
         print("基础重构验证摘要")
-        print('='*60)
+        print("=" * 60)
 
         print(f"总验证项数: {total_tests}")
         print(f"成功: {successful_tests}")
