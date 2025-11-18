@@ -260,18 +260,3 @@ pre-commit run --all-files
 - mypy配置平衡严格性和实用性
 
 通过这套完整的代码质量保证体系，我们确保项目代码的一致性、可读性和可维护性。
-
-
-这是一个中文OCR测试图像
-
-The quick brown fox jumps over the lazy dog
-
-1234567890
-
-人工智能技术正在快速发展
-
-Artificial Intelligence is developing rapidly
-
-图像识别是计算机视觉的重要应用
-
-Image recognition is an important application
