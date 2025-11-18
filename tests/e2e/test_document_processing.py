@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.utils import TestUtils
+
 
 def ensure_model_downloaded() -> bool:
     """确保模型已下载"""
@@ -60,19 +62,17 @@ def test_pdf_processing(samples_dir: Path) -> None:
     try:
         from src.cli.document_processor import DocumentProcessor
 
-        # 检查samples目录中是否存在PDF文件
-        pdf_files = list(samples_dir.glob("*.pdf"))
+        # 使用TestUtils查找PDF文件
+        pdf_files = TestUtils.find_files_by_extension(samples_dir, [".pdf"])
         if not pdf_files:
             pytest.skip("未找到PDF示例文件")
 
-        # 创建临时输出目录
+        # 使用TestUtils创建临时输出目录
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "output"
 
-            # 处理第一个PDF文件
-            from src.core.config import DEFAULT_OCR_PROMPT
-
-            processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+            # 使用TestUtils创建文档处理器
+            processor = TestUtils.create_document_processor(mode="transformers")
 
             # 实际运行处理
             processor.process(str(pdf_files[0]), str(output_dir))
@@ -93,21 +93,17 @@ def test_image_processing(samples_dir: Path) -> None:
     try:
         from src.cli.document_processor import DocumentProcessor
 
-        # 检查samples目录中是否存在图像文件
-        image_files = (
-            list(samples_dir.glob("*.jpg")) + list(samples_dir.glob("*.jpeg")) + list(samples_dir.glob("*.png"))
-        )
+        # 使用TestUtils查找图像文件
+        image_files = TestUtils.find_files_by_extension(samples_dir, [".jpg", ".jpeg", ".png"])
         if not image_files:
             pytest.skip("未找到图像示例文件")
 
-        # 创建临时输出目录
+        # 使用TestUtils创建临时输出目录
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "output"
 
-            # 处理第一张图像
-            from src.core.config import DEFAULT_OCR_PROMPT
-
-            processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+            # 使用TestUtils创建文档处理器
+            processor = TestUtils.create_document_processor(mode="transformers")
 
             # 实际运行处理
             processor.process(str(image_files[0]), str(output_dir))
@@ -129,24 +125,17 @@ def test_document_conversion(samples_dir: Path) -> None:
     try:
         from src.cli.document_processor import DocumentProcessor
 
-        # 检查samples目录中是否存在文档文件
-        doc_files = (
-            list(samples_dir.glob("*.docx"))
-            + list(samples_dir.glob("*.doc"))
-            + list(samples_dir.glob("*.pptx"))
-            + list(samples_dir.glob("*.ppt"))
-        )
+        # 使用TestUtils查找文档文件
+        doc_files = TestUtils.find_files_by_extension(samples_dir, [".docx", ".doc", ".pptx", ".ppt"])
         if not doc_files:
             pytest.skip("未找到文档示例文件")
 
-        # 创建临时输出目录
+        # 使用TestUtils创建临时输出目录
         with tempfile.TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "output"
 
-            # 处理第一个文档文件
-            from src.core.config import DEFAULT_OCR_PROMPT
-
-            processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+            # 使用TestUtils创建文档处理器
+            processor = TestUtils.create_document_processor(mode="transformers")
 
             # 实际运行处理
             processor.process(str(doc_files[0]), str(output_dir))
@@ -165,11 +154,8 @@ def test_document_conversion(samples_dir: Path) -> None:
 def test_model_directory_setting() -> None:
     """测试模型目录设置"""
     try:
-        from src.cli.document_processor import DocumentProcessor
-        from src.core.config import DEFAULT_OCR_PROMPT
-
-        # 创建处理器实例
-        processor = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+        # 使用TestUtils创建文档处理器
+        processor = TestUtils.create_document_processor(mode="transformers")
         assert processor.mode is not None
 
     except ImportError as e:
@@ -189,17 +175,14 @@ def test_model_manager_import() -> None:
 def test_document_processor_initialization() -> None:
     """测试文档处理器初始化"""
     try:
-        from src.cli.document_processor import DocumentProcessor
-        from src.core.config import DEFAULT_OCR_PROMPT
-
-        # 测试不同模式的初始化
-        processor_auto = DocumentProcessor(mode="auto", prompt=DEFAULT_OCR_PROMPT)
+        # 使用TestUtils创建不同模式的文档处理器
+        processor_auto = TestUtils.create_document_processor(mode="auto")
         assert processor_auto.mode == "auto"
 
-        processor_transformers = DocumentProcessor(mode="transformers", prompt=DEFAULT_OCR_PROMPT)
+        processor_transformers = TestUtils.create_document_processor(mode="transformers")
         assert processor_transformers.mode == "transformers"
 
-        processor_vllm = DocumentProcessor(mode="vllm", prompt=DEFAULT_OCR_PROMPT)
+        processor_vllm = TestUtils.create_document_processor(mode="vllm")
         assert processor_vllm.mode == "vllm"
 
     except ImportError as e:
@@ -211,18 +194,13 @@ def test_convert_to_images(samples_dir: Path) -> None:
     try:
         from src.cli.document_processor import DocumentProcessor
 
-        # 检查samples目录中是否存在任何支持的文件
-        supported_files = (
-            list(samples_dir.glob("*.pdf"))
-            + list(samples_dir.glob("*.jpg"))
-            + list(samples_dir.glob("*.jpeg"))
-            + list(samples_dir.glob("*.png"))
-        )
+        # 使用TestUtils查找支持的文件
+        supported_files = TestUtils.find_files_by_extension(samples_dir, [".pdf", ".jpg", ".jpeg", ".png"])
 
         if not supported_files:
             pytest.skip("未找到支持的示例文件")
 
-        processor = DocumentProcessor()
+        processor = TestUtils.create_document_processor()
 
         # 测试转换功能
         images = processor.convert_to_images(str(supported_files[0]))

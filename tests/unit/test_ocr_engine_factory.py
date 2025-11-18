@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from tests.utils import TestUtils
+
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
@@ -38,13 +40,12 @@ def test_ocr_engine_factory_register_engine() -> None:
 
 def test_ocr_engine_factory_create_engine() -> None:
     """测试创建引擎"""
-    with patch.dict(
-        "sys.modules",
-        {
-            "src.core.vllm.vllm_engine": MagicMock(),
-            "src.core.transformers.transformers_engine": MagicMock(),
-        },
-    ):
+    # 使用TestUtils创建模拟模块
+    mock_modules = TestUtils.create_mock_modules(
+        ["src.core.vllm.vllm_engine", "src.core.transformers.transformers_engine"]
+    )
+
+    with patch.dict("sys.modules", mock_modules):
         from src.core.factory.ocr_engine_factory import OCREngineFactory
 
         # 保存原始注册的引擎类
@@ -88,13 +89,12 @@ def test_ocr_engine_factory_get_available_engines() -> None:
     if "src.core.factory.ocr_engine_factory" in sys.modules:
         importlib.reload(sys.modules["src.core.factory.ocr_engine_factory"])
 
-    with patch.dict(
-        "sys.modules",
-        {
-            "src.core.vllm.vllm_engine": MagicMock(),
-            "src.core.transformers.transformers_engine": MagicMock(),
-        },
-    ):
+    # 使用TestUtils创建模拟模块
+    mock_modules = TestUtils.create_mock_modules(
+        ["src.core.vllm.vllm_engine", "src.core.transformers.transformers_engine"]
+    )
+
+    with patch.dict("sys.modules", mock_modules):
         # 如果模块已导入, 重新加载
         if "src.core.factory.ocr_engine_factory" in sys.modules:
             importlib.reload(sys.modules["src.core.factory.ocr_engine_factory"])
@@ -118,13 +118,12 @@ def test_ocr_engine_factory_get_available_engines() -> None:
 
 def test_ocr_engine_factory_is_engine_available() -> None:
     """测试检查引擎是否可用"""
-    with patch.dict(
-        "sys.modules",
-        {
-            "src.core.vllm.vllm_engine": MagicMock(),
-            "src.core.transformers.transformers_engine": MagicMock(),
-        },
-    ):
+    # 使用TestUtils创建模拟模块
+    mock_modules = TestUtils.create_mock_modules(
+        ["src.core.vllm.vllm_engine", "src.core.transformers.transformers_engine"]
+    )
+
+    with patch.dict("sys.modules", mock_modules):
         from src.core.factory.ocr_engine_factory import OCREngineFactory
 
         # 保存原始注册的引擎类
@@ -144,13 +143,12 @@ def test_ocr_engine_factory_is_engine_available() -> None:
 
 def test_ocr_engine_factory_create_engine_with_parameters() -> None:
     """测试创建引擎时传递参数"""
-    with patch.dict(
-        "sys.modules",
-        {
-            "src.core.vllm.vllm_engine": MagicMock(),
-            "src.core.transformers.transformers_engine": MagicMock(),
-        },
-    ):
+    # 使用TestUtils创建模拟模块
+    mock_modules = TestUtils.create_mock_modules(
+        ["src.core.vllm.vllm_engine", "src.core.transformers.transformers_engine"]
+    )
+
+    with patch.dict("sys.modules", mock_modules):
         from src.core.factory.ocr_engine_factory import OCREngineFactory
 
         # 保存原始注册的引擎类

@@ -6,6 +6,7 @@
 import unittest
 
 from src.core.base.ocr_engine import BaseOCREngine
+from tests.utils import TestUtils
 
 
 class TestBaseOCREngine(unittest.TestCase):
@@ -19,23 +20,8 @@ class TestBaseOCREngine(unittest.TestCase):
 
     def test_initialize_method(self) -> None:
         """测试initialize方法"""
-
-        # 创建一个模拟子类来测试抽象方法
-        class MockEngine(BaseOCREngine):
-            def initialize(self) -> None:
-                # 实现抽象方法
-                pass
-
-            def process(self, images, output_dir) -> None:
-                # 实现抽象方法
-                pass
-
-            def cleanup(self) -> None:
-                # 实现抽象方法
-                pass
-
-        # 创建实例
-        engine = MockEngine()
+        # 使用TestUtils创建模拟子类
+        engine = TestUtils.create_mock_ocr_engine()
 
         # 调用initialize方法,应该不会抛出异常
         try:
@@ -48,23 +34,8 @@ class TestBaseOCREngine(unittest.TestCase):
 
     def test_process_method(self) -> None:
         """测试process方法"""
-
-        # 创建一个模拟子类来测试抽象方法
-        class MockEngine(BaseOCREngine):
-            def initialize(self) -> None:
-                # 实现抽象方法
-                pass
-
-            def process(self, images, output_dir) -> None:
-                # 实现抽象方法
-                pass
-
-            def cleanup(self) -> None:
-                # 实现抽象方法
-                pass
-
-        # 创建实例
-        engine = MockEngine()
+        # 使用TestUtils创建模拟子类
+        engine = TestUtils.create_mock_ocr_engine()
 
         # 调用process方法,应该不会抛出异常
         try:
@@ -76,23 +47,8 @@ class TestBaseOCREngine(unittest.TestCase):
 
     def test_cleanup_method(self) -> None:
         """测试cleanup方法"""
-
-        # 创建一个模拟子类来测试抽象方法
-        class MockEngine(BaseOCREngine):
-            def initialize(self) -> None:
-                # 实现抽象方法
-                pass
-
-            def process(self, images, output_dir) -> None:
-                # 实现抽象方法
-                pass
-
-            def cleanup(self) -> None:
-                # 实现抽象方法
-                pass
-
-        # 创建实例
-        engine = MockEngine()
+        # 使用TestUtils创建模拟子类
+        engine = TestUtils.create_mock_ocr_engine()
 
         # 调用cleanup方法,应该不会抛出异常
         try:
