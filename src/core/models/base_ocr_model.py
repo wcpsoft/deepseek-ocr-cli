@@ -1,32 +1,24 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 DeepSeek OCR模型基类
 提供与HuggingFace兼容的模型接口基类实现
 """
 
 # 标准库导入
-import math
-from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, List, Literal, Optional, Set, Tuple, TypedDict, Union
+from typing import Any, Optional, TypedDict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from addict import Dict
-from einops import rearrange, repeat
 
 # 第三方库导入
-from transformers import BatchFeature, GenerationMixin
+from transformers import GenerationMixin
 
 # 配置导入
-from src.core.config import BASE_SIZE, CROP_MODE, IMAGE_SIZE, PRINT_NUM_VIS_TOKENS, PROMPT
-
 # 项目内部导入
 from src.core.deepencoder.build_linear import MlpProjector
 from src.core.deepseek_ocr_config import DeepseekV2Config, DeepseekVLV2Config
 from src.core.logging import get_logger
-from src.core.models.model_config_processor import get_model_config_processor
 
 # 获取日志记录器
 logger = get_logger()
@@ -64,7 +56,6 @@ class BaseDeepseekOCRForCausalLM(nn.Module, GenerationMixin):
         初始化视觉组件
         子类应该重写此方法以初始化特定的视觉组件
         """
-        pass
 
 
 class DeepseekOCRCausalBaseModel(nn.Module):
@@ -73,7 +64,7 @@ class DeepseekOCRCausalBaseModel(nn.Module):
     提供与HuggingFace兼容的模型接口基类实现
     """
 
-    def __init__(self, config: Union[DeepseekV2Config, DeepseekVLV2Config], **kwargs):
+    def __init__(self, config: DeepseekV2Config | DeepseekVLV2Config, **kwargs):
         """
         初始化DeepSeek OCR因果语言模型基类
 
@@ -161,7 +152,7 @@ class DeepseekOCRCausalBaseModel(nn.Module):
     def prepare_inputs_for_generation(
         self,
         input_ids: torch.LongTensor,
-        past_key_values: Optional[Union[List[List[torch.FloatTensor]], Tuple]] = None,
+        past_key_values: Optional[list[list[torch.FloatTensor]] | tuple] = None,
         attention_mask: Optional[torch.BoolTensor] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         images: Optional[torch.FloatTensor] = None,

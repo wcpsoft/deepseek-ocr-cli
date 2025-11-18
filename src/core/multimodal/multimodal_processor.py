@@ -5,7 +5,6 @@
 """
 
 import math
-import os
 from collections.abc import Mapping
 from typing import Any
 
@@ -110,20 +109,15 @@ class MultimodalProcessor:
             self.processor = DeepseekOCRProcessor.from_pretrained(self.model_path)
 
             # 初始化tokenizer
-            # 检查是否是本地路径，如果是则只使用本地文件
-            is_remote_repo = (
-                self.model_path.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
-                or "/" not in self.model_path  # 单个名称可能是远程仓库名
-                or (not os.path.exists(self.model_path) and not os.path.exists(os.path.expanduser(self.model_path)))
+            # 使用 ModelPathResolver 统一处理路径解析和参数配置
+            from src.core.utils.model_path_utils import ModelPathResolver
+
+            # 获取统一的加载参数，tokenizer 不需要 trust_remote_code
+            loading_params = ModelPathResolver.get_loading_params(
+                self.model_path, trust_remote_code=False  # 对于 tokenizer，不需要 trust_remote_code
             )
-
-            # 对于本地路径，确保local_files_only=True
-            # 对于远程仓库，确保local_files_only=False
-            local_files_only = not is_remote_repo
-
-            # 对于本地模型，不需要trust_remote_code，因为我们使用的是本地代码
-            # 对于远程模型，使用trust_remote_code=True
-            trust_remote_code_for_tokenizer = is_remote_repo
+            local_files_only = loading_params["local_files_only"]
+            trust_remote_code_for_tokenizer = loading_params["trust_remote_code"]
 
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path,

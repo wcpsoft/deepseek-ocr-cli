@@ -14,6 +14,7 @@ if str(project_root) not in sys.path:
 
 # 配置警告过滤器
 from src.core.warnings_config import configure_warnings
+
 configure_warnings()
 
 # 从main.py导入应用实例

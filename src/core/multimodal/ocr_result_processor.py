@@ -4,7 +4,6 @@
 负责OCR结果的保存和处理，将处理和保存逻辑分离
 """
 
-from pathlib import Path
 from typing import Any
 
 from src.core.logging import get_logger

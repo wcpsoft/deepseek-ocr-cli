@@ -6,7 +6,6 @@ DeepSeek OCR配置类
 
 from transformers import PretrainedConfig
 
-
 # 默认生成配置
 DEFAULT_GENERATION_CONFIG = {
     "max_new_tokens": 8192,

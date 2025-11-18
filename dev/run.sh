@@ -20,6 +20,7 @@ MODE="auto"
 DEBUG=false
 IPDB=false
 SKIP_QUALITY_CHECK=false
+PROMPT="<image>\n<|grounding|>Convert the document to markdown."
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -43,9 +44,13 @@ while [[ $# -gt 0 ]]; do
             SKIP_QUALITY_CHECK=true
             shift
             ;;
+        --prompt)
+            PROMPT="$2"
+            shift 2
+            ;;
         -*)
             log_error "未知选项: $1"
-            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [--ipdb] [--skip-quality-check] [输入文件] [输出目录]"
+            echo "使用方法: ./dev/run.sh [--download-models] [--mode MODE] [--debug] [--ipdb] [--skip-quality-check] [--prompt PROMPT] [输入文件] [输出目录]"
             exit 1
             ;;
         *)
@@ -140,7 +145,7 @@ log_info "输出目录: $OUTPUT_DIR"
 log_info "推理模式: $FINAL_MODE"
 
 # 构建命令参数
-ARGS=("$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE")
+ARGS=("$INPUT_FILE" -o "$OUTPUT_DIR" -m "$FINAL_MODE" --prompt "$PROMPT")
 if [ "$DEBUG" = true ]; then
     ARGS+=(--debug)
 fi

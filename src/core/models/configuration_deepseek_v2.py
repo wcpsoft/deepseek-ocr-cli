@@ -203,6 +203,15 @@ class DeepseekV2Config(PretrainedConfig):
         self.attention_dropout = attention_dropout
         self.use_mla = use_mla
 
+        # 检查是否为MPS设备，如果是则设置_attn_implementation为"eager"
+        import torch
+
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            self._attn_implementation = "eager"
+        else:
+            # 非MPS设备，默认使用flash_attention_2（如果可用）
+            self._attn_implementation = "flash_attention_2"
+
         super().__init__(
             pad_token_id=pad_token_id,
             bos_token_id=bos_token_id,

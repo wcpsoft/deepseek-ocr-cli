@@ -1,106 +1,145 @@
 """
-MPS设备检测和处理工具模块
+MPS设备检测和处理工具模块 (已弃用)
 
-该模块提供了检测MPS设备并进行特殊处理的工具函数。
+警告: 此模块已弃用。所有功能已迁移到 device_manager.py。
+请更新导入语句:
+    from src.core.utils.device_manager import get_optimal_device, get_device_manager, configure_device_environment, log_device_info
+
+此文件仅为保持向后兼容性而保留，将在未来版本中删除。
 """
+
+import warnings
 
 import torch
 
-from src.core.logging import get_logger
-from src.core.utils.device_manager import get_device_manager
+from src.core.utils.device_manager import (
+    configure_device_environment as _configure_device_environment,
+)
+from src.core.utils.device_manager import (
+    get_compatible_dtype as _get_compatible_dtype,
+)
+from src.core.utils.device_manager import (
+    get_device_manager,
+)
+from src.core.utils.device_manager import (
+    get_optimal_device as _get_optimal_device,
+)
+from src.core.utils.device_manager import (
+    log_device_info as _log_device_info,
+)
 
-# 获取日志记录器
-logger = get_logger()
+
+def _deprecated_warning(old_name: str, new_location: str = "device_manager") -> None:
+    """发出弃用警告"""
+    warnings.warn(
+        f"{old_name} is deprecated and will be removed in a future version. "
+        f"Please use src.core.utils.{new_location} instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
 def is_mps_device() -> bool:
     """
-    检测当前环境是否支持MPS设备
+    检测当前环境是否支持MPS设备 (已弃用)
 
-    Returns:
-        bool: 如果支持MPS返回True，否则返回False
+    .. deprecated::
+        使用 device_manager.DeviceManager().is_mps_available() 替代
     """
-    try:
-        device_manager = get_device_manager()
-        return device_manager.is_mps_available()
-    except Exception as e:
-        logger.warning(f"检测MPS设备时发生错误: {e!s}")
-        return False
+    _deprecated_warning("is_mps_device()", "device_manager.get_device_manager().is_mps_available()")
+    return get_device_manager().is_mps_available()
 
 
 def get_optimal_device() -> torch.device:
     """
-    获取当前环境下的最优设备
+    获取当前环境下的最优设备 (已弃用)
 
-    Returns:
-        torch.device: 最优设备对象
+    .. deprecated::
+        使用 device_manager.get_optimal_device() 替代
     """
-    device_manager = get_device_manager()
-    return device_manager.get_optimal_device()
+    _deprecated_warning("get_optimal_device()", "device_manager.get_optimal_device()")
+    return _get_optimal_device()
+
+
+def get_mps_compatible_dtype(dtype: torch.dtype) -> torch.dtype:
+    """
+    获取与MPS设备兼容的数据类型 (已弃用)
+
+    .. deprecated::
+        使用 device_manager.get_compatible_dtype() 替代
+    """
+    _deprecated_warning("get_mps_compatible_dtype()", "device_manager.get_compatible_dtype()")
+    return _get_compatible_dtype(dtype, torch.device("mps") if is_mps_device() else None)
+
+
+def configure_mps_environment() -> None:
+    """
+    配置MPS环境 (已弃用)
+
+    .. deprecated::
+        使用 device_manager.configure_device_environment() 替代
+    """
+    _deprecated_warning("configure_mps_environment()", "device_manager.configure_device_environment()")
+    _configure_device_environment()
+
+
+def log_device_info() -> None:
+    """
+    记录当前设备信息 (已弃用)
+
+    .. deprecated::
+        使用 device_manager.log_device_info() 替代
+    """
+    _deprecated_warning("log_device_info()", "device_manager.log_device_info()")
+    _log_device_info()
+
+
+def clear_mps_cache() -> None:
+    """
+    清理MPS缓存 (已弃用)
+
+    .. deprecated::
+        使用 device_manager.DeviceManager().clear_device_cache() 替代
+    """
+    _deprecated_warning("clear_mps_cache()", "device_manager.get_device_manager().clear_device_cache()")
+    get_device_manager().clear_device_cache()
 
 
 def optimize_tensor_for_mps(
     tensor: torch.Tensor, max_sequence_length: int = 512, max_image_blocks: int = 10
 ) -> torch.Tensor:
     """
-    优化张量以适应MPS设备的限制
+    优化张量以适应MPS设备的限制 (已弃用)
 
-    Args:
-        tensor: 输入张量
-        max_sequence_length: MPS设备上最大序列长度
-        max_image_blocks: MPS设备上最大图像块数量
-
-    Returns:
-        torch.Tensor: 优化后的张量
+    .. deprecated::
+        MPS 限制处理已内置到 device_manager.move_tensor_to_device() 中
     """
-    if not is_mps_device() or tensor is None:
+    _deprecated_warning("optimize_tensor_for_mps()", "device_manager.move_tensor_to_device()")
+
+    if tensor is None:
         return tensor
 
-    logger.debug(f"优化张量以适应MPS设备，原始形状: {tensor.shape}")
+    device_manager = get_device_manager()
 
-    # 确保张量在MPS设备上
-    if tensor.device.type != "mps":
-        tensor = tensor.to("mps")
+    # 使用device_manager的张量移动功能
+    if device_manager.is_mps_available():
+        tensor = device_manager.move_tensor_to_device(tensor)
 
-    # MPS设备上使用float32而不是float16，以提高兼容性
-    if tensor.dtype == torch.float16:
-        tensor = tensor.to(torch.float32)
-
-    # 对于序列张量，限制最大长度
-    if tensor.dim() >= 2 and tensor.size(-1) > max_sequence_length:
-        logger.debug(f"MPS设备上限制序列长度从{tensor.size(-1)}到{max_sequence_length}")
-        # 保留最后max_sequence_length个元素
-        tensor = tensor[..., -max_sequence_length:]
-
-    # 对于图像张量，限制最大块数
-    if tensor.dim() >= 4 and tensor.size(0) > max_image_blocks:
-        logger.debug(f"MPS设备上限制图像块数量从{tensor.size(0)}到{max_image_blocks}")
-        tensor = tensor[:max_image_blocks]
-
-    logger.debug(f"优化后张量形状: {tensor.shape}")
     return tensor
 
 
 def optimize_model_for_mps(model: torch.nn.Module) -> torch.nn.Module:
     """
-    优化模型以适应MPS设备
+    优化模型以适应MPS设备 (已弃用)
 
-    Args:
-        model: 输入模型
-
-    Returns:
-        torch.nn.Module: 优化后的模型
+    .. deprecated::
+        使用 model.to(device_manager.get_optimal_device()) 替代
     """
-    if not is_mps_device():
-        return model
+    _deprecated_warning("optimize_model_for_mps()", "model.to(device_manager.get_optimal_device())")
 
-    logger.info("优化模型以适应MPS设备")
-
-    # 将模型移动到MPS设备
-    model = model.to("mps")
-
-    # 对于MPS设备，可能需要调整某些层的配置
-    # 这里可以根据具体需求添加更多优化
+    device_manager = get_device_manager()
+    if device_manager.is_mps_available():
+        model = model.to(device_manager.get_optimal_device())
 
     return model
 
@@ -112,36 +151,26 @@ def mps_safe_tensor_creation(
     **kwargs,
 ) -> torch.Tensor:
     """
-    在MPS设备上安全创建张量
+    在MPS设备上安全创建张量 (已弃用)
 
-    Args:
-        shape: 张量形状
-        dtype: 数据类型
-        device: 目标设备，如果为None则自动选择
-        **kwargs: 其他传递给torch.zeros的参数
-
-    Returns:
-        torch.Tensor: 创建的张量
+    .. deprecated::
+        直接使用 torch.zeros() 并使用 device_manager.get_compatible_dtype() 处理dtype
     """
+    _deprecated_warning("mps_safe_tensor_creation()", "torch.zeros() + device_manager.get_compatible_dtype()")
+
     if device is None:
-        device = get_optimal_device()
+        device = _get_optimal_device()
     elif isinstance(device, str):
         device = torch.device(device)
 
-    # 在MPS设备上使用float32而不是float16
-    if device.type == "mps" and dtype == torch.float16:
-        dtype = torch.float32
-        logger.debug("MPS设备上使用float32而不是float16创建张量")
+    # 使用device_manager获取兼容的dtype
+    dtype = _get_compatible_dtype(dtype, device)
 
     try:
         return torch.zeros(shape, dtype=dtype, device=device, **kwargs)
-    except Exception as e:
-        logger.error(f"在设备{device}上创建张量失败: {e!s}")
+    except Exception:
         # 回退到CPU
-        logger.info("回退到CPU设备创建张量")
-        # 确保回退时使用兼容的数据类型
-        cpu_dtype = get_mps_compatible_dtype(dtype) if device.type == "mps" else dtype
-        return torch.zeros(shape, dtype=cpu_dtype, device="cpu", **kwargs)
+        return torch.zeros(shape, dtype=dtype, device="cpu", **kwargs)
 
 
 def mps_safe_model_load(
@@ -150,167 +179,42 @@ def mps_safe_model_load(
     map_location: str | torch.device | None = None,
 ) -> torch.nn.Module:
     """
-    在MPS设备上安全加载模型
+    在MPS设备上安全加载模型 (已弃用)
 
-    Args:
-        model: 要加载权重的模型
-        checkpoint_path: 检查点路径
-        map_location: 映射位置，如果为None则自动选择
-
-    Returns:
-        torch.nn.Module: 加载权重后的模型
+    .. deprecated::
+        直接使用 torch.load() 并使用 device_manager.get_optimal_device()
     """
+    _deprecated_warning("mps_safe_model_load()", "torch.load() + device_manager.get_optimal_device()")
+
     if map_location is None:
-        map_location = get_optimal_device()
+        map_location = _get_optimal_device()
     elif isinstance(map_location, str):
         map_location = torch.device(map_location)
 
-    try:
-        checkpoint = torch.load(checkpoint_path, map_location=map_location)
-        if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-            model.load_state_dict(checkpoint["state_dict"])
-        else:
-            model.load_state_dict(checkpoint)
-        logger.info(f"成功在{map_location}设备上加载模型权重")
-    except Exception as e:
-        logger.error(f"在{map_location}设备上加载模型失败: {e!s}")
-        # 尝试在CPU上加载,然后再移动到目标设备
-        logger.info("尝试在CPU上加载模型权重,然后移动到目标设备")
-        checkpoint = torch.load(checkpoint_path, map_location="cpu")
-        if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-            model.load_state_dict(checkpoint["state_dict"])
-        else:
-            model.load_state_dict(checkpoint)
-
-        # 对于MPS设备,使用优化函数来安全地移动模型
-        if map_location.type == "mps":
-            model = optimize_model_for_mps(model)
-        else:
-            model = model.to(map_location)
-        logger.info(f"成功在CPU上加载模型权重并移动到{map_location}设备")
+    checkpoint = torch.load(checkpoint_path, map_location=map_location)
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["state_dict"])
+    else:
+        model.load_state_dict(checkpoint)
 
     return model
 
 
-def get_mps_compatible_dtype(dtype: torch.dtype) -> torch.dtype:
-    """
-    获取与MPS设备兼容的数据类型
-
-    Args:
-        dtype: 原始数据类型
-
-    Returns:
-        torch.dtype: MPS兼容的数据类型
-    """
-    # MPS设备不完全支持float16，使用float32替代
-    if dtype == torch.float16:
-        logger.debug("MPS设备上使用float32替代float16")
-        return torch.float32
-
-    # MPS设备不完全支持bfloat16，使用float32替代
-    if dtype == torch.bfloat16:
-        logger.debug("MPS设备上使用float32替代bfloat16")
-        return torch.float32
-
-    return dtype
-
-
-def configure_mps_environment() -> None:
-    """
-    配置MPS环境，设置必要的环境变量和警告过滤
-    
-    这个函数应该在应用启动时调用，以确保MPS环境正确配置
-    """
-    import os
-    import warnings
-    
-    # 设置PyTorch MPS fallback环境变量
-    # 这使得MPS不支持的操作可以回退到CPU执行
-    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-    
-    # 设置PyTorch允许非确定性算法
-    os.environ["PYTORCH_ALLOW_NON_DETERMINISTIC_ALGO"] = "1"
-    
-    # 配置警告过滤
-    warnings.filterwarnings(
-        "ignore",
-        message="The operator.*is not currently supported on the MPS backend.*",
-        category=UserWarning,
-        module="torch"
-    )
-    
-    # 过滤Flash Attention相关警告
-    warnings.filterwarnings(
-        "ignore",
-        message="Flash Attention is disabled.*",
-        category=UserWarning
-    )
-    
-    # 过滤MPS内存相关警告
-    warnings.filterwarnings(
-        "ignore",
-        message=".*not supported on MPS.*",
-        category=UserWarning
-    )
-    
-    # 过滤bfloat16相关警告
-    warnings.filterwarnings(
-        "ignore",
-        message=".*bfloat16.*",
-        category=UserWarning
-    )
-    
-    # 设置MPS内存分配策略（仅在MPS设备可用时）
-    if is_mps_device() and hasattr(torch.mps, "empty_cache"):
-        logger.debug("设置MPS内存缓存清理")
-        torch.mps.empty_cache()
-    
-    logger.info("MPS环境配置完成")
-
-
-def log_device_info() -> None:
-    """
-    记录当前设备信息
-    """
-    logger.info("设备信息:")
-    logger.info(f"  PyTorch版本: {torch.__version__}")
-    logger.info(f"  MPS可用: {torch.backends.mps.is_available()}")
-    if torch.backends.mps.is_available():
-        logger.info(f"  MPS构建: {torch.backends.mps.is_built()}")
-    logger.info(f"  CUDA可用: {torch.cuda.is_available()}")
-    if torch.cuda.is_available():
-        logger.info(f"  CUDA设备数量: {torch.cuda.device_count()}")
-        logger.info(f"  当前CUDA设备: {torch.cuda.current_device()}")
-
-
-def clear_mps_cache() -> None:
-    """
-    清理MPS缓存
-    """
-    if is_mps_device() and hasattr(torch.mps, "empty_cache"):
-        logger.debug("清理MPS缓存")
-        torch.mps.empty_cache()
-
-
 def get_mps_memory_info() -> dict:
     """
-    获取MPS内存信息
+    获取MPS内存信息 (已弃用)
 
-    Returns:
-        dict: 包含内存信息的字典
+    .. deprecated::
+        PyTorch不直接提供MPS内存信息API，此函数将被移除
     """
-    if not is_mps_device():
+    _deprecated_warning("get_mps_memory_info()", "")
+
+    device_manager = get_device_manager()
+    if not device_manager.is_mps_available():
         return {"error": "MPS设备不可用"}
 
-    try:
-        # 尝试获取内存信息
-        # 注意：PyTorch可能不直接提供MPS内存信息API
-        # 这里返回一个基本的信息结构
-        return {
-            "device": "mps",
-            "status": "available",
-            "note": "PyTorch不直接提供MPS内存信息API",
-        }
-    except Exception as e:
-        logger.error(f"获取MPS内存信息失败: {e!s}")
-        return {"error": str(e)}
+    return {
+        "device": "mps",
+        "status": "available",
+        "note": "PyTorch不直接提供MPS内存信息API",
+    }

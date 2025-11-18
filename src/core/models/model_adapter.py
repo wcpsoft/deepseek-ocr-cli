@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 模型适配器类
 用于适配不同的模型实现
@@ -7,7 +6,8 @@
 
 import os
 import sys
-from typing import Any, Dict, Iterator, Optional, Union
+from collections.abc import Iterator
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
@@ -126,25 +126,16 @@ class TransformersOCRModelAdapter(OCRModelInterface):
                 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
                 model_path = os.path.join(project_root, "models", "deepseek-ocr")
 
-            # 检查是否是本地路径，如果是则只使用本地文件
-            # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
-            is_remote_repo = False
-            if model_path:
-                is_remote_repo = (
-                    model_path.startswith(("http://", "https://"))
-                    or model_path.startswith("deepseek-ai/")
-                    or model_path.startswith("huggingface.co/")
-                    or "/" not in model_path  # 单个名称可能是远程仓库名
-                    or (not os.path.exists(model_path) and not os.path.exists(os.path.expanduser(model_path)))
-                )
+            # 使用 ModelPathResolver 统一处理路径解析和参数配置
+            from src.core.utils.model_path_utils import ModelPathResolver
 
-            # 对于本地模型，也需要trust_remote_code=True，因为模型配置文件包含自定义代码
-            # 但确保local_files_only=True，这样就不会尝试从远程下载
-            trust_remote_code = kwargs.get("trust_remote_code", True)
-
-            # 对于本地路径，确保local_files_only=True
-            # 对于远程仓库，确保local_files_only=False
-            local_files_only = not is_remote_repo
+            # 获取统一的加载参数
+            loading_params = ModelPathResolver.get_loading_params(
+                model_path, trust_remote_code=kwargs.get("trust_remote_code", True)
+            )
+            local_files_only = loading_params["local_files_only"]
+            trust_remote_code = loading_params["trust_remote_code"]
+            is_remote_repo = not local_files_only
 
             # 如果是本地路径，直接从src目录加载模型
             if not is_remote_repo:
@@ -158,16 +149,34 @@ class TransformersOCRModelAdapter(OCRModelInterface):
                 app_auto_map = get_model_auto_map(default_model)
 
                 # 使用默认的模型类和配置类
+                from src.core.models.model_manager import ModelManager
                 from src.core.models.modeling_deepseekocr import DeepseekOCRConfig, DeepseekOCRForCausalLM
 
                 # 对于本地模型，不需要trust_remote_code，因为我们使用的是本地代码
                 config = DeepseekOCRConfig.from_pretrained(model_path)
+
+                # 获取tokenizer和image_token_id
+                from src.core.process.image_process import DeepseekOCRProcessor
+
+                temp_processor = DeepseekOCRProcessor()
+                tokenizer = temp_processor.tokenizer
+                temp_processor = DeepseekOCRProcessor(tokenizer=tokenizer)
+                actual_image_token_id = temp_processor.image_token_id
+
+                # 强制使用float32数据类型，避免MPS设备问题
+                torch_dtype = torch.float32
+
                 self._model = DeepseekOCRForCausalLM.from_pretrained(
                     model_path,
                     config=config,
-                    torch_dtype=kwargs.get("torch_dtype", torch.float32),
+                    torch_dtype=torch_dtype,
                     local_files_only=local_files_only,
+                    ignore_mismatched_sizes=True,
                 )
+
+                # 使用ModelManager统一调整词汇表大小和嵌入层
+                model_manager = ModelManager(model_path)
+                model_manager.adjust_vocab_size(self._model, tokenizer, actual_image_token_id)
             else:
                 # 远程仓库直接加载模型
                 from transformers import AutoConfig, AutoModelForCausalLM
@@ -235,24 +244,10 @@ class UnifiedOCRModelAdapter(OCRModelInterface):
 
     def _initialize_model(self, **kwargs: Any) -> None:
         """初始化模型"""
-        # 根据环境自动选择模型类型
-        import torch
-
-        if torch.backends.mps.is_available():
-            # MPS环境下使用Transformers模型
-            self._model_type = "transformers"
-            # 直接创建适配器实例而不是导入类
-            self._model = TransformersOCRModelAdapter(config=self.config, **kwargs)
-        elif torch.cuda.is_available():
-            # CUDA环境下使用vLLM模型
-            self._model_type = "vllm"
-            # 直接创建适配器实例而不是导入类
-            self._model = VLLMOCRModelAdapter(config=self.config, **kwargs)
-        else:
-            # CPU环境下使用Transformers模型
-            self._model_type = "transformers"
-            # 直接创建适配器实例而不是导入类
-            self._model = TransformersOCRModelAdapter(config=self.config, **kwargs)
+        # 强制使用Transformers模型，避免MPS设备问题
+        self._model_type = "transformers"
+        # 直接创建适配器实例而不是导入类
+        self._model = TransformersOCRModelAdapter(config=self.config, **kwargs)
 
     def generate(self, *args: Any, **kwargs: Any) -> Any:
         """生成方法"""

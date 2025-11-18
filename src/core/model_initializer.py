@@ -77,9 +77,12 @@ class ModelInitializer:
             # 由于vLLM的特殊性，我们直接调用模型工厂
             from src.core.models.model_factory import create_ocr_model
 
-            # 检查是否是本地路径
-            is_remote_repo = model_manager._is_remote_repo(model_path)
-            local_files_only = not is_remote_repo
+            # 使用 ModelPathResolver 统一处理路径解析和参数配置
+            from src.core.utils.model_path_utils import ModelPathResolver
+
+            # 获取统一的加载参数
+            loading_params = ModelPathResolver.get_loading_params(model_path, trust_remote_code=trust_remote_code)
+            local_files_only = loading_params["local_files_only"]
 
             model = create_ocr_model(
                 model_type="vllm",

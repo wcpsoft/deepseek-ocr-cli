@@ -10,7 +10,8 @@ from typing import Any
 from PIL import Image
 from torch import Tensor
 
-from src.core.config.settings import get_config
+from src.core.config.app_config import get_app_config
+from src.core.utils.error_handling import handle_ocr_error, ImageProcessError, ConfigurationError
 
 # 获取日志记录器
 from src.core.logging import get_logger
@@ -35,10 +36,11 @@ class OCRService:
             output_dir: 输出目录
         """
         self.engine = engine
-        config = get_config()
+        config = get_app_config()
         self.output_dir = output_dir or config.output_path
         self.batch_processor = None
 
+    @handle_ocr_error(default_return=False, context={"component": "OCRService", "operation": "initialize"})
     def initialize(self) -> bool:
         """
         初始化OCR服务
@@ -46,21 +48,17 @@ class OCRService:
         Returns:
             是否初始化成功
         """
-        try:
-            logger.info("初始化OCR服务...")
+        logger.info("初始化OCR服务...")
 
-            # 初始化引擎
-            if not self.engine.initialize():
-                logger.error("OCR引擎初始化失败")
-                return False
-
-            logger.info("OCR服务初始化成功")
-            return True
-
-        except Exception as e:
-            logger.error(f"初始化OCR服务失败: {e!s}")
+        # 初始化引擎
+        if not self.engine.initialize():
+            logger.error("OCR引擎初始化失败")
             return False
 
+        logger.info("OCR服务初始化成功")
+        return True
+
+    @handle_image_error(re_raise=True, context={"component": "OCRService", "operation": "process_image"})
     def process_image(self, image: Image.Image | str, prompt: str | None = None) -> str:
         """
         处理单个图像
@@ -72,25 +70,21 @@ class OCRService:
         Returns:
             OCR结果
         """
-        try:
-            # 如果是路径，加载图像
-            if isinstance(image, str):
-                image = self._load_image_from_path(image)
+        # 如果是路径，加载图像
+        if isinstance(image, str):
+            image = self._load_image_from_path(image)
 
-            # 使用默认提示词
-            if prompt is None:
-                config = get_config()
-                prompt = config.prompt
+        # 使用默认提示词
+        if prompt is None:
+            config = get_app_config()
+            prompt = config.prompt
 
-            # 处理图像
-            result = self.engine.process_image(image, prompt)
+        # 处理图像
+        result = self.engine.process_image(image, prompt)
 
-            return result
+        return result
 
-        except Exception as e:
-            logger.error(f"处理图像时发生错误: {e!s}")
-            raise
-
+    @handle_image_error(re_raise=True, context={"component": "OCRService", "operation": "process_images"})
     def process_images(
         self,
         images: list[Image.Image | str],
@@ -111,42 +105,38 @@ class OCRService:
         Returns:
             处理结果字典
         """
-        try:
-            # 加载图像
-            loaded_images = []
-            for img in images:
-                if isinstance(img, str):
-                    loaded_images.append(self._load_image_from_path(img))
-                else:
-                    loaded_images.append(img)
+        # 加载图像
+        loaded_images = []
+        for img in images:
+            if isinstance(img, str):
+                loaded_images.append(self._load_image_from_path(img))
+            else:
+                loaded_images.append(img)
 
-            # 使用默认提示词
-            if prompts is None:
-                config = get_config()
-                prompts = [config.prompt] * len(loaded_images)
+        # 使用默认提示词
+        if prompts is None:
+            config = get_app_config()
+            prompts = [config.prompt] * len(loaded_images)
 
-            # 创建批量处理器
-            self.batch_processor = BatchOCRProcessor(self.output_dir, stop_on_error=stop_on_error)
+        # 创建批量处理器
+        self.batch_processor = BatchOCRProcessor(self.output_dir, stop_on_error=stop_on_error)
 
-            # 处理图像
-            success = self._process_batch_with_engine(loaded_images, prompts, output_filename)
+        # 处理图像
+        success = self._process_batch_with_engine(loaded_images, prompts, output_filename)
 
-            # 获取结果摘要
-            summary = self.batch_processor.result_processor.get_summary()
+        # 获取结果摘要
+        summary = self.batch_processor.result_processor.get_summary()
 
-            return {
-                "success": success,
-                "summary": summary,
-                "output_file": (
-                    os.path.join(self.output_dir, output_filename) if summary["has_valid_results"] else None
-                ),
-                "error_file": (os.path.join(self.output_dir, "error_report.txt") if summary["has_errors"] else None),
-            }
+        return {
+            "success": success,
+            "summary": summary,
+            "output_file": (
+                os.path.join(self.output_dir, output_filename) if summary["has_valid_results"] else None
+            ),
+            "error_file": (os.path.join(self.output_dir, "error_report.txt") if summary["has_errors"] else None),
+        }
 
-        except Exception as e:
-            logger.error(f"批量处理图像时发生错误: {e!s}")
-            raise
-
+    @handle_image_error(re_raise=True, context={"component": "OCRService", "operation": "process_document"})
     def process_document(
         self,
         document_path: str,
@@ -167,20 +157,17 @@ class OCRService:
         Returns:
             处理结果字典
         """
-        try:
-            # 将文档转换为图像
-            images = self._convert_document_to_images(document_path)
+        # 将文档转换为图像
+        images = self._convert_document_to_images(document_path)
 
-            # 处理图像
-            if prompt is not None:
-                prompts = [prompt] * len(images)
-                return self.process_images(images, prompts=prompts, output_filename=output_filename, stop_on_error=stop_on_error)
-            else:
-                return self.process_images(images, output_filename=output_filename, stop_on_error=stop_on_error)
-
-        except Exception as e:
-            logger.error(f"处理文档时发生错误: {e!s}")
-            raise
+        # 处理图像
+        if prompt is not None:
+            prompts = [prompt] * len(images)
+            return self.process_images(
+                images, prompts=prompts, output_filename=output_filename, stop_on_error=stop_on_error
+            )
+        else:
+            return self.process_images(images, output_filename=output_filename, stop_on_error=stop_on_error)
 
     def _load_image_from_path(self, image_path: str) -> Image.Image:
         """

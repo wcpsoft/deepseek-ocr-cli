@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 OCR模型工厂
 用于创建和管理不同类型的OCR模型
 """
 
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Optional
 
 from src.core.logging import get_logger
 
@@ -42,10 +41,10 @@ class OCRModelInterface:
 class OCRModelFactory:
     """OCR模型工厂类"""
 
-    _models: Dict[str, Type[OCRModelInterface]] = {}
+    _models: dict[str, type[OCRModelInterface]] = {}
 
     @classmethod
-    def register(cls, name: str, model_class: Union[Type[OCRModelInterface], type]) -> None:
+    def register(cls, name: str, model_class: type[OCRModelInterface] | type) -> None:
         """
         注册模型类
 

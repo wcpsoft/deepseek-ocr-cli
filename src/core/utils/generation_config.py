@@ -30,7 +30,7 @@ class GenerationConfigManager:
         # 使用配置文件中的默认值
         if default_max_new_tokens is None:
             default_max_new_tokens = DEFAULT_GENERATION_CONFIG.get("max_new_tokens", 8192)
-        
+
         # 默认生成配置
         default_config = {
             "max_new_tokens": default_max_new_tokens,
@@ -80,7 +80,7 @@ class GenerationConfigManager:
         # 使用配置文件中的默认值
         if default_max_new_tokens is None:
             default_max_new_tokens = DEFAULT_GENERATION_CONFIG.get("max_new_tokens", 8192)
-            
+
         # 默认生成配置
         default_config = {
             "max_new_tokens": default_max_new_tokens,

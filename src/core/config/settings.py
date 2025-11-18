@@ -1,144 +1,112 @@
 #!/usr/bin/env python3
 """
-DeepSeek OCR统一配置文件
-整合所有配置项，避免重复定义
+DeepSeek OCR 配置文件 (弃用包装器)
+⚠️  此文件已被弃用，请使用 src.core.config.app_config 中的 AppConfig
+
+此文件保持向后兼容性，将所有配置请求重定向到 AppConfig
 """
 
-import os
+import logging
+import warnings
 
-from transformers import AutoTokenizer
+# 延迟导入以避免循环依赖
+_app_config = None
 
-# 导入提示词配置
-from src.core.config.prompts import DEFAULT_OCR_PROMPT as PROMPT
 
-# TODO: change modes
-# Tiny: base_size = 512, image_size = 512, crop_mode = False
-# Small: base_size = 640, image_size = 640, crop_mode = False
-# Base: base_size = 1024, image_size = 1024, crop_mode = False
-# Large: base_size = 1280, image_size = 1280, crop_mode = False
-# Gundam: base_size = 1024, image_size = 640, crop_mode = True
+def _get_app_config():
+    """延迟导入 AppConfig"""
+    global _app_config
+    if _app_config is None:
+        from src.core.config.app_config import get_app_config
 
-BASE_SIZE = 1024
-IMAGE_SIZE = 640
-CROP_MODE = True
-MIN_CROPS = 2
-MAX_CROPS = 6  # max:9; If your GPU memory is small, it is recommended to set it to 6.
-MAX_CONCURRENCY = 100  # If you have limited GPU memory, lower the concurrency count.
-NUM_WORKERS = 64  # image pre-process (resize/padding) workers
-PRINT_NUM_VIS_TOKENS = False
-SKIP_REPEAT = True
+        _app_config = get_app_config()
+    return _app_config
 
-# 检查本地模型路径
-local_model_path = "./models/deepseek-ocr"
-if os.path.exists(local_model_path):
-    MODEL_PATH = local_model_path
-else:
-    MODEL_PATH = "./models/deepseek-ocr"  # change to your model path
 
-# TODO: change INPUT_PATH
-# .pdf: run_dpsk_ocr_pdf.py;
-# .jpg, .png, .jpeg: run_dpsk_ocr_image.py;
-# Omnidocbench images path: run_dpsk_ocr_eval_batch.py
+logger = logging.getLogger(__name__)
 
-INPUT_PATH = ""
-OUTPUT_PATH = ""
+# 发出弃用警告
+warnings.warn(
+    "src.core.config.settings 已弃用，请使用 src.core.config.app_config.get_app_config()",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-DEFAULT_OCR_PROMPT = PROMPT
 
-# 延迟导入TOKENIZER，避免在不需要时加载依赖
+# 向后兼容的常量导出（使用属性访问延迟加载）
+def _get_config_value(attr_name):
+    """获取配置值"""
+    return getattr(_get_app_config(), attr_name)
+
+
+BASE_SIZE = _get_config_value("base_size")
+IMAGE_SIZE = _get_config_value("image_size")
+CROP_MODE = _get_config_value("crop_mode")
+MIN_CROPS = _get_config_value("min_crops")
+MAX_CROPS = _get_config_value("max_crops")
+MAX_CONCURRENCY = _get_config_value("max_concurrency")
+NUM_WORKERS = _get_config_value("num_workers")
+PRINT_NUM_VIS_TOKENS = _get_config_value("print_num_vis_tokens")
+SKIP_REPEAT = _get_config_value("skip_repeat")
+MODEL_PATH = _get_config_value("model_path")
+INPUT_PATH = _get_config_value("input_path")
+OUTPUT_PATH = _get_config_value("output_path")
+DEFAULT_OCR_PROMPT = _get_config_value("default_ocr_prompt")
+
+# 延迟加载的tokenizer（保持向后兼容）
 TOKENIZER = None
 
 
 def get_tokenizer():
-    """延迟加载tokenizer"""
-    global TOKENIZER
-    if TOKENIZER is None:
-        # 检查是否是本地路径，如果是则只使用本地文件
-        # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
-        is_remote_repo = (
-            MODEL_PATH.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
-            or "/" not in MODEL_PATH  # 单个名称可能是远程仓库名
-            or (not os.path.exists(MODEL_PATH) and not os.path.exists(os.path.expanduser(MODEL_PATH)))
-        )
-
-        # 对于本地路径，确保local_files_only=True
-        # 对于远程仓库，确保local_files_only=False
-        local_files_only = not is_remote_repo
-
-        # 对于本地模型，不需要trust_remote_code，因为我们使用的是本地代码
-        # 对于远程模型，使用trust_remote_code=True
-        trust_remote_code_for_tokenizer = is_remote_repo
-
-        TOKENIZER = AutoTokenizer.from_pretrained(
-            MODEL_PATH,
-            trust_remote_code=trust_remote_code_for_tokenizer,
-            local_files_only=local_files_only,
-        )
-    return TOKENIZER
+    """
+    获取tokenizer (已弃用)
+    ⚠️  请使用 get_app_config().tokenizer 或 get_app_config().get_tokenizer()
+    """
+    warnings.warn("get_tokenizer() 已弃用，请使用 get_app_config().tokenizer", DeprecationWarning, stacklevel=2)
+    return _get_app_config().get_tokenizer()
 
 
-# 配置类，用于面向对象的配置管理
 class Config:
-    """配置类，封装所有配置项"""
+    """
+    配置类 (已弃用)
+    ⚠️  请使用 src.core.config.app_config.AppConfig
+    """
 
     def __init__(self):
-        # 图像处理配置
-        self.base_size = BASE_SIZE
-        self.image_size = IMAGE_SIZE
-        self.crop_mode = CROP_MODE
-        self.min_crops = MIN_CROPS
-        self.max_crops = MAX_CROPS
-        self.max_concurrency = MAX_CONCURRENCY
-        self.num_workers = NUM_WORKERS
-        self.print_num_vis_tokens = PRINT_NUM_VIS_TOKENS
-        self.skip_repeat = SKIP_REPEAT
-
-        # 模型配置
-        self.model_path = MODEL_PATH
-        self.MODEL_PATH = MODEL_PATH  # 添加大写版本以保持兼容性
-
-        # 路径配置
-        self.input_path = INPUT_PATH
-        self.output_path = OUTPUT_PATH
-
-        # 提示词配置
-        self.prompt = PROMPT
-
-        # 延迟加载的tokenizer
+        warnings.warn("Config 类已弃用，请使用 get_app_config()", DeprecationWarning, stacklevel=2)
+        # 保留所有属性以保持向后兼容
+        app_config = _get_app_config()
+        self.base_size = app_config.base_size
+        self.image_size = app_config.image_size
+        self.crop_mode = app_config.crop_mode
+        self.min_crops = app_config.min_crops
+        self.max_crops = app_config.max_crops
+        self.max_concurrency = app_config.max_concurrency
+        self.num_workers = app_config.num_workers
+        self.print_num_vis_tokens = app_config.print_num_vis_tokens
+        self.skip_repeat = app_config.skip_repeat
+        self.model_path = app_config.model_path
+        self.MODEL_PATH = app_config.MODEL_PATH  # 保持兼容性
+        self.input_path = app_config.input_path
+        self.output_path = app_config.output_path
+        self.prompt = app_config.default_ocr_prompt
         self._tokenizer = None
 
     @property
     def tokenizer(self):
-        """延迟加载tokenizer"""
-        if self._tokenizer is None:
-            # 检查是否是本地路径，如果是则只使用本地文件
-            # 更严格的本地路径检测：检查路径是否存在且不是远程仓库格式
-            is_remote_repo = (
-                self.model_path.startswith(("http://", "https://", "deepseek-ai/", "huggingface.co/"))
-                or "/" not in self.model_path  # 单个名称可能是远程仓库名
-                or (not os.path.exists(self.model_path) and not os.path.exists(os.path.expanduser(self.model_path)))
-            )
-
-            # 对于本地路径，确保local_files_only=True
-            # 对于远程仓库，确保local_files_only=False
-            local_files_only = not is_remote_repo
-
-            # 对于本地模型，不需要trust_remote_code，因为我们使用的是本地代码
-            # 对于远程模型，使用trust_remote_code=True
-            trust_remote_code_for_tokenizer = is_remote_repo
-
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                self.model_path,
-                trust_remote_code=trust_remote_code_for_tokenizer,
-                local_files_only=local_files_only,
-            )
-        return self._tokenizer
+        """延迟加载tokenizer (已弃用)"""
+        warnings.warn("Config.tokenizer 已弃用，请使用 get_app_config().tokenizer", DeprecationWarning, stacklevel=2)
+        return _get_app_config().tokenizer
 
 
-# 创建全局配置实例
+# 创建全局配置实例 (保持向后兼容)
 config = Config()
 
 
 def get_config():
-    """获取全局配置实例"""
-    return config
+    """
+    获取全局配置实例 (已弃用)
+    ⚠️  请使用 get_app_config()
+    """
+    warnings.warn("get_config() 已弃用，请使用 get_app_config()", DeprecationWarning, stacklevel=2)
+    return _get_app_config()

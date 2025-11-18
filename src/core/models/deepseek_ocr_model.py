@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 DeepSeek OCR模型实现
 提供与HuggingFace兼容的模型接口
@@ -23,6 +22,8 @@ try:
 
     from src.core.deepseek_ocr_config import (
         DeepseekV2Config as ConfigDeepseekV2Config,
+    )
+    from src.core.deepseek_ocr_config import (
         DeepseekVLV2Config as ConfigDeepseekVLV2Config,
     )
 
@@ -38,43 +39,28 @@ except Exception as e:
 from src.core.deepseek_ocr_config import DeepseekV2Config, DeepseekVLV2Config
 
 # 导入实际的模型实现
-from src.core.models.modeling_deepseekv2 import DeepseekV2Model, DeepseekV2ForCausalLM as BaseDeepseekV2ForCausalLM
-
+from src.core.models.modeling_deepseekv2 import DeepseekV2ForCausalLM as BaseDeepseekV2ForCausalLM
+from src.core.models.modeling_deepseekv2 import DeepseekV2Model
 
 # 确保这些类在当前模块中可用
 __all__ = [
+    "BaseDeepseekV2ForCausalLM",
     "DeepseekOCRForCausalLM",
-    "DeepseekVLV2Config",
     "DeepseekV2Config",
     "DeepseekV2Model",
-    "BaseDeepseekV2ForCausalLM",
+    "DeepseekVLV2Config",
 ]
 
 # 标准库导入
-import math
-from collections.abc import Iterable, Mapping, Sequence
-from typing import List, Literal, Optional, Set, Tuple, TypedDict, Union
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from addict import Dict
-from einops import rearrange, repeat
+from typing import Optional
 
 # 第三方库导入
-from transformers import BatchFeature
-
 # 配置导入
-from src.core.config import BASE_SIZE, CROP_MODE, IMAGE_SIZE, PRINT_NUM_VIS_TOKENS, PROMPT
-from src.core.deepencoder.build_linear import MlpProjector
-from src.core.deepencoder.clip_sdpa import build_clip_l
-from src.core.deepencoder.sam_vary_sdpa import build_sam_vit_b
-
 # 导入日志模块
 from src.core.logging import get_logger
 
 # 项目内部导入
-from src.core.process.image_process import DeepseekOCRProcessor, count_tiles
+from src.core.process.image_process import DeepseekOCRProcessor
 
 # 获取日志记录器
 logger = get_logger()
@@ -173,9 +159,10 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         super().__init__()
         self.config = config
         self.image_token_id = None
-        
+
         # 使用设备管理器获取最优设备
         from src.core.utils.device_manager import device_manager
+
         self.device = device_manager.get_optimal_device()
 
     @classmethod
@@ -368,7 +355,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         if (model_path_obj / "model.safetensors.index.json").exists():
             # 处理分片模型文件
             index_path = model_path_obj / "model.safetensors.index.json"
-            with open(index_path, "r", encoding="utf-8") as f:
+            with open(index_path, encoding="utf-8") as f:
                 index_data = json.load(f)
             model_files = list(set(index_data["weight_map"].values()))
         else:
@@ -399,7 +386,6 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         Returns:
             权重字典
         """
-        import os
         from pathlib import Path
 
         import torch
@@ -407,33 +393,25 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
 
         state_dict = {}
         model_path_obj = Path(model_path)
-        device = getattr(self, 'device', torch.device("cpu"))
+        device = getattr(self, "device", torch.device("cpu"))
 
         for file_name in model_files:
             file_path = model_path_obj / file_name
             if file_path.exists():
                 if file_name.endswith(".safetensors"):
-                    # 使用MPS兼容的加载方式
-                    if device.type == "mps":
-                        # 在MPS设备上，先加载到CPU
-                        weights = load_file(str(file_path), device="cpu")
-                        state_dict.update(weights)
-                    else:
-                        weights = load_file(str(file_path), device=device)
-                        state_dict.update(weights)
+                    # 强制使用CPU以避免MPS内存不足问题
+                    weights = load_file(str(file_path), device="cpu")
+                    state_dict.update(weights)
                 else:
-                    # 使用MPS兼容的加载方式
-                    if device.type == "mps":
-                        # 在MPS设备上，先加载到CPU
-                        weights = torch.load(str(file_path), map_location="cpu", weights_only=True)
-                        state_dict.update(weights)
-                    else:
-                        weights = torch.load(str(file_path), map_location=device, weights_only=True)
-                        state_dict.update(weights)
+                    # 强制使用CPU以避免MPS内存不足问题
+                    weights = torch.load(str(file_path), map_location="cpu", weights_only=True)
+                    state_dict.update(weights)
 
         return state_dict
 
-    def load_weights_from_path(self, model_path: str, device: Optional[torch.device] = None) -> "DeepseekOCRForCausalLM":
+    def load_weights_from_path(
+        self, model_path: str, device: Optional[torch.device] = None
+    ) -> "DeepseekOCRForCausalLM":
         """
         从指定路径加载模型权重
 
@@ -451,6 +429,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
 
         # 使用设备管理器获取最优设备
         from src.core.utils.device_manager import device_manager
+
         if device is None:
             device = device_manager.get_optimal_device()
 
@@ -469,7 +448,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
         state_dict = self._load_model_weights(model_path, model_files)
 
         # 读取配置文件
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config_dict = json.load(f)
 
         # 使用language_config作为基础配置（如果存在）
@@ -483,27 +462,15 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
 
         # 创建模型实例
         try:
-            # 在MPS设备上，先加载到CPU再移动到MPS
-            if device.type == "mps":
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_path,
-                    config=config,
-                    torch_dtype=torch.float32,  # 在MPS上使用float32
-                    device_map="cpu",  # 先加载到CPU
-                    trust_remote_code=False,
-                )
-                # 然后移动到MPS设备
-                self.model = self.model.to(device)
-                logger.info("使用AutoModelForCausalLM.from_pretrained创建模型成功(MPS)")
-            else:
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_path,
-                    config=config,
-                    torch_dtype=torch.bfloat16,
-                    device_map=device,
-                    trust_remote_code=False,
-                )
-                logger.info("使用AutoModelForCausalLM.from_pretrained创建模型成功")
+            # 强制使用CPU以避免MPS内存不足问题
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                config=config,
+                torch_dtype=torch.float32,  # 使用float32
+                device_map="cpu",  # 加载到CPU
+                trust_remote_code=False,
+            )
+            logger.info("使用AutoModelForCausalLM.from_pretrained创建模型成功")
         except Exception as e:
             logger.error(f"AutoModelForCausalLM.from_pretrained失败: {e}")
             # 尝试使用from_config
@@ -640,7 +607,7 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
             # 确保数据在正确的设备上
             try:
                 logger.debug("开始获取设备信息")
-                device = getattr(self, 'device', None)
+                device = getattr(self, "device", None)
                 if device is None:
                     device = next(self.parameters()).device if len(list(self.parameters())) > 0 else torch.device("cpu")
             except Exception:
@@ -648,52 +615,28 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
                 device = torch.device("cpu")
 
             logger.debug(f"设备信息获取完成: {device}")
-            
-            # 在MPS设备上，使用更安全的张量移动方式
-            if device.type == "mps":
-                try:
-                    logger.debug("在MPS设备上移动张量")
-                    # 对于MPS设备，使用非阻塞方式移动张量
-                    input_ids = input_ids.to(device, non_blocking=True)
-                    pixel_values = pixel_values.to(device, non_blocking=True)
-                    images_crop = images_crop.to(device, non_blocking=True)
-                    images_spatial_crop = images_spatial_crop.to(device, non_blocking=True)
-                except Exception as e:
-                    logger.warning(f"在MPS设备上移动张量时出错: {e}")
-                    # 回退到阻塞方式
-                    input_ids = input_ids.to(device)
-                    pixel_values = pixel_values.to(device)
-                    images_crop = images_crop.to(device)
-                    images_spatial_crop = images_spatial_crop.to(device)
-            else:
-                # 其他设备上使用标准方式
-                try:
-                    logger.debug("在其他设备上移动张量")
-                    input_ids = input_ids.to(device)
-                    pixel_values = pixel_values.to(device)
-                    images_crop = images_crop.to(device)
-                    images_spatial_crop = images_spatial_crop.to(device)
-                except Exception as e:
-                    raise ValueError(f"无法将张量移动到设备{device}: {e}")
 
-            # 在MPS设备上避免使用bfloat16，使用float32以确保兼容性
-            if device.type == "mps":
-                # MPS设备上使用float32以确保兼容性
-                try:
-                    logger.debug("在MPS设备上转换数据类型")
-                    pixel_values = pixel_values.to(torch.float32)
-                    images_crop = images_crop.to(torch.float32)
-                except Exception as e:
-                    logger.warning(f"在MPS设备上转换数据类型时出错: {e}")
-            else:
-                # 其他设备上可以使用bfloat16（如果支持）
-                try:
-                    if torch.cuda.is_bf16_supported():
-                        logger.debug("在CUDA设备上转换数据类型")
-                        pixel_values = pixel_values.to(torch.bfloat16)
-                        images_crop = images_crop.to(torch.bfloat16)
-                except Exception as e:
-                    logger.warning(f"转换数据类型时出错: {e}")
+            # 强制使用CPU设备，避免MPS内存问题
+            device = torch.device("cpu")
+            logger.debug(f"强制使用CPU设备: {device}")
+
+            # 将张量移动到CPU设备
+            try:
+                logger.debug("移动张量到CPU设备")
+                input_ids = input_ids.to(device)
+                pixel_values = pixel_values.to(device)
+                images_crop = images_crop.to(device)
+                images_spatial_crop = images_spatial_crop.to(device)
+            except Exception as e:
+                raise ValueError(f"无法将张量移动到设备{device}: {e}")
+
+            # CPU设备使用float32，不支持bfloat16
+            try:
+                logger.debug("在CPU设备上转换数据类型")
+                pixel_values = pixel_values.to(torch.float32)
+                images_crop = images_crop.to(torch.float32)
+            except Exception as e:
+                logger.warning(f"在CPU设备上转换数据类型时出错: {e}")
 
             # 生成结果
             with torch.no_grad():
@@ -751,22 +694,11 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
                 try:
                     logger.debug("开始模型生成")
                     logger.debug(f"生成参数: {generate_kwargs.keys()}")
-                    
-                    # 在MPS设备上使用特定的生成配置
-                    if device.type == "mps":
-                        # 为MPS设备调整生成参数
-                        mps_generate_kwargs = generate_kwargs.copy()
-                        # 确保使用兼容的数据类型
-                        mps_generate_kwargs["input_ids"] = input_ids.to(torch.int32)
-                        
-                        # 尝试生成
-                        outputs = self.model.generate(**mps_generate_kwargs)
-                        logger.debug("MPS设备模型生成完成")
-                    else:
-                        # 非MPS设备使用标准生成方式
-                        input_ids = generate_kwargs.pop("input_ids")
-                        outputs = self.model.generate(input_ids, **generate_kwargs)
-                        logger.debug("非MPS设备模型生成完成")
+
+                    # 在CPU设备上使用标准生成方式
+                    input_ids = generate_kwargs.pop("input_ids")
+                    outputs = self.model.generate(input_ids, **generate_kwargs)
+                    logger.debug("CPU设备模型生成完成")
                 except Exception as generate_error:
                     logger.error(f"模型生成过程中出错: {generate_error}")
                     import traceback
@@ -812,13 +744,13 @@ class DeepseekOCRForCausalLM(BaseDeepseekOCRForCausalLM):
                     raise RuntimeError("解码失败：缺少tokenizer")
             except Exception as decode_error:
                 # 返回详细的解码错误信息
-                error_msg = f"解码算法错误: {str(decode_error)}"
+                error_msg = f"解码算法错误: {decode_error!s}"
                 logger.error(error_msg)
                 raise RuntimeError(error_msg) from decode_error
         except Exception as e:
-            logger.error(f"图像处理过程中发生错误: {str(e)}")
+            logger.error(f"图像处理过程中发生错误: {e!s}")
             logger.error(f"错误类型: {type(e)}")
             import traceback
 
             logger.error(f"错误堆栈: {traceback.format_exc()}")
-            raise RuntimeError(f"图像处理失败: {str(e)}") from e
+            raise RuntimeError(f"图像处理失败: {e!s}") from e

@@ -1,11 +1,23 @@
 # 应用配置文件
-# 用于配置模型加载时的auto_map属性
+# 统一配置所有应用参数
 
 # Web服务器配置
 server:
   host: "0.0.0.0"
   port: 8000
   reload: true
+
+# 图像处理配置
+image_processing:
+  base_size: 1024
+  image_size: 640
+  crop_mode: true
+  min_crops: 2
+  max_crops: 6  # max:9; If your GPU memory is small, it is recommended to set it to 6.
+  max_concurrency: 100  # If you have limited GPU memory, lower the concurrency count.
+  num_workers: 64  # image pre-process (resize/padding) workers
+  print_num_vis_tokens: false
+  skip_repeat: true
 
 # 设备配置
 device_config:
@@ -14,8 +26,9 @@ device_config:
     autocast: "cuda"
     dtype: "bfloat16"
   mps:
-    autocast: "mps"
-    dtype: "float16"
+    # MPS设备不支持autocast，使用float32确保兼容性
+    autocast: null
+    dtype: "float32"
   cpu:
     autocast: null  # CPU不使用autocast
     dtype: null
@@ -32,6 +45,11 @@ model_config:
     auto_map:
       AutoModelForCausalLM: src.core.models.modeling_deepseekv2.DeepseekV2ForCausalLM
       AutoConfig: src.core.deepseek_ocr_config.DeepseekV2Config
+
+# 模型配置
+model:
+  path: "./models/deepseek-ocr"  # 可覆盖默认模型路径
+  default_ocr_prompt: "<image>\n<|grounding|>Convert the document to markdown."
 
 # 默认模型配置
 default_model: deepseek_vl_v2

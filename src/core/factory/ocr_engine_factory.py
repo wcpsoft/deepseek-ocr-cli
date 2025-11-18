@@ -8,7 +8,7 @@ OCR引擎工厂模块
 import logging
 from typing import ClassVar, Optional
 
-from src.core.config.settings import get_config
+from src.core.config.app_config import get_app_config
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
@@ -46,6 +46,9 @@ class OCREngineFactory:
         image_size: int = 640,
         *,
         crop_mode: bool = True,
+        model_manager: Optional[Any] = None,
+        image_handler: Optional[Any] = None,
+        device_manager: Optional[Any] = None,
     ):
         """
         创建OCR引擎
@@ -58,11 +61,14 @@ class OCREngineFactory:
             base_size: 基础尺寸
             image_size: 图像尺寸
             crop_mode: 是否启用裁剪模式
+            model_manager: 注入的模型管理器
+            image_handler: 注入的图像处理器
+            device_manager: 注入的设备管理器
 
         Returns:
             OCR引擎实例
         """
-        config = get_config()
+        config = get_app_config()
         engine_type = engine_type or config.model_path  # 使用model_path作为默认引擎类型
 
         if engine_type not in cls._engine_classes:
@@ -71,14 +77,31 @@ class OCREngineFactory:
         try:
             # 创建引擎实例
             engine_class = cls._engine_classes[engine_type]
-            engine = engine_class(
-                model_path=model_path,
-                device=device,
-                prompt=prompt,
-                base_size=base_size,
-                image_size=image_size,
-                crop_mode=crop_mode,
-            )
+
+            # 准备创建引擎的参数
+            engine_kwargs = {
+                "model_path": model_path,
+                "device": device,
+                "prompt": prompt,
+                "base_size": base_size,
+                "image_size": image_size,
+                "crop_mode": crop_mode,
+            }
+
+            # 只有当引擎支持依赖注入时才添加这些参数
+            if hasattr(engine_class, "__init__"):
+                import inspect
+
+                sig = inspect.signature(engine_class.__init__)
+                for param_name, dep in [
+                    ("model_manager", model_manager),
+                    ("image_handler", image_handler),
+                    ("device_manager", device_manager),
+                ]:
+                    if dep and param_name in sig.parameters:
+                        engine_kwargs[param_name] = dep
+
+            engine = engine_class(**engine_kwargs)
 
             logger.info(f"已创建OCR引擎: {engine_type}")
             return engine

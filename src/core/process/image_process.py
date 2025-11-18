@@ -82,7 +82,7 @@ def dynamic_preprocess(
 ):
     """
     动态预处理图像，将其分割成多个块
-    
+
     Args:
         image: PIL图像对象
         min_num: 最小块数
@@ -90,7 +90,7 @@ def dynamic_preprocess(
         image_size: 图像大小
         use_thumbnail: 是否使用缩略图
         candidate_resolutions: 候选分辨率列表，如果提供则使用这些分辨率而不是自动计算
-    
+
     Returns:
         处理后的图像列表和目标宽高比
     """
@@ -110,7 +110,7 @@ def dynamic_preprocess(
             for j in range(1, n + 1)
             if i * j <= max_num and i * j >= min_num
         }
-    
+
     # logger.debug(target_ratios)
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
@@ -192,7 +192,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         image_std: tuple[float, float, float] = (0.5, 0.5, 0.5),
         normalize: bool = True,
         image_token: str = "<image>",  # noqa: S107
-        pad_token: str = "<｜▁pad▁｜>",  # noqa: S107
+        pad_token: str = "<｜ pad ｜>",  # noqa: S107
         ignore_id: int = -100,
         add_special_token: bool = False,  # 添加这个参数以匹配配置文件
         candidate_resolutions: list[list[int]] | None = None,  # 添加这个参数以匹配配置文件
@@ -213,7 +213,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         self.downsample_ratio = downsample_ratio
         self.ignore_id = ignore_id
         self.mask_prompt = mask_prompt  # 添加mask_prompt属性
-        
+
         # 使用这些参数而不是仅仅存储它们
         self.add_special_token = add_special_token
         self.candidate_resolutions = candidate_resolutions
@@ -231,11 +231,32 @@ class DeepseekOCRProcessor(ProcessorMixin):
         if self.tokenizer.pad_token is None:
             self.tokenizer.add_special_tokens({"pad_token": pad_token})
 
-        self.image_token_id = self.tokenizer.vocab.get(image_token)
-        logger.debug(f"image_token_id: {self.image_token_id}")
+        # 修复image_token_id的获取方式，确保它在词汇表范围内
+        # 首先尝试从tokenizer的词汇表中获取
+        self.image_token_id = self.tokenizer.convert_tokens_to_ids(image_token)
+
+        # 检查token是否在词汇表中，以及ID是否超出范围
+        if self.image_token_id is None or self.image_token_id >= self.tokenizer.vocab_size:
+            logger.warning(f"图像token '{image_token}' 不在词汇表中或ID超出范围")
+            # 使用一个在词汇表范围内的ID作为图像token
+            # 我们选择词汇表末尾的一个可用ID
+            self.image_token_id = self.tokenizer.vocab_size - 1
+            logger.info(f"使用词汇表末尾的ID作为图像token ID: {self.image_token_id}")
+
+            # 添加特殊token到tokenizer
+            if image_token not in self.tokenizer.get_vocab():
+                self.tokenizer.add_tokens([image_token])
+                logger.info(f"已将图像token '{image_token}' 添加到tokenizer词汇表")
+        else:
+            logger.info(f"使用tokenizer中的图像token ID: {self.image_token_id}")
+
+        logger.debug(f"image_token_id: {self.image_token_id}, vocab_size: {self.tokenizer.vocab_size}")
 
         self.image_token = image_token
         self.pad_token = pad_token
+
+        # 添加pad_token_id属性以保持兼容性
+        self.pad_token_id = self.tokenizer.pad_token_id
 
         super().__init__(
             self.tokenizer,
@@ -569,6 +590,23 @@ class DeepseekOCRProcessor(ProcessorMixin):
         images_spatial_crop_tensor,
     ):
         """构建结果结构"""
+        # 计算num_image_tokens和image_shapes
+        # 根据实际处理的数据计算这些值
+        num_image_tokens = []
+        image_shapes = []
+
+        # 如果有图像数据，计算相应的值
+        if pixel_values is not None and pixel_values.numel() > 0:
+            # 计算图像token数量
+            batch_size = pixel_values.shape[0] if len(pixel_values.shape) > 0 else 1
+            # 假设每个图像生成一定数量的token
+            num_image_tokens = [batch_size * 256]  # 简化的计算，实际应根据模型确定
+
+            # 图像形状信息
+            if len(pixel_values.shape) >= 4:
+                h, w = pixel_values.shape[2], pixel_values.shape[3]
+                image_shapes = [(h, w)]
+
         # 返回与原始仓库一致的数据结构
         return [
             [
@@ -577,8 +615,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
                 images_crop,
                 images_seq_mask_tensor,
                 images_spatial_crop_tensor,
-                [],  # num_image_tokens - 在原始代码中未使用
-                [],  # image_shapes - 在原始代码中未使用
+                num_image_tokens,  # 不再是空列表
+                image_shapes,  # 不再是空列表
             ]
         ]
 
@@ -597,10 +635,10 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
     def tokenize_with_images(  # noqa: C901
         self,
-        images: list,
         *,
-        bos: bool = True,
-        eos: bool = True,
+        prompt: str,
+        images: list,
+        inference_mode: bool = True,
         cropping: bool = True,
     ):
         """Tokenize text with <image> tags."""
@@ -616,10 +654,8 @@ class DeepseekOCRProcessor(ProcessorMixin):
         num_image_tokens = []
         tokenized_str = []
 
-        # 使用默认提示词
-        from src.core.config import PROMPT
-
-        conversation = PROMPT
+        # 使用传入的prompt而不是默认的PROMPT
+        conversation = prompt
         text_splits = conversation.split(self.image_token)
 
         # 处理每个图像和对应的文本分割
@@ -632,26 +668,21 @@ class DeepseekOCRProcessor(ProcessorMixin):
             tokenized_str += tokenized_sep
             images_seq_mask += [False] * len(tokenized_sep)
 
-            # 处理裁剪逻辑
-            images_crop_raw = []  # 初始化为空列表
+            # 处理图像尺寸判断
             if image.size[0] <= 640 and image.size[1] <= 640:
                 crop_ratio = [1, 1]
-                # 对于小图像，直接添加到images_crop_raw列表
-                images_crop_raw.append(image)
             else:
                 if cropping:
+                    # 使用dynamic_preprocess处理图像
                     images_crop_raw, crop_ratio = dynamic_preprocess(image, image_size=IMAGE_SIZE)
                 else:
                     crop_ratio = [1, 1]
-                    # 对于不裁剪的大图像，也添加到images_crop_raw列表
-                    images_crop_raw.append(image)
 
-            logger.debug(f"裁剪比例: {crop_ratio}")
-
-            # 处理全局视图
+            # 如果图像尺寸小于等于640且不裁剪，直接调整大小
             if IMAGE_SIZE <= 640 and not cropping:
                 image = image.resize((IMAGE_SIZE, IMAGE_SIZE))
 
+            # 处理全局视图
             global_view = ImageOps.pad(
                 image, (BASE_SIZE, BASE_SIZE), color=tuple(int(x * 255) for x in self.image_transform.mean)
             )
@@ -663,6 +694,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
 
             # 处理局部视图
             if num_width_tiles > 1 or num_height_tiles > 1:
+                # 将每个裁剪后的图像添加到images_crop_list
                 for i in range(len(images_crop_raw)):
                     images_crop_list.append(self.image_transform(images_crop_raw[i]))
 
@@ -670,6 +702,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
             num_queries = math.ceil((IMAGE_SIZE // self.patch_size) / self.downsample_ratio)
             num_queries_base = math.ceil((BASE_SIZE // self.patch_size) / self.downsample_ratio)
 
+            # 修复tokenized_image的计算方式，与原始项目保持一致
             tokenized_image = ([self.image_token_id] * num_queries_base + [self.image_token_id]) * num_queries_base
             tokenized_image += [self.image_token_id]
             if num_width_tiles > 1 or num_height_tiles > 1:
@@ -686,12 +719,10 @@ class DeepseekOCRProcessor(ProcessorMixin):
         images_seq_mask += [False] * len(tokenized_sep)
 
         # 添加bos和eos tokens
-        if bos:
-            tokenized_str = [self.bos_id, *tokenized_str]
-            images_seq_mask = [False, *images_seq_mask]
-        if eos:
-            tokenized_str = [*tokenized_str, self.eos_id]
-            images_seq_mask = [*images_seq_mask, False]
+        tokenized_str = [self.bos_id, *tokenized_str]
+        images_seq_mask = [False, *images_seq_mask]
+        tokenized_str = [*tokenized_str, self.eos_id]
+        images_seq_mask = [*images_seq_mask, False]
 
         # 验证长度
         assert len(tokenized_str) == len(
@@ -722,7 +753,6 @@ class DeepseekOCRProcessor(ProcessorMixin):
         input_ids[input_ids < 0] = self.pad_id
 
         # 推理模式
-        inference_mode = True
         if inference_mode:
             # 移除结尾的eos token
             assert input_ids[-1] == self.eos_id
@@ -734,7 +764,7 @@ class DeepseekOCRProcessor(ProcessorMixin):
         if len(images_list) == 0:
             pixel_values = torch.zeros((1, 3, self.base_size, self.base_size))
             images_spatial_crop_tensor = torch.zeros((1, 1), dtype=torch.long)
-            images_crop = torch.zeros((1, 3, self.image_size, self.image_size))
+            images_crop = torch.zeros((1, 3, self.image_size, self.image_size)).unsqueeze(0)
         else:
             pixel_values = torch.stack(images_list, dim=0)
             images_spatial_crop_tensor = torch.tensor(images_spatial_crop, dtype=torch.long)

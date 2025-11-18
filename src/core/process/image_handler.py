@@ -4,12 +4,13 @@
 专门负责图像的加载、预处理和特征提取
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from PIL import Image
 
 from src.core.logging import get_logger
+from src.core.utils.error_handling import handle_image_error, ImageProcessError
 
 logger = get_logger()
 
@@ -43,13 +44,9 @@ class ImageHandler:
         Returns:
             PIL图像对象
         """
-        try:
-            image = Image.open(image_path).convert("RGB")
-            logger.debug(f"图像加载完成，尺寸: {image.size}")
-            return image
-        except Exception as e:
-            logger.error(f"加载图像失败: {e!s}")
-            raise
+        image = Image.open(image_path).convert("RGB")
+        logger.debug(f"图像加载完成，尺寸: {image.size}")
+        return image
 
     def process_image(
         self,
@@ -80,13 +77,14 @@ class ImageHandler:
 
             # 如果没有提供提示词，使用默认的图像标记
             if not prompt:
-                prompt = f"{self.processor.image_token}"
+                # 使用image_token_id而不是image_token，确保一致性
+                prompt = "<image>"
 
             # 直接调用processor的tokenize_with_images方法，传入正确的参数
             processed_data = self.processor.tokenize_with_images(
+                prompt=prompt,
                 images=[image],
-                bos=True,
-                eos=True,
+                inference_mode=True,
                 cropping=crop_mode,
             )
 
@@ -110,13 +108,14 @@ class ImageHandler:
             logger.error(f"处理图像时发生错误: {e!s}")
             raise
 
-    def extract_tensors(self, processed_data: Any, device: torch.device) -> tuple[torch.Tensor, ...]:
+    def extract_tensors(self, processed_data: Any, device: torch.device, device_manager: Optional[Any] = None) -> tuple[torch.Tensor, ...]:
         """
         从处理后的数据中提取张量并移到指定设备
 
         Args:
             processed_data: 处理后的数据
             device: 目标设备
+            device_manager: 设备管理器实例，用于统一张量移动操作
 
         Returns:
             提取的张量元组
@@ -142,16 +141,26 @@ class ImageHandler:
                 raise ValueError("images_seq_mask为None")
             if images_spatial_crop is None:
                 raise ValueError("images_spatial_crop为None")
-            if num_image_tokens is None:
-                raise ValueError("num_image_tokens为None")
-            if image_shapes is None:
-                raise ValueError("image_shapes为None")
 
-            # 确保张量在正确的设备上
-            input_ids = input_ids.to(device)
-            pixel_values = pixel_values.to(device)
-            images_crop = images_crop.to(device)
-            images_spatial_crop = images_spatial_crop.to(device)
+            # 处理num_image_tokens和image_shapes可能为空列表的情况
+            # 在某些情况下，这两个值可能为空列表，这是正常的
+            if num_image_tokens is None:
+                num_image_tokens = []
+            if image_shapes is None:
+                image_shapes = []
+
+            # 使用 DeviceManager 统一移动张量到设备
+            if device_manager and hasattr(device_manager, 'move_tensor_to_device'):
+                input_ids = device_manager.move_tensor_to_device(input_ids, device)
+                pixel_values = device_manager.move_tensor_to_device(pixel_values, device)
+                images_crop = device_manager.move_tensor_to_device(images_crop, device)
+                images_spatial_crop = device_manager.move_tensor_to_device(images_spatial_crop, device)
+            else:
+                # 回退到原来的方式
+                input_ids = input_ids.to(device)
+                pixel_values = pixel_values.to(device)
+                images_crop = images_crop.to(device)
+                images_spatial_crop = images_spatial_crop.to(device)
 
             return (
                 input_ids,

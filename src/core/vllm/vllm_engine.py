@@ -4,7 +4,6 @@ vLLM引擎实现
 """
 
 import logging
-import os
 from typing import Any, Optional
 
 from PIL import Image
@@ -31,6 +30,8 @@ class VLLMEngine(BaseOCREngine):
         image_size: int = 640,
         *,
         crop_mode: bool = True,
+        model_manager: Optional[Any] = None,
+        device_manager: Optional[Any] = None,
     ) -> None:
         """
         初始化vLLM引擎
@@ -42,10 +43,14 @@ class VLLMEngine(BaseOCREngine):
             base_size: 基础尺寸
             image_size: 图像尺寸
             crop_mode: 是否启用裁剪模式
+            model_manager: 注入的模型管理器
+            device_manager: 注入的设备管理器
         """
         super().__init__(model_path, prompt, base_size, image_size, device, crop_mode=crop_mode)
         self.model: Any = None
         self.tokenizer: Any = None
+        self._model_manager = model_manager
+        self._device_manager = device_manager
         logger.info("vLLM引擎初始化完成")
 
     def initialize(self) -> bool:
@@ -53,20 +58,14 @@ class VLLMEngine(BaseOCREngine):
         try:
             logger.info("初始化vLLM引擎...")
 
-            # 检查是否是本地路径
-            if self.model_path:
-                is_remote_repo = (
-                    self.model_path.startswith(("http://", "https://"))
-                    or self.model_path.startswith("deepseek-ai/")
-                    or self.model_path.startswith("huggingface.co/")
-                    or "/" not in self.model_path
-                    or (not os.path.exists(self.model_path) and not os.path.exists(os.path.expanduser(self.model_path)))
-                )
-            else:
-                is_remote_repo = True
+            # 使用 ModelPathResolver 统一处理路径解析和参数配置
+            from src.core.utils.model_path_utils import ModelPathResolver
 
-            # 对于本地路径,确保local_files_only=True,这样就不会尝试从远程下载
-            local_files_only = not is_remote_repo
+            # 获取统一的加载参数
+            loading_params = ModelPathResolver.get_loading_params(
+                self.model_path, trust_remote_code=True  # vLLM 需要 trust_remote_code
+            )
+            local_files_only = loading_params["local_files_only"]
 
             # vLLM相关导入（延迟导入，避免在不支持的平台上报错）
             try:
@@ -78,8 +77,13 @@ class VLLMEngine(BaseOCREngine):
                 llm_class = object
                 logger.warning("vLLM未安装或不支持当前平台，使用占位符")
 
-            # 获取最优设备
-            optimal_device = get_optimal_device()
+            # 使用注入的设备管理器或默认获取设备
+            if self._device_manager:
+                optimal_device = self._device_manager.get_optimal_device()
+            else:
+                from src.core.utils.device_manager import get_optimal_device
+
+                optimal_device = get_optimal_device()
             device_type = optimal_device.type
 
             # 初始化模型

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from src.core.config import get_config
+from src.core.config.app_config import get_app_config
 from src.core.factory.ocr_engine_factory import OCREngineFactory
 from src.core.logging import get_logger, setup_logging
 from src.core.multimodal.ocr_engine_interface import OCREngineInterface
@@ -51,7 +51,7 @@ class OCRStrategy:
             args: 命令行参数
         """
         self.args = args
-        self.config = get_config()
+        self.config = get_app_config()
         self.engine: OCREngineInterface | None = None
         self.service: OCRService | None = None
 
@@ -172,7 +172,9 @@ class DocumentOCRStrategy(OCRStrategy):
                 return 1
 
             # 处理文档
-            result = self.service.process_document(self.args.input, output_filename="result.mmd", prompt=self.args.prompt, stop_on_error=True)
+            result = self.service.process_document(
+                self.args.input, output_filename="result.mmd", prompt=self.args.prompt, stop_on_error=True
+            )
 
             # 输出结果
             if result["success"]:
@@ -225,7 +227,9 @@ class BatchOCRStrategy(OCRStrategy):
 
             # 处理图像
             prompts = [self.args.prompt] * len(image_paths)
-            result = self.service.process_images(image_paths, prompts=prompts, output_filename="result.mmd", stop_on_error=True)
+            result = self.service.process_images(
+                image_paths, prompts=prompts, output_filename="result.mmd", stop_on_error=True
+            )
 
             # 输出结果
             if result["success"]:
@@ -366,7 +370,7 @@ def main():
     try:
         # 配置警告过滤器
         configure_warnings()
-        
+
         # 解析参数
         args = parse_arguments()
 
@@ -380,7 +384,7 @@ def main():
 
         # 设置日志
         _setup_logging(args)
-        
+
         # 设置MPS回退环境变量，解决MPS设备不支持某些操作的问题
         if detect_mps_environment():
             os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -442,14 +446,15 @@ def _handle_ipdb_debugging(args):
 
 def _execute_ocr_strategy(args):
     """执行OCR策略"""
-    
+
     # 处理ipdb调试
     _handle_ipdb_debugging(args)
-    
+
     # 如果启用了ipdb调试，在这里进入调试器
     if args.ipdb:
         # 使用统一的调试工具
         from src.core.utils.debug_utils import set_debugger_trace
+
         set_debugger_trace()
 
     # 创建上下文并执行策略

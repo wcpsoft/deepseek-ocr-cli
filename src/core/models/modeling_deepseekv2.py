@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2023 DeepSeek-AI 和 The HuggingFace Inc. 团队。保留所有权利。
 #
 # 此代码基于EleutherAI的GPT-NeoX库以及该库中的GPT-NeoX和OPT实现。
@@ -15,19 +14,18 @@
 # 有关许可证下特定权限和限制的详细信息，请参阅许可证。
 """PyTorch DeepSeek模型，兼容DeepSeekV2和DeepSeekV3"""
 import math
-import warnings
-from typing import List, Optional, Tuple, Union
+from typing import Optional
 
 import numpy as np
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 import torch.utils.checkpoint
-from einops import repeat
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache
+from transformers.generation import GenerationMixin
 from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
 from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
@@ -35,9 +33,7 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutputWithPast,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.generation import GenerationMixin
 from transformers.pytorch_utils import (
-    ALL_LAYERNORM_LAYERS,
     is_torch_greater_or_equal_than_1_13,
 )
 from transformers.utils import (
@@ -54,10 +50,7 @@ from src.core.models.configuration_deepseek_v2 import DeepseekV2Config
 
 # 导入Llama相关的注意力机制类
 try:
-    from transformers.models.llama.modeling_llama import (
-        LlamaAttention,
-        LlamaFlashAttention2
-    )
+    from transformers.models.llama.modeling_llama import LlamaAttention, LlamaFlashAttention2
 except ImportError:
     # 如果无法导入Llama相关类，使用占位符
     LlamaAttention = None
@@ -72,12 +65,13 @@ unpad_input = None
 
 # 检查是否为MPS设备，如果是则不使用flash_attn
 import torch
-_is_mps_device = hasattr(torch.backends, 'mps') and torch.backends.mps.is_available() and torch.backends.mps.is_built()
+
+_is_mps_device = hasattr(torch.backends, "mps") and torch.backends.mps.is_available() and torch.backends.mps.is_built()
 
 if is_flash_attn_2_available() and not _is_mps_device:
     try:
         from flash_attn import flash_attn_func, flash_attn_varlen_func
-        from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
+        from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input
     except ImportError:
         # 如果导入失败，保持为None
         pass
@@ -111,7 +105,7 @@ class DeepseekV2RMSNorm(nn.Module):
     def __init__(self, hidden_size: int, eps: float = 1e-6):
         """
         DeepseekV2RMSNorm is equivalent to T5LayerNorm
-        
+
         Args:
             hidden_size: 隐藏层大小
             eps: 防止除零的小值
@@ -129,7 +123,6 @@ class DeepseekV2RMSNorm(nn.Module):
 
 
 # ALL_LAYERNORM_LAYERS.append(DeepseekV2RMSNorm)
-import math
 
 import torch
 import torch.nn as nn
@@ -178,7 +171,7 @@ class DeepseekV2RotaryEmbedding(nn.Module):
             sin_cached = self.sin_cached
         else:
             # 返回默认值
-            device = x.device if x is not None else torch.device('cpu')
+            device = x.device if x is not None else torch.device("cpu")
             dtype = x.dtype if x is not None else torch.float32
             seq_len_to_use = seq_len if seq_len is not None else 1
             cos_cached = torch.ones((seq_len_to_use, self.dim), device=device, dtype=dtype)
@@ -436,7 +429,7 @@ class MoEGate(nn.Module):
         self.gating_dim = config.hidden_size
         self.weight = nn.Parameter(torch.empty((self.n_routed_experts, self.gating_dim)))
         if self.topk_method == "noaux_tc":
-            self.e_score_correction_bias = nn.Parameter(torch.empty((self.n_routed_experts)))
+            self.e_score_correction_bias = nn.Parameter(torch.empty(self.n_routed_experts))
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -816,9 +809,9 @@ class DeepseekV2Attention(nn.Module):
         past_key_value: Optional[Cache] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
-        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         **kwargs,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor, ...]]]:
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor, ...]]]:
 
         bsz, q_len, _ = hidden_states.size()
 
@@ -849,12 +842,14 @@ class DeepseekV2Attention(nn.Module):
             cos, sin = position_embeddings
         else:
             cos, sin = self.rotary_emb(q_pe, seq_len=kv_seq_len)
-        
+
         # 使用新的API，优先使用position_embeddings而不是position_ids
         # 只有当position_embeddings为None时才使用position_ids
         if position_embeddings is not None:
             # 当使用position_embeddings时，不需要position_ids
-            q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=None, position_embeddings=position_embeddings)
+            q_pe, k_pe = apply_rotary_pos_emb(
+                q_pe, k_pe, cos, sin, position_ids=None, position_embeddings=position_embeddings
+            )
         else:
             # 当没有position_embeddings时，使用position_ids
             q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=position_ids, position_embeddings=None)
@@ -862,7 +857,9 @@ class DeepseekV2Attention(nn.Module):
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos}  # 特定于RoPE模型
             compressed_kv = compressed_kv.unsqueeze(1)
-            k_pe, compressed_kv = past_key_value.update(k_pe, compressed_kv, self.layer_idx if self.layer_idx is not None else 0, cache_kwargs)
+            k_pe, compressed_kv = past_key_value.update(
+                k_pe, compressed_kv, self.layer_idx if self.layer_idx is not None else 0, cache_kwargs
+            )
             compressed_kv = compressed_kv.squeeze(1)
 
         kv_b_proj = self.kv_b_proj.weight.view(self.num_heads, -1, self.kv_lora_rank)
@@ -880,7 +877,13 @@ class DeepseekV2Attention(nn.Module):
             )
         assert attention_mask is not None
         if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, q_len, kv_seq_len):
+            # 检查注意力掩码的形状，如果q_len为0，则调整检查逻辑
+            if q_len == 0:
+                # 当q_len为0时，注意力掩码的最后两个维度应该都是0
+                if attention_mask.size() != (bsz, 1, 0, 0):
+                    # 如果不是，则创建一个新的注意力掩码
+                    attention_mask = torch.zeros(bsz, 1, 0, 0, dtype=attention_mask.dtype, device=attention_mask.device)
+            elif attention_mask.size() != (bsz, 1, q_len, kv_seq_len):
                 raise ValueError(
                     f"Attention mask should be of size {(bsz, 1, q_len, kv_seq_len)}, but is {attention_mask.size()}"
                 )
@@ -937,10 +940,9 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
         past_key_value: Optional[Cache] = None,
         output_attentions: bool = False,
         use_cache: bool = False,
-        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         **kwargs,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor]]]:
 
         output_attentions = False
 
@@ -977,12 +979,14 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
             cos, sin = position_embeddings
         else:
             cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        
+
         # 使用新的API，优先使用position_embeddings而不是position_ids
         # 只有当position_embeddings为None时才使用position_ids
         if position_embeddings is not None:
             # 当使用position_embeddings时，不需要position_ids
-            q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=None, position_embeddings=position_embeddings)
+            q_pe, k_pe = apply_rotary_pos_emb(
+                q_pe, k_pe, cos, sin, position_ids=None, position_embeddings=position_embeddings
+            )
         else:
             # 当没有position_embeddings时，使用position_ids
             q_pe, k_pe = apply_rotary_pos_emb(q_pe, k_pe, cos, sin, position_ids=position_ids, position_embeddings=None)
@@ -1001,7 +1005,9 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
         # TODO: 在flash_attention版本中支持compressed_kv用于kv_cache（而不是key_states, value_states）
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos}  # 特定于RoPE模型
-            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx if self.layer_idx is not None else 0, cache_kwargs)
+            key_states, value_states = past_key_value.update(
+                key_states, value_states, self.layer_idx if self.layer_idx is not None else 0, cache_kwargs
+            )
 
         # TODO: 这些转置操作效率很低，但Flash Attention要求布局为[batch_size, sequence_length, num_heads, head_dim]。我们需要重构KV缓存
         # 以避免许多这样的转置/重塑/视图操作。
@@ -1035,6 +1041,15 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
             query_states = query_states.to(target_dtype)
             key_states = key_states.to(target_dtype)
             value_states = value_states.to(target_dtype)
+
+        # 处理注意力掩码，确保它符合_flash_attention_forward的期望
+        if attention_mask is not None:
+            # 如果attention_mask是4D，转换为2D
+            if attention_mask.dim() == 4:
+                attention_mask = attention_mask.squeeze(1).squeeze(1)
+            # 确保attention_mask是2D
+            elif attention_mask.dim() == 3:
+                attention_mask = attention_mask.squeeze(1)
 
         attn_output = self._flash_attention_forward(
             query_states,
@@ -1094,7 +1109,39 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
 
         # 序列中包含至少一个填充token
         if attention_mask is not None:
+            # 确保attention_mask是2D张量
+            if attention_mask.dim() == 4:
+                # 如果已经是4D，转换为2D
+                attention_mask = attention_mask.squeeze(1).squeeze(1)
+
             batch_size = query_states.shape[0]
+
+            # 在MPS设备上，使用标准注意力实现
+            if _is_mps_device:
+                # 将2D attention_mask转换为4D，以便与标准注意力一起使用
+                # attention_mask形状: (batch_size, seq_len) -> (batch_size, 1, seq_len, seq_len)
+                bsz, src_len = attention_mask.size()
+                attention_mask_4d = attention_mask[:, None, None, :].expand(bsz, 1, query_length, src_len)
+
+                # 创建因果掩码
+                causal_mask = torch.triu(
+                    torch.ones((query_length, src_len), dtype=torch.bool, device=attention_mask.device), diagonal=1
+                )
+                causal_mask = causal_mask.unsqueeze(0).unsqueeze(1).expand(bsz, 1, query_length, src_len)
+
+                # 合并注意力掩码和因果掩码
+                attention_mask_4d = attention_mask_4d.masked_fill(causal_mask, float("-inf"))
+
+                # 使用标准注意力计算
+                attn_weights = torch.matmul(query_states, key_states.transpose(-1, -2)) * softmax_scale
+                attn_weights = attn_weights + attention_mask_4d
+                attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+                attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=self.training)
+                attn_output = torch.matmul(attn_weights, value_states)
+
+                return attn_output
+
+            # 非MPS设备的原始实现
             (
                 query_states,
                 key_states,
@@ -1133,7 +1180,24 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
                 attn_output = attn_output_unpad
         else:
             # 在MPS设备上不使用flash_attn，直接使用标准实现
-            if not _is_mps_device and flash_attn_func is not None:
+            if _is_mps_device:
+                # 使用标准注意力计算
+                attn_weights = torch.matmul(query_states, key_states.transpose(-1, -2)) * softmax_scale
+
+                # 应用因果掩码
+                if causal:
+                    seq_len = key_states.size(-2)
+                    causal_mask = torch.triu(
+                        torch.ones((query_length, seq_len), dtype=torch.bool, device=query_states.device), diagonal=1
+                    )
+                    attn_weights = attn_weights.masked_fill(causal_mask.unsqueeze(0).unsqueeze(0), float("-inf"))
+
+                attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+                attn_weights = nn.functional.dropout(attn_weights, p=dropout, training=self.training)
+                attn_output = torch.matmul(attn_weights, value_states)
+
+                return attn_output
+            elif not _is_mps_device and flash_attn_func is not None:
                 attn_output = flash_attn_func(
                     query_states,
                     key_states,
@@ -1148,9 +1212,7 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
 
         return attn_output
 
-    def _upad_input(
-        self, query_layer, key_layer, value_layer, attention_mask, query_length
-    ):
+    def _upad_input(self, query_layer, key_layer, value_layer, attention_mask, query_length):
         indices_k, cu_seqlens_k, max_seqlen_in_batch_k = _get_unpad_data(attention_mask)
         batch_size, kv_seq_len, num_key_value_heads, head_dim = key_layer.shape
 
@@ -1168,7 +1230,7 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
             # Fallback实现
             key_layer = key_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim)[indices_k]
             value_layer = value_layer.reshape(batch_size * kv_seq_len, num_key_value_heads, head_dim)[indices_k]
-            
+
         if query_length == kv_seq_len:
             # 在MPS设备上不使用index_first_axis，直接使用标准实现
             if not _is_mps_device and index_first_axis is not None:
@@ -1194,9 +1256,7 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
             attention_mask = attention_mask[:, -query_length:]
             # 在MPS设备上不使用unpad_input，直接使用标准实现
             if not _is_mps_device and unpad_input is not None:
-                query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(
-                    query_layer, attention_mask
-                )
+                query_layer, indices_q, cu_seqlens_q, max_seqlen_in_batch_q = unpad_input(query_layer, attention_mask)
             else:
                 # Fallback实现
                 indices_q = torch.nonzero(attention_mask.flatten(), as_tuple=False).flatten()
@@ -1218,17 +1278,13 @@ class DeepseekV2FlashAttention2(DeepseekV2Attention):
 ATTENTION_CLASSES = {
     "eager": DeepseekV2Attention,
     "flash_attention_2": DeepseekV2FlashAttention2,
-
     "mla_eager": DeepseekV2Attention,
     "mla_flash_attention_2": DeepseekV2FlashAttention2,
 }
 
 # 只有在Llama相关类可用时才添加它们
 if LlamaAttention is not None and LlamaFlashAttention2 is not None:
-    ATTENTION_CLASSES.update({
-        "mha_eager": LlamaAttention,
-        "mha_flash_attention_2": LlamaFlashAttention2
-    })
+    ATTENTION_CLASSES.update({"mha_eager": LlamaAttention, "mha_flash_attention_2": LlamaFlashAttention2})
 
 
 class DeepseekV2DecoderLayer(nn.Module):
@@ -1260,12 +1316,12 @@ class DeepseekV2DecoderLayer(nn.Module):
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
+        past_key_value: Optional[tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
-        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
         **kwargs,
-    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+    ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
         Args:
             hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
@@ -1457,15 +1513,15 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[list[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    ) -> Union[Tuple, BaseModelOutputWithPast]:
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,
+    ) -> tuple | BaseModelOutputWithPast:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1486,28 +1542,42 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
 
         if self.gradient_checkpointing and self.training:
             if use_cache:
-                logger.warning(
-                    "`use_cache=True` 与梯度检查点不兼容。将 `use_cache=False` 设置为transformers。"
-                )
+                logger.warning("`use_cache=True` 与梯度检查点不兼容。将 `use_cache=False` 设置为transformers。")
                 use_cache = False
 
         past_key_values_length = 0
         if use_cache:
             use_legacy_cache = not isinstance(past_key_values, Cache)
             if use_legacy_cache:
-                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+                # 检查past_key_values格式是否正确
+                if past_key_values is not None:
+                    try:
+                        # 验证past_key_values格式
+                        if len(past_key_values) > 0 and isinstance(past_key_values[0], (tuple, list)):
+                            # 检查每个层是否有key_states和value_states
+                            if len(past_key_values[0]) >= 2:
+                                past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+                            else:
+                                # 格式不正确，创建空的缓存
+                                past_key_values = DynamicCache()
+                        else:
+                            # 格式不正确，创建空的缓存
+                            past_key_values = DynamicCache()
+                    except (ValueError, IndexError, TypeError) as e:
+                        # 如果转换失败，创建空的缓存
+                        logger.warning(f"转换past_key_values失败: {e}, 创建空的缓存")
+                        past_key_values = DynamicCache()
+                else:
+                    past_key_values = DynamicCache()
             past_key_values_length = past_key_values.get_usable_length(seq_length)
 
         # 获取设备信息
         device = input_ids.device if input_ids is not None else inputs_embeds.device
-        
+
         # 生成position_ids仅用于向后兼容，优先使用position_embeddings
         if position_ids is None:
             position_ids = torch.arange(
-                past_key_values_length,
-                seq_length + past_key_values_length,
-                dtype=torch.long,
-                device=device
+                past_key_values_length, seq_length + past_key_values_length, dtype=torch.long, device=device
             )
             position_ids = position_ids.unsqueeze(0)
 
@@ -1517,11 +1587,15 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
             first_attn_layer = self.layers[0].self_attn
             if hasattr(first_attn_layer, "rotary_emb"):
                 # 根据模板文件，rotary_emb方法需要x参数
-                seq_len = inputs_embeds.shape[1] if inputs_embeds is not None else (input_ids.shape[1] if input_ids is not None else 1)
+                seq_len = (
+                    inputs_embeds.shape[1]
+                    if inputs_embeds is not None
+                    else (input_ids.shape[1] if input_ids is not None else 1)
+                )
                 # 生成position_embeddings
-                qk_rope_head_dim = getattr(first_attn_layer, 'qk_rope_head_dim', 64)  # 默认值64
+                qk_rope_head_dim = getattr(first_attn_layer, "qk_rope_head_dim", 64)  # 默认值64
                 dummy_x = torch.zeros(1, seq_len, 1, qk_rope_head_dim, device=device)
-                
+
                 # 尝试不同的调用方式
                 try:
                     # 首先尝试带seq_len参数的调用方式
@@ -1533,7 +1607,7 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
                     except TypeError:
                         # 如果还是失败，尝试只传递x参数
                         cos, sin = first_attn_layer.rotary_emb(dummy_x)
-                
+
                 position_embeddings = (cos, sin)
 
         if inputs_embeds is None:
@@ -1541,11 +1615,7 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
 
         if self._use_flash_attention_2:
             # 2D掩码通过各层传递
-            attention_mask = (
-                attention_mask
-                if (attention_mask is not None and 0 in attention_mask)
-                else None
-            )
+            attention_mask = attention_mask if (attention_mask is not None and 0 in attention_mask) else None
         else:
             # 4D掩码通过各层传递
             attention_mask = _prepare_4d_causal_attention_mask(
@@ -1604,7 +1674,11 @@ class DeepseekV2Model(DeepseekV2PreTrainedModel):
 
         next_cache = None
         if use_cache:
-            next_cache = next_decoder_cache.to_legacy_cache() if use_legacy_cache else next_decoder_cache
+            # 检查next_decoder_cache是否有to_legacy_cache方法
+            if hasattr(next_decoder_cache, "to_legacy_cache") and use_legacy_cache:
+                next_cache = next_decoder_cache.to_legacy_cache()
+            else:
+                next_cache = next_decoder_cache
         if not return_dict:
             return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
         return BaseModelOutputWithPast(
@@ -1652,7 +1726,7 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel, GenerationMixin):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[list[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
@@ -1660,7 +1734,7 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel, GenerationMixin):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
-    ) -> Union[Tuple, CausalLMOutputWithPast]:
+    ) -> tuple | CausalLMOutputWithPast:
         r"""
         Args:
             labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
@@ -1710,6 +1784,15 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel, GenerationMixin):
         logits = self.lm_head(hidden_states)
         logits = logits.float()
 
+        # 检查logits是否为空，避免IndexError
+        if logits.numel() == 0:
+            # 如果logits为空，创建一个空的logits张量
+            batch_size = hidden_states.shape[0] if hidden_states.dim() > 0 else 1
+            seq_length = hidden_states.shape[1] if hidden_states.dim() > 1 else 1
+            logits = torch.zeros(
+                batch_size, seq_length, self.config.vocab_size, dtype=hidden_states.dtype, device=hidden_states.device
+            )
+
         loss = None
         if labels is not None:
             # 移位，使得标记 < n 预测 n
@@ -1736,33 +1819,66 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel, GenerationMixin):
         )
 
     def prepare_inputs_for_generation(
-            self,
-            input_ids,
-            past_key_values=None,
-            attention_mask=None,
-            inputs_embeds=None,
-            **kwargs,
+        self,
+        input_ids,
+        past_key_values=None,
+        attention_mask=None,
+        inputs_embeds=None,
+        **kwargs,
     ):
         past_length = 0
         if past_key_values is not None:
             if isinstance(past_key_values, Cache):
                 cache_length = past_key_values.get_seq_length()
-                past_length = past_key_values.seen_tokens
+                # 修复seen_tokens弃用警告，使用cache_position输入替代
+                cache_position = kwargs.get("cache_position", None)
+                if cache_position is not None and len(cache_position) > 0:
+                    past_length = cache_position[-1].item() + 1
+                else:
+                    # 如果没有cache_position，尝试使用seen_tokens（如果存在）
+                    try:
+                        past_length = past_key_values.seen_tokens
+                    except AttributeError:
+                        # 如果seen_tokens也不存在，使用cache_length
+                        past_length = cache_length
                 # 修复get_max_cache()弃用警告，使用get_max_cache_shape()替代
                 try:
-                    max_cache_length = past_key_values.get_max_cache_shape()[0]
+                    max_cache_shape = past_key_values.get_max_cache_shape()
+                    if max_cache_shape is not None:
+                        max_cache_length = max_cache_shape[0]
+                    else:
+                        max_cache_length = None
                 except AttributeError:
                     # 如果get_max_cache_shape方法不存在，回退到get_max_cache
-                    max_cache_length = past_key_values.get_max_length()
+                    try:
+                        max_cache_length = past_key_values.get_max_length()
+                    except AttributeError:
+                        # 如果get_max_length也不存在，设置为None
+                        max_cache_length = None
             else:
-                cache_length = past_length = past_key_values[0][0].shape[2]
-                max_cache_length = None
+                # 处理past_key_values为元组的情况
+                try:
+                    if isinstance(past_key_values, tuple) and len(past_key_values) > 0 and len(past_key_values[0]) > 0:
+                        # 检查past_key_values[0][0]是否有shape属性
+                        if hasattr(past_key_values[0][0], "shape"):
+                            cache_length = past_length = past_key_values[0][0].shape[2]
+                        else:
+                            # 如果没有shape属性，使用默认值
+                            cache_length = past_length = 0
+                    else:
+                        # 如果past_key_values为空或结构不正确，使用默认值
+                        cache_length = past_length = 0
+                    max_cache_length = None
+                except (IndexError, AttributeError):
+                    # 如果访问出错，使用默认值
+                    cache_length = past_length = 0
+                    max_cache_length = None
 
             # 仅保留未处理的标记：
             # 1 - 如果attention_mask的长度超过input_ids的长度，那么我们处于以下设置中：
             # 一些输入仅作为缓存的一部分传递（例如，当将input_embeds作为输入时）
             if attention_mask is not None and attention_mask.shape[1] > input_ids.shape[1]:
-                input_ids = input_ids[:, -(attention_mask.shape[1] - past_length):]
+                input_ids = input_ids[:, -(attention_mask.shape[1] - past_length) :]
             # 2 - 如果past_length小于input_ids'，那么input_ids包含所有输入标记。我们可以基于past_length丢弃input_ids。
             elif past_length < input_ids.shape[1]:
                 input_ids = input_ids[:, past_length:]
@@ -1770,9 +1886,9 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel, GenerationMixin):
 
             # 如果我们即将超过最大缓存长度，我们需要裁剪输入注意力掩码。
             if (
-                    max_cache_length is not None
-                    and attention_mask is not None
-                    and cache_length + input_ids.shape[1] > max_cache_length
+                max_cache_length is not None
+                and attention_mask is not None
+                and cache_length + input_ids.shape[1] > max_cache_length
             ):
                 attention_mask = attention_mask[:, -max_cache_length:]
 
@@ -1782,7 +1898,7 @@ class DeepseekV2ForCausalLM(DeepseekV2PreTrainedModel, GenerationMixin):
             position_ids = attention_mask.long().cumsum(-1) - 1
             position_ids.masked_fill_(attention_mask == 0, 1)
             if past_key_values:
-                position_ids = position_ids[:, -input_ids.shape[1]:]
+                position_ids = position_ids[:, -input_ids.shape[1] :]
 
         if self.generation_config.cache_implementation == "static":
             # 使用静态缓存生成
@@ -1864,17 +1980,17 @@ class DeepseekV2ForSequenceClassification(DeepseekV2PreTrainedModel):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[list[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-    ) -> Union[Tuple, SequenceClassifierOutputWithPast]:
+    ) -> tuple | SequenceClassifierOutputWithPast:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
-            用于计算序列分类/回归损失的标签。索引应该在`[0, 
+            用于计算序列分类/回归损失的标签。索引应该在`[0,
             config.num_labels - 1]`范围内。如果`config.num_labels == 1`，则计算回归损失（均方损失），如果
             `config.num_labels > 1`，则计算分类损失（交叉熵）。
         """

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 模型配置处理器
 用于动态修改模型配置，确保正确加载源代码中的模型实现
@@ -8,7 +7,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from transformers import AutoConfig
 
@@ -51,7 +50,7 @@ class ModelConfigProcessor:
             f"模型配置处理器初始化: model_path={model_path}, source_code_path={source_code_path}, is_local={self.is_local_path}"
         )
 
-    def get_modified_config(self, **kwargs) -> Dict[str, Any]:
+    def get_modified_config(self, **kwargs) -> dict[str, Any]:
         """
         获取修改后的配置
 
@@ -126,7 +125,7 @@ class ModelConfigProcessor:
                     logger.warning(f"配置文件不存在: {config_path}")
                     return None
 
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, encoding="utf-8") as f:
                     config_dict = json.load(f)
 
                 # 根据app.yaml配置动态替换auto_map
@@ -168,7 +167,7 @@ class ModelConfigProcessor:
             traceback.print_exc()
             return None
 
-    def _apply_app_config_auto_map(self, config_dict: Dict[str, Any]) -> None:
+    def _apply_app_config_auto_map(self, config_dict: dict[str, Any]) -> None:
         """
         根据app.yaml配置应用auto_map替换
 
